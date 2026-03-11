@@ -1,20 +1,17 @@
 name: Claude Code
-
 on:
   issue_comment:
     types: [created]
   issues:
     types: [opened]
-
 jobs:
   claude:
     if: contains(github.event.comment.body, '@claude') || contains(github.event.issue.body, '@claude')
     runs-on: ubuntu-latest
-   permissions:
+    permissions:
       contents: write
       pull-requests: write
       issues: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: anthropics/claude-code-action@v1
