@@ -9,7 +9,6 @@
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
                  'Helvetica Neue', Arial, sans-serif;
@@ -22,216 +21,126 @@
   /* ── Header ── */
   .report-header {
     background: linear-gradient(135deg, #0066cc 0%, #004999 100%);
-    color: white;
-    text-align: center;
-    padding: 35px 20px 28px;
+    color: white; text-align: center; padding: 35px 20px 28px;
   }
-  .report-header h1 {
-    font-size: 1.9em;
-    margin-bottom: 6px;
-    font-weight: 700;
-  }
-  .report-header .subtitle {
-    font-size: 1.05em;
-    opacity: 0.9;
-  }
+  .report-header h1 { font-size: 1.9em; margin-bottom: 6px; font-weight: 700; }
+  .report-header .subtitle { font-size: 1.05em; opacity: 0.9; }
   .report-header .badge {
-    display: inline-block;
-    background: rgba(255,255,255,0.2);
-    padding: 4px 16px;
-    border-radius: 20px;
-    margin-top: 10px;
-    font-size: 0.85em;
+    display: inline-block; background: rgba(255,255,255,0.2);
+    padding: 4px 16px; border-radius: 20px; margin-top: 10px; font-size: 0.85em;
   }
 
   /* ── Layout ── */
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 25px 20px;
-  }
-
+  .container { max-width: 1200px; margin: 0 auto; padding: 25px 20px; }
   .section {
-    background: white;
-    border-radius: 12px;
-    padding: 28px;
-    margin-bottom: 25px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    background: white; border-radius: 12px; padding: 28px;
+    margin-bottom: 25px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
   }
+  .section h2 { color: #0066cc; font-size: 1.35em; margin-bottom: 8px; font-weight: 700; }
+  .section .section-desc { color: #666; font-size: 0.92em; margin-bottom: 18px; }
 
-  .section h2 {
-    color: #0066cc;
-    font-size: 1.35em;
-    margin-bottom: 8px;
-    font-weight: 700;
-  }
-
-  .section .section-desc {
-    color: #666;
-    font-size: 0.92em;
-    margin-bottom: 18px;
-  }
-
-  /* ── Two column layout ── */
-  .two-col {
-    display: grid;
-    grid-template-columns: 1fr 1.5fr;
-    gap: 25px;
-  }
+  .two-col { display: grid; grid-template-columns: 1fr 1.5fr; gap: 25px; }
+  .two-col-equal { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
   @media (max-width: 850px) {
-    .two-col { grid-template-columns: 1fr; }
-  }
-
-  .two-col-equal {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 25px;
-  }
-  @media (max-width: 850px) {
-    .two-col-equal { grid-template-columns: 1fr; }
+    .two-col, .two-col-equal { grid-template-columns: 1fr; }
   }
 
   /* ── Metrics ── */
-  .metrics {
-    display: flex;
-    gap: 15px;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin: 20px 0;
-  }
+  .metrics { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 20px 0; }
   .metric {
-    background: #f7f9fc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 16px 28px;
-    text-align: center;
-    min-width: 140px;
+    background: #f7f9fc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 16px 28px; text-align: center; min-width: 140px;
   }
-  .metric .value {
-    font-size: 2em;
-    font-weight: 700;
-    color: #0066cc;
+  .metric .value { font-size: 2em; font-weight: 700; color: #0066cc; }
+  .metric .label { color: #666; font-size: 0.9em; margin-top: 3px; }
+
+  /* ── Station filter panel ── */
+  .filter-panel {
+    background: white; border-radius: 12px; padding: 20px 24px;
+    margin-bottom: 25px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
   }
-  .metric .label {
-    color: #666;
-    font-size: 0.9em;
-    margin-top: 3px;
+  .filter-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px; flex-wrap: wrap; gap: 10px;
+  }
+  .filter-header h2 { color: #0066cc; font-size: 1.2em; font-weight: 700; margin: 0; }
+  .filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filter-actions button {
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #ccc;
+    background: #f7f9fc; cursor: pointer; font-size: 0.85em;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .filter-actions button:hover { background: #e8f0fe; border-color: #0066cc; }
+  .filter-actions button.active { background: #0066cc; color: white; border-color: #0066cc; }
+
+  .filter-grid {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .station-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: 18px;
+    border: 2px solid #ddd; background: #f9f9f9;
+    cursor: pointer; font-size: 0.85em; transition: all 0.15s;
+    user-select: none;
+  }
+  .station-chip:hover { border-color: #0066cc; background: #f0f5ff; }
+  .station-chip.selected {
+    border-color: #0066cc; background: #e8f0fe; font-weight: 600;
+  }
+  .station-chip .dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+  }
+  .filter-count {
+    font-size: 0.88em; color: #666; margin-top: 10px;
   }
 
   /* ── Methodology box ── */
   .method-box {
-    background: #f7f9fc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 22px;
+    background: #f7f9fc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 22px;
   }
-  .method-box h3 {
-    color: #333;
-    font-size: 1.1em;
-    margin-bottom: 12px;
-  }
-  .method-box p {
-    font-size: 0.92em;
-    color: #555;
-    margin-bottom: 10px;
-  }
-
-  /* ── Formula ── */
+  .method-box h3 { color: #333; font-size: 1.1em; margin-bottom: 12px; }
+  .method-box p { font-size: 0.92em; color: #555; margin-bottom: 10px; }
   .formula {
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 15px;
-    text-align: center;
-    font-size: 1.15em;
-    margin: 14px 0;
-    direction: ltr;
+    background: white; border: 1px solid #ddd; border-radius: 8px;
+    padding: 15px; text-align: center; font-size: 1.15em; margin: 14px 0; direction: ltr;
   }
-  .frac {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    vertical-align: middle;
-  }
-  .frac .num {
-    border-bottom: 2px solid #333;
-    padding-bottom: 4px;
-  }
-  .frac .den {
-    padding-top: 4px;
-  }
+  .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; }
+  .frac .num { border-bottom: 2px solid #333; padding-bottom: 4px; }
+  .frac .den { padding-top: 4px; }
 
   /* ── Heatmap table ── */
   .table-wrap { overflow-x: auto; }
-
   .heatmap {
-    border-collapse: collapse;
-    width: 100%;
-    direction: ltr;
-    text-align: center;
-    font-size: 0.85em;
+    border-collapse: collapse; width: 100%; direction: ltr;
+    text-align: center; font-size: 0.85em;
   }
-  .heatmap th, .heatmap td {
-    padding: 8px 6px;
-    border: 1px solid #e0e0e0;
-    white-space: nowrap;
-  }
+  .heatmap th, .heatmap td { padding: 8px 6px; border: 1px solid #e0e0e0; white-space: nowrap; }
   .hm-corner { background: #f7f9fc; }
   .hm-header {
-    background: #f7f9fc;
-    color: #333;
-    font-weight: 600;
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    padding: 12px 6px;
-    font-size: 0.85em;
-    max-height: 150px;
+    background: #f7f9fc; color: #333; font-weight: 600;
+    writing-mode: vertical-rl; text-orientation: mixed;
+    padding: 12px 6px; font-size: 0.85em; max-height: 150px;
   }
   .hm-station {
-    background: #f7f9fc;
-    font-weight: 600;
-    text-align: right;
-    padding: 8px 10px;
-    direction: rtl;
+    background: #f7f9fc; font-weight: 600; text-align: right;
+    padding: 8px 10px; direction: rtl;
   }
-  .hm-cell {
-    font-weight: 600;
-    min-width: 52px;
-  }
+  .hm-cell { font-weight: 600; min-width: 52px; }
 
   /* ── Findings ── */
   .findings {
-    background: #f0f7ff;
-    border: 1px solid #b3d4fc;
-    border-radius: 10px;
-    padding: 22px 28px;
+    background: #f0f7ff; border: 1px solid #b3d4fc;
+    border-radius: 10px; padding: 22px 28px;
   }
-  .findings h3 {
-    color: #0066cc;
-    margin-bottom: 14px;
-    font-size: 1.15em;
-  }
-  .findings ul {
-    list-style: none;
-    padding: 0;
-  }
+  .findings h3 { color: #0066cc; margin-bottom: 14px; font-size: 1.15em; }
+  .findings ul { list-style: none; padding: 0; }
   .findings li {
-    padding: 8px 0;
-    border-bottom: 1px solid #d6e8fa;
-    font-size: 0.93em;
-    line-height: 1.7;
+    padding: 8px 0; border-bottom: 1px solid #d6e8fa;
+    font-size: 0.93em; line-height: 1.7;
   }
   .findings li:last-child { border-bottom: none; }
 
-  /* ── Footer ── */
-  .footer {
-    text-align: center;
-    color: #888;
-    padding: 20px;
-    font-size: 0.85em;
-  }
-
-  /* ── Leaflet fixes for RTL ── */
+  .footer { text-align: center; color: #888; padding: 20px; font-size: 0.85em; }
   .leaflet-container { direction: ltr; }
 </style>
 </head>
@@ -240,7 +149,7 @@
 <!-- ════════════════════════ HEADER ════════════════════════ -->
 <div class="report-header">
     <h1>אפיון סביבתי ופורנזי של פלומת PFAS</h1>
-    <div class="subtitle">ניתוח הידרוגיאולוגי והשוואה סטטיסטית של פרופילים כימיים במרחב דליה - מעין צבי</div>
+    <div class="subtitle">ניתוח הידרוגיאולוגי והשוואה סטטיסטית של פרופילים כימיים</div>
     <div class="badge">דו"ח עצמאי (Standalone HTML)</div>
 </div>
 
@@ -248,25 +157,27 @@
 
     <!-- ════════════════════════ METRICS ════════════════════════ -->
     <div class="metrics">
-        <div class="metric">
-            <div class="value">18</div>
-            <div class="label">תחנות דיגום</div>
-        </div>
-        <div class="metric">
-            <div class="value">8</div>
-            <div class="label">תרכובות PFAS</div>
-        </div>
-        <div class="metric">
-            <div class="value">432</div>
-            <div class="label">שורות נתונים</div>
-        </div>
-        <div class="metric">
-            <div class="value">5</div>
-            <div class="label">סוגי מקור</div>
-        </div>
+        <div class="metric"><div class="value">18</div><div class="label">תחנות דיגום</div></div>
+        <div class="metric"><div class="value">8</div><div class="label">תרכובות PFAS</div></div>
+        <div class="metric"><div class="value">432</div><div class="label">שורות נתונים</div></div>
+        <div class="metric"><div class="value">5</div><div class="label">סוגי מקור</div></div>
     </div>
 
-    <!-- ════════════════════════ 1. MAP ════════════════════════ -->
+    <!-- ════════════════════════ STATION FILTER ════════════════════════ -->
+    <div class="filter-panel">
+        <div class="filter-header">
+            <h2>בחירת נקודות דיגום</h2>
+            <div class="filter-actions">
+                <button onclick="selectAll()">בחר הכל</button>
+                <button onclick="selectNone()">נקה הכל</button>
+            </div>
+        </div>
+        <div class="filter-actions" id="source-filters" style="margin-bottom:12px"></div>
+        <div class="filter-grid" id="station-chips"></div>
+        <div class="filter-count" id="filter-count"></div>
+    </div>
+
+    <!-- ════════════════════════ MAP + METHODOLOGY ════════════════════════ -->
     <div class="two-col">
         <div class="section">
             
@@ -274,11 +185,11 @@
         <h3>מתודולוגיה: מדד דמיון הקוסינוס (Cosine Similarity)</h3>
         <p>השוואת 18 תחנות המפתח מבוצעת על בסיס פרופיל ההרכב
         הכימי כווקטור נתונים, תוך נטרול השפעת גודל הריכוזים. מידת
-        הדמיון מחושבת על בסיס הזווית (θ) שבין הווקטורים:</p>
+        הדמיון מחושבת על בסיס הזווית (&theta;) שבין הווקטורים:</p>
         <div class="formula">
-            Similarity = cos(θ) = <span class="frac">
-                <span class="num">Σ (A<sub>i</sub> × B<sub>i</sub>)</span>
-                <span class="den">√Σ(A<sub>i</sub>)² × √Σ(B<sub>i</sub>)²</span>
+            Similarity = cos(&theta;) = <span class="frac">
+                <span class="num">&Sigma; (A<sub>i</sub> &times; B<sub>i</sub>)</span>
+                <span class="den">&radic;&Sigma;(A<sub>i</sub>)&sup2; &times; &radic;&Sigma;(B<sub>i</sub>)&sup2;</span>
             </span>
         </div>
         <p>ערך הקרוב ל-100% מצביע על חותמת כימית זהה. ניתוח
@@ -289,281 +200,286 @@
     
         </div>
         <div class="section">
-            <h2>1. פריסת כלל נקודות הדיגום במרחב הגיאוגרפי</h2>
-            <p class="section-desc">המפה מציגה את 18 התחנות הנדגמות (קואורדינטות ITM מומרות ל-WGS84), מסווגות לפי מדיום הידרולוגי.</p>
-            
-    <div id="map" style="height:450px;border-radius:8px;"></div>
-    <script>
-        var map = L.map('map').setView([32.762170, 34.982992], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-        
-        L.circleMarker([32.772469, 34.998917], {
-            radius: 8, fillColor: '#e74c3c', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>מט"ש חיפה - פליטה</b><br>סוג: מט"ש<br>תרכובות: 8');
-        
-        L.circleMarker([32.772319, 34.922071], {
-            radius: 8, fillColor: '#9b59b6', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>מעיין B-4</b><br>סוג: מעיין<br>תרכובות: 8');
-        
-        L.circleMarker([32.767939, 34.986120], {
-            radius: 8, fillColor: '#f39c12', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>נחל הקישון - גשר הזיו</b><br>סוג: מים עיליים<br>תרכובות: 8');
-        
-        L.circleMarker([32.727324, 34.964884], {
-            radius: 8, fillColor: '#f39c12', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>נחל הקישון - יוקנעם</b><br>סוג: מים עיליים<br>תרכובות: 8');
-        
-        L.circleMarker([32.776991, 35.007445], {
-            radius: 8, fillColor: '#f39c12', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>נחל הקישון - שפך</b><br>סוג: מים עיליים<br>תרכובות: 8');
-        
-        L.circleMarker([32.785880, 34.938040], {
-            radius: 8, fillColor: '#2ecc71', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח B-1 (כרמל)</b><br>סוג: קידוח הפקה<br>תרכובות: 8');
-        
-        L.circleMarker([32.790421, 34.954040], {
-            radius: 8, fillColor: '#2ecc71', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח B-2 (נשר)</b><br>סוג: קידוח הפקה<br>תרכובות: 8');
-        
-        L.circleMarker([32.736298, 34.943522], {
-            radius: 8, fillColor: '#2ecc71', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח B-3 (טירת כרמל)</b><br>סוג: קידוח הפקה<br>תרכובות: 8');
-        
-        L.circleMarker([32.781516, 35.018109], {
-            radius: 8, fillColor: '#2ecc71', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח B-5 (קריות)</b><br>סוג: קידוח הפקה<br>תרכובות: 8');
-        
-        L.circleMarker([32.761623, 34.984001], {
-            radius: 8, fillColor: '#3498db', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח K-12</b><br>סוג: קידוח ניטור<br>תרכובות: 8');
-        
-        L.circleMarker([32.758024, 34.988279], {
-            radius: 8, fillColor: '#3498db', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח K-15</b><br>סוג: קידוח ניטור<br>תרכובות: 8');
-        
-        L.circleMarker([32.753523, 34.992558], {
-            radius: 8, fillColor: '#3498db', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח K-18</b><br>סוג: קידוח ניטור<br>תרכובות: 8');
-        
-        L.circleMarker([32.749023, 34.997904], {
-            radius: 8, fillColor: '#3498db', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח K-22</b><br>סוג: קידוח ניטור<br>תרכובות: 8');
-        
-        L.circleMarker([32.744522, 35.002182], {
-            radius: 8, fillColor: '#3498db', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח K-25</b><br>סוג: קידוח ניטור<br>תרכובות: 8');
-        
-        L.circleMarker([32.740020, 35.006460], {
-            radius: 8, fillColor: '#3498db', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח K-28</b><br>סוג: קידוח ניטור<br>תרכובות: 8');
-        
-        L.circleMarker([32.769769, 35.002125], {
-            radius: 8, fillColor: '#3498db', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח M-3 (ליד מט"ש)</b><br>סוג: קידוח ניטור<br>תרכובות: 8');
-        
-        L.circleMarker([32.766169, 35.006402], {
-            radius: 8, fillColor: '#3498db', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח M-7 (מורד מט"ש)</b><br>סוג: קידוח ניטור<br>תרכובות: 8');
-        
-        L.circleMarker([32.765224, 34.980791], {
-            radius: 8, fillColor: '#3498db', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>קידוח תעשייתי - סולתם</b><br>סוג: קידוח ניטור<br>תרכובות: 8');
-        
-        var legend = L.control({position: 'bottomright'});
-        legend.onAdd = function(m) {
-            var div = L.DomUtil.create('div', 'legend');
-            div.style.cssText = 'background:rgba(255,255,255,0.92);padding:10px 14px;border-radius:8px;font-family:sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2);direction:rtl';
-            div.innerHTML = '<b style="font-size:13px">סוג מקור</b><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#3498db;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">קידוח ניטור</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#2ecc71;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">קידוח הפקה</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#e74c3c;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">מט"ש</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#9b59b6;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">מעיין</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#f39c12;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">מים עיליים</span></div>';
-            return div;
-        };
-        legend.addTo(map);
-    </script>
-    
+            <h2>1. פריסת נקודות הדיגום במרחב הגיאוגרפי</h2>
+            <p class="section-desc">המפה מציגה את התחנות הנבחרות (קואורדינטות ITM מומרות ל-WGS84), מסווגות לפי מדיום הידרולוגי.</p>
+            <div id="map" style="height:450px;border-radius:8px;"></div>
         </div>
     </div>
 
-    <!-- ════════════════════════ 2+3. CHARTS ════════════════════════ -->
+    <!-- ════════════════════════ CHARTS ════════════════════════ -->
     <div class="two-col-equal">
         <div class="section">
-            <h2>2. ריכוז כולל בתחנות נבחרות (ΣPFAS Attenuation)</h2>
+            <h2>2. ריכוז כולל בתחנות נבחרות (&Sigma;PFAS Attenuation)</h2>
             <p class="section-desc">ציר לוגריתמי. בחינת דעיכת מסת המזהם לאורך מסלולי הסעה שונים.</p>
-            
-    <div id="attenuation-chart" style="width:100%;height:420px;"></div>
-    <script>
-        Plotly.newPlot('attenuation-chart', [{
-            x: ["קידוח תעשייתי - סולתם", "קידוח תעשייתי - סולתם", "קידוח תעשייתי - סולתם", "מט\"ש חיפה - פליטה", "קידוח K-12", "מט\"ש חיפה - פליטה", "קידוח K-12", "קידוח K-12", "מט\"ש חיפה - פליטה", "קידוח K-15", "קידוח M-3 (ליד מט\"ש)", "קידוח K-15", "קידוח M-3 (ליד מט\"ש)", "קידוח M-3 (ליד מט\"ש)", "קידוח K-15", "נחל הקישון - גשר הזיו", "נחל הקישון - גשר הזיו", "קידוח K-18", "נחל הקישון - גשר הזיו", "נחל הקישון - שפך", "קידוח K-18", "נחל הקישון - שפך", "קידוח K-18", "נחל הקישון - שפך", "קידוח M-7 (מורד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח K-22", "נחל הקישון - יוקנעם", "קידוח K-22", "קידוח K-22", "נחל הקישון - יוקנעם", "נחל הקישון - יוקנעם", "קידוח K-25", "קידוח K-25", "קידוח K-25", "קידוח K-28", "קידוח K-28", "קידוח K-28", "קידוח B-2 (נשר)", "קידוח B-1 (כרמל)", "קידוח B-1 (כרמל)", "קידוח B-5 (קריות)", "קידוח B-3 (טירת כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-2 (נשר)", "מעיין B-4", "מעיין B-4", "קידוח B-3 (טירת כרמל)", "קידוח B-1 (כרמל)", "מעיין B-4", "קידוח B-5 (קריות)", "קידוח B-5 (קריות)"],
-            y: [17.4678, 16.2336, 15.931999999999999, 14.349899999999998, 14.0899, 12.6258, 12.3407, 11.9473, 11.8477, 9.0574, 8.2582, 8.1269, 7.830299999999999, 7.5432, 7.2696, 6.0492, 5.3883, 5.1238, 4.6971, 4.5903, 4.4035, 4.1827, 4.1762, 3.951, 3.8348, 3.7531, 3.5984, 2.5128, 2.4909, 2.2368, 2.0798, 2.0238, 1.9738, 1.424, 1.2642, 1.0824, 0.6641, 0.6074, 0.6018, 0.2906, 0.2903, 0.2847, 0.2621, 0.2525, 0.2518, 0.2263, 0.2246, 0.2236, 0.218, 0.2108, 0.1953, 0.17149999999999999, 0.16119999999999998, 0.1234],
-            type: 'bar',
-            marker: { color: ["#3498db", "#3498db", "#3498db", "#e74c3c", "#3498db", "#e74c3c", "#3498db", "#3498db", "#e74c3c", "#3498db", "#3498db", "#3498db", "#3498db", "#3498db", "#3498db", "#f39c12", "#f39c12", "#3498db", "#f39c12", "#f39c12", "#3498db", "#f39c12", "#3498db", "#f39c12", "#3498db", "#3498db", "#3498db", "#3498db", "#f39c12", "#3498db", "#3498db", "#f39c12", "#f39c12", "#3498db", "#3498db", "#3498db", "#3498db", "#3498db", "#3498db", "#2ecc71", "#2ecc71", "#2ecc71", "#2ecc71", "#2ecc71", "#2ecc71", "#2ecc71", "#2ecc71", "#9b59b6", "#9b59b6", "#2ecc71", "#2ecc71", "#9b59b6", "#2ecc71", "#2ecc71"] },
-            hovertemplate: '<b>%{x}</b><br>ΣPFAS: %{y:.2f} µg/L<extra></extra>'
-        }], {
-            yaxis: {
-                type: 'log',
-                title: { text: 'ריכוז כולל (µg/L)', font: { size: 13 } },
-                gridcolor: '#e0e0e0'
-            },
-            xaxis: { tickangle: -35, tickfont: { size: 11 } },
-            margin: { t: 20, b: 120, l: 60, r: 20 },
-            plot_bgcolor: '#fafafa',
-            paper_bgcolor: 'white',
-            hoverlabel: { font: { size: 13 } }
-        }, { responsive: true });
-    </script>
-    
+            <div id="attenuation-chart" style="width:100%;height:420px;"></div>
         </div>
         <div class="section">
             <h2>3. הרכב כימי יחסי (Chromatographic Shift)</h2>
-            <p class="section-desc">מנורמל ל-100%. התפלגות התרכובות העיקריות ב-18 תחנות המפתח.</p>
-            
-    <div id="fingerprint-chart" style="width:100%;height:420px;"></div>
-    <script>
-        Plotly.newPlot('fingerprint-chart', [{
-            x: ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"],
-            y: [14.68, 5.63, 1.66, 2.11, 2.32, 3.97, 3.08, 2.32, 8.12, 1.24, 1.17, 1.68, 1.06, 1.11, 0.92, 13.99, 14.05, 1.27],
-            name: 'GenX',
-            type: 'bar',
-            marker: { color: '#e67e22' },
-            hovertemplate: '<b>GenX</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"],
-            y: [19.71, 15.9, 9.79, 8.96, 10.3, 11.87, 10.94, 18.21, 8.54, 4.44, 5.5, 4.91, 5.04, 5.19, 4.77, 15.6, 19.5, 4.45],
-            name: 'PFBS',
-            type: 'bar',
-            marker: { color: '#1abc9c' },
-            hovertemplate: '<b>PFBS</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"],
-            y: [4.75, 3.15, 3.27, 2.56, 2.65, 4.93, 4.07, 6.24, 4.44, 1.56, 2.08, 1.84, 1.85, 2.3, 1.88, 5.4, 4.88, 1.91],
-            name: 'PFDA',
-            type: 'bar',
-            marker: { color: '#f39c12' },
-            hovertemplate: '<b>PFDA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"],
-            y: [2.14, 8.06, 16.3, 15.83, 17.6, 6.53, 11.17, 6.13, 13.92, 10.55, 10.33, 10.91, 10.28, 10.04, 10.58, 2.45, 2.26, 10.78],
-            name: 'PFHxS',
-            type: 'bar',
-            marker: { color: '#3498db' },
-            hovertemplate: '<b>PFHxS</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"],
-            y: [10.04, 5.19, 4.09, 5.3, 5.97, 7.0, 4.58, 5.35, 4.37, 2.28, 3.03, 3.5, 3.13, 3.58, 3.34, 9.86, 9.21, 3.01],
-            name: 'PFNA',
-            type: 'bar',
-            marker: { color: '#2ecc71' },
-            hovertemplate: '<b>PFNA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"],
-            y: [39.41, 36.24, 28.47, 23.5, 28.32, 43.94, 43.55, 33.72, 40.94, 19.34, 24.87, 21.87, 18.85, 19.02, 23.58, 44.61, 41.84, 22.41],
-            name: 'PFOA',
-            type: 'bar',
-            marker: { color: '#e91e9e' },
-            hovertemplate: '<b>PFOA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"],
-            y: [7.52, 25.84, 35.38, 41.09, 31.9, 21.76, 22.62, 28.03, 19.66, 60.02, 52.36, 54.69, 59.04, 58.11, 54.62, 6.7, 6.65, 55.47],
-            name: 'PFOS',
-            type: 'bar',
-            marker: { color: '#e74c3c' },
-            hovertemplate: '<b>PFOS</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"],
-            y: [1.76, 0.0, 1.05, 0.65, 0.94, 0.0, 0.0, 0.0, 0.0, 0.57, 0.66, 0.6, 0.76, 0.66, 0.3, 1.38, 1.62, 0.69],
-            name: 'PFUnDA',
-            type: 'bar',
-            marker: { color: '#9b59b6' },
-            hovertemplate: '<b>PFUnDA</b>: %{y:.1f}%<extra></extra>'
-        }], {
-            barmode: 'stack',
-            yaxis: {
-                title: { text: 'הרכב יחסי (%)', font: { size: 13 } },
-                range: [0, 100],
-                gridcolor: '#e0e0e0'
-            },
-            xaxis: { tickangle: -35, tickfont: { size: 11 } },
-            margin: { t: 20, b: 120, l: 50, r: 20 },
-            plot_bgcolor: '#fafafa',
-            paper_bgcolor: 'white',
-            legend: { orientation: 'v', x: 1.02, y: 1, font: { size: 11 } },
-            hoverlabel: { font: { size: 13 } }
-        }, { responsive: true });
-    </script>
-    
+            <p class="section-desc">מנורמל ל-100%. התפלגות התרכובות העיקריות בתחנות הנבחרות.</p>
+            <div id="fingerprint-chart" style="width:100%;height:420px;"></div>
         </div>
     </div>
 
-    <!-- ════════════════════════ 4. HEATMAP ════════════════════════ -->
+    <!-- ════════════════════════ HEATMAP ════════════════════════ -->
     <div class="section">
         <h2>4. מטריצת דמיון סטטיסטית אובייקטיבית (Cosine Similarity Heatmap)</h2>
-        <p class="section-desc">חישוב מתמטי ישיר לבחינת התאמת תבניות (Pattern Matching). תחנות הרקע הדורות מסודרות משמאל להדגשת שונות.</p>
-        
-    <div class="table-wrap">
-    <table class="heatmap">
-        <thead><tr><th class="hm-corner"></th><th class="hm-header">מט"ש חיפה - פליטה</th><th class="hm-header">מעיין B-4</th><th class="hm-header">נחל הקישון - גשר הזיו</th><th class="hm-header">נחל הקישון - יוקנעם</th><th class="hm-header">נחל הקישון - שפך</th><th class="hm-header">קידוח B-1 (כרמל)</th><th class="hm-header">קידוח B-2 (נשר)</th><th class="hm-header">קידוח B-3 (טירת כרמל)</th><th class="hm-header">קידוח B-5 (קריות)</th><th class="hm-header">קידוח K-12</th><th class="hm-header">קידוח K-15</th><th class="hm-header">קידוח K-18</th><th class="hm-header">קידוח K-22</th><th class="hm-header">קידוח K-25</th><th class="hm-header">קידוח K-28</th><th class="hm-header">קידוח M-3 (ליד מט"ש)</th><th class="hm-header">קידוח M-7 (מורד מט"ש)</th><th class="hm-header">קידוח תעשייתי - סולתם</th></tr></thead>
-        <tbody><tr><td class="hm-station">מט"ש חיפה - פליטה</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">71%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">62%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">86%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">44%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.27);color:#333">54%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.25);color:#333">50%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">45%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.14);color:#333">46%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">51%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">50%</td></tr>
-<tr><td class="hm-station">מעיין B-4</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">94%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">95%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">97%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">85%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.57);color:#fff">82%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">79%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.58);color:#fff">83%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.57);color:#fff">82%</td></tr>
-<tr><td class="hm-station">נחל הקישון - גשר הזיו</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">71%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">94%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">94%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">94%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">95%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.49);color:#fff">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.49);color:#fff">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">94%</td></tr>
-<tr><td class="hm-station">נחל הקישון - יוקנעם</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">62%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.58);color:#fff">83%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">85%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">84%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">61%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">61%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">97%</td></tr>
-<tr><td class="hm-station">נחל הקישון - שפך</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">95%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">95%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">73%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">73%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td></tr>
-<tr><td class="hm-station">קידוח B-1 (כרמל)</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.58);color:#fff">83%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.35);color:#333">69%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.35);color:#333">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.49);color:#fff">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.53);color:#fff">76%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td></tr>
-<tr><td class="hm-station">קידוח B-2 (נשר)</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">85%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.56);color:#fff">80%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">76%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.81);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">76%</td></tr>
-<tr><td class="hm-station">קידוח B-3 (טירת כרמל)</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">86%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">94%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">95%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.56);color:#fff">80%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">87%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">84%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.56);color:#fff">81%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.57);color:#fff">81%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">85%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">85%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">86%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">84%</td></tr>
-<tr><td class="hm-station">קידוח B-5 (קריות)</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">97%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">84%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">69%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">69%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.35);color:#333">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.53);color:#fff">75%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.81);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td></tr>
-<tr><td class="hm-station">קידוח K-12</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">44%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.35);color:#333">69%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.56);color:#fff">80%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">69%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">43%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">43%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td></tr>
-<tr><td class="hm-station">קידוח K-15</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.27);color:#333">54%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">85%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.56);color:#fff">80%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">87%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.27);color:#333">54%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.27);color:#333">53%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td></tr>
-<tr><td class="hm-station">קידוח K-18</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.25);color:#333">50%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.57);color:#fff">82%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">94%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">76%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">84%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td></tr>
-<tr><td class="hm-station">קידוח K-22</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">45%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.35);color:#333">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.56);color:#fff">81%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">69%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">43%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">43%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td></tr>
-<tr><td class="hm-station">קידוח K-25</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.14);color:#333">46%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">79%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.49);color:#fff">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.57);color:#fff">81%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.35);color:#333">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">44%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">44%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td></tr>
-<tr><td class="hm-station">קידוח K-28</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">51%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.58);color:#fff">83%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">95%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.53);color:#fff">76%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">85%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.53);color:#fff">75%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.25);color:#333">51%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.25);color:#333">50%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td></tr>
-<tr><td class="hm-station">קידוח M-3 (ליד מט"ש)</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.49);color:#fff">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">61%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">73%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.81);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">85%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">43%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.27);color:#333">54%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">43%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">44%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.25);color:#333">51%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td></tr>
-<tr><td class="hm-station">קידוח M-7 (מורד מט"ש)</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.49);color:#fff">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">61%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">73%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">86%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.81);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">43%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.27);color:#333">53%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">43%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">44%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.25);color:#333">50%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">48%</td></tr>
-<tr><td class="hm-station">קידוח תעשייתי - סולתם</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">50%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.57);color:#fff">82%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">94%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">97%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">76%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">84%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">48%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td></tr>
-</tbody>
-    </table>
-    </div>
-    
+        <p class="section-desc">חישוב מתמטי ישיר לבחינת התאמת תבניות (Pattern Matching).</p>
+        <div class="table-wrap" id="heatmap-container"></div>
     </div>
 
-    <!-- ════════════════════════ 5. FINDINGS ════════════════════════ -->
+    <!-- ════════════════════════ FINDINGS ════════════════════════ -->
     <div class="section">
         <div class="findings">
             <h3>סיכום ממצאים מתצפיות והרכביות:</h3>
-            <ul>
-                <li><b>ריכוז הגבוה ביותר:</b> תחנה "קידוח תעשייתי - סולתם" (קידוח ניטור) עם ריכוז כולל של 17.47 µg/L.</li>
-<li><b>תרכובת דומיננטית:</b> PFOS מהווה בממוצע 35.6% מסך הריכוזים בכל התחנות.</li>
-<li><b>קורלציה חזקה (44 זוגות ≥95%):</b> המטריצה מעידה על קורלציה איתנה בין מקורות תחנה לבין רוב הנקודות במורד נחל דליה וכולל מאגרי מעין צבי. דוגמאות: "מט"ש חיפה - פליטה" ↔ "קידוח M-3 (ליד מט"ש)" (99%), "מט"ש חיפה - פליטה" ↔ "קידוח M-7 (מורד מט"ש)" (100%), "מעיין B-4" ↔ "קידוח B-1 (כרמל)" (98%), "מעיין B-4" ↔ "קידוח B-2 (נשר)" (98%), "מעיין B-4" ↔ "קידוח B-3 (טירת כרמל)" (99%).</li>
-<li><b>טווח ריכוזים:</b> יחס ריכוז מקסימלי/מינימלי = 142x (מ-0.12 עד 17.47 µg/L), המעיד על דעיכה (Attenuation) לאורך מסלולי הזרימה.</li>
-<li><b>היקף הסקר:</b> פריסת 18 נקודות דיגום ב-5 סוגי מקור, 8 תרכובות PFAS.</li>
-            </ul>
+            <ul id="findings-list"></ul>
         </div>
     </div>
 
 </div>
 
-<!-- ════════════════════════ FOOTER ════════════════════════ -->
 <div class="footer">
-    <p>🔒 דוח זה נוצר מנתוני דוגמה סינתטיים | GeoForensics v0.1.0 | נוצר אוטומטית</p>
+    <p>GeoForensics v0.1.0 | נוצר אוטומטית מקובץ: sample_pfas.xlsx</p>
 </div>
+
+<!-- ════════════════════════ DATA + LOGIC ════════════════════════ -->
+<script>
+// ── Embedded data ──
+const DATA = {"stations": [{"name": "מט\"ש חיפה - פליטה", "lat": 32.772469, "lon": 34.998917, "source_type": "מט\"ש", "n_compounds": 8}, {"name": "מעיין B-4", "lat": 32.772319, "lon": 34.922071, "source_type": "מעיין", "n_compounds": 8}, {"name": "נחל הקישון - גשר הזיו", "lat": 32.767939, "lon": 34.98612, "source_type": "מים עיליים", "n_compounds": 8}, {"name": "נחל הקישון - יוקנעם", "lat": 32.727324, "lon": 34.964884, "source_type": "מים עיליים", "n_compounds": 8}, {"name": "נחל הקישון - שפך", "lat": 32.776991, "lon": 35.007445, "source_type": "מים עיליים", "n_compounds": 8}, {"name": "קידוח B-1 (כרמל)", "lat": 32.78588, "lon": 34.93804, "source_type": "קידוח הפקה", "n_compounds": 8}, {"name": "קידוח B-2 (נשר)", "lat": 32.790421, "lon": 34.95404, "source_type": "קידוח הפקה", "n_compounds": 8}, {"name": "קידוח B-3 (טירת כרמל)", "lat": 32.736298, "lon": 34.943522, "source_type": "קידוח הפקה", "n_compounds": 8}, {"name": "קידוח B-5 (קריות)", "lat": 32.781516, "lon": 35.018109, "source_type": "קידוח הפקה", "n_compounds": 8}, {"name": "קידוח K-12", "lat": 32.761623, "lon": 34.984001, "source_type": "קידוח ניטור", "n_compounds": 8}, {"name": "קידוח K-15", "lat": 32.758024, "lon": 34.988279, "source_type": "קידוח ניטור", "n_compounds": 8}, {"name": "קידוח K-18", "lat": 32.753523, "lon": 34.992558, "source_type": "קידוח ניטור", "n_compounds": 8}, {"name": "קידוח K-22", "lat": 32.749023, "lon": 34.997904, "source_type": "קידוח ניטור", "n_compounds": 8}, {"name": "קידוח K-25", "lat": 32.744522, "lon": 35.002182, "source_type": "קידוח ניטור", "n_compounds": 8}, {"name": "קידוח K-28", "lat": 32.74002, "lon": 35.00646, "source_type": "קידוח ניטור", "n_compounds": 8}, {"name": "קידוח M-3 (ליד מט\"ש)", "lat": 32.769769, "lon": 35.002125, "source_type": "קידוח ניטור", "n_compounds": 8}, {"name": "קידוח M-7 (מורד מט\"ש)", "lat": 32.766169, "lon": 35.006402, "source_type": "קידוח ניטור", "n_compounds": 8}, {"name": "קידוח תעשייתי - סולתם", "lat": 32.765224, "lon": 34.980791, "source_type": "קידוח ניטור", "n_compounds": 8}], "attenuation": [{"name": "קידוח תעשייתי - סולתם", "total": 17.4678, "source_type": "קידוח ניטור"}, {"name": "קידוח תעשייתי - סולתם", "total": 16.2336, "source_type": "קידוח ניטור"}, {"name": "קידוח תעשייתי - סולתם", "total": 15.932, "source_type": "קידוח ניטור"}, {"name": "מט\"ש חיפה - פליטה", "total": 14.3499, "source_type": "מט\"ש"}, {"name": "קידוח K-12", "total": 14.0899, "source_type": "קידוח ניטור"}, {"name": "מט\"ש חיפה - פליטה", "total": 12.6258, "source_type": "מט\"ש"}, {"name": "קידוח K-12", "total": 12.3407, "source_type": "קידוח ניטור"}, {"name": "קידוח K-12", "total": 11.9473, "source_type": "קידוח ניטור"}, {"name": "מט\"ש חיפה - פליטה", "total": 11.8477, "source_type": "מט\"ש"}, {"name": "קידוח K-15", "total": 9.0574, "source_type": "קידוח ניטור"}, {"name": "קידוח M-3 (ליד מט\"ש)", "total": 8.2582, "source_type": "קידוח ניטור"}, {"name": "קידוח K-15", "total": 8.1269, "source_type": "קידוח ניטור"}, {"name": "קידוח M-3 (ליד מט\"ש)", "total": 7.8303, "source_type": "קידוח ניטור"}, {"name": "קידוח M-3 (ליד מט\"ש)", "total": 7.5432, "source_type": "קידוח ניטור"}, {"name": "קידוח K-15", "total": 7.2696, "source_type": "קידוח ניטור"}, {"name": "נחל הקישון - גשר הזיו", "total": 6.0492, "source_type": "מים עיליים"}, {"name": "נחל הקישון - גשר הזיו", "total": 5.3883, "source_type": "מים עיליים"}, {"name": "קידוח K-18", "total": 5.1238, "source_type": "קידוח ניטור"}, {"name": "נחל הקישון - גשר הזיו", "total": 4.6971, "source_type": "מים עיליים"}, {"name": "נחל הקישון - שפך", "total": 4.5903, "source_type": "מים עיליים"}, {"name": "קידוח K-18", "total": 4.4035, "source_type": "קידוח ניטור"}, {"name": "נחל הקישון - שפך", "total": 4.1827, "source_type": "מים עיליים"}, {"name": "קידוח K-18", "total": 4.1762, "source_type": "קידוח ניטור"}, {"name": "נחל הקישון - שפך", "total": 3.951, "source_type": "מים עיליים"}, {"name": "קידוח M-7 (מורד מט\"ש)", "total": 3.8348, "source_type": "קידוח ניטור"}, {"name": "קידוח M-7 (מורד מט\"ש)", "total": 3.7531, "source_type": "קידוח ניטור"}, {"name": "קידוח M-7 (מורד מט\"ש)", "total": 3.5984, "source_type": "קידוח ניטור"}, {"name": "קידוח K-22", "total": 2.5128, "source_type": "קידוח ניטור"}, {"name": "נחל הקישון - יוקנעם", "total": 2.4909, "source_type": "מים עיליים"}, {"name": "קידוח K-22", "total": 2.2368, "source_type": "קידוח ניטור"}, {"name": "קידוח K-22", "total": 2.0798, "source_type": "קידוח ניטור"}, {"name": "נחל הקישון - יוקנעם", "total": 2.0238, "source_type": "מים עיליים"}, {"name": "נחל הקישון - יוקנעם", "total": 1.9738, "source_type": "מים עיליים"}, {"name": "קידוח K-25", "total": 1.424, "source_type": "קידוח ניטור"}, {"name": "קידוח K-25", "total": 1.2642, "source_type": "קידוח ניטור"}, {"name": "קידוח K-25", "total": 1.0824, "source_type": "קידוח ניטור"}, {"name": "קידוח K-28", "total": 0.6641, "source_type": "קידוח ניטור"}, {"name": "קידוח K-28", "total": 0.6074, "source_type": "קידוח ניטור"}, {"name": "קידוח K-28", "total": 0.6018, "source_type": "קידוח ניטור"}, {"name": "קידוח B-2 (נשר)", "total": 0.2906, "source_type": "קידוח הפקה"}, {"name": "קידוח B-1 (כרמל)", "total": 0.2903, "source_type": "קידוח הפקה"}, {"name": "קידוח B-1 (כרמל)", "total": 0.2847, "source_type": "קידוח הפקה"}, {"name": "קידוח B-5 (קריות)", "total": 0.2621, "source_type": "קידוח הפקה"}, {"name": "קידוח B-3 (טירת כרמל)", "total": 0.2525, "source_type": "קידוח הפקה"}, {"name": "קידוח B-2 (נשר)", "total": 0.2518, "source_type": "קידוח הפקה"}, {"name": "קידוח B-3 (טירת כרמל)", "total": 0.2263, "source_type": "קידוח הפקה"}, {"name": "קידוח B-2 (נשר)", "total": 0.2246, "source_type": "קידוח הפקה"}, {"name": "מעיין B-4", "total": 0.2236, "source_type": "מעיין"}, {"name": "מעיין B-4", "total": 0.218, "source_type": "מעיין"}, {"name": "קידוח B-3 (טירת כרמל)", "total": 0.2108, "source_type": "קידוח הפקה"}, {"name": "קידוח B-1 (כרמל)", "total": 0.1953, "source_type": "קידוח הפקה"}, {"name": "מעיין B-4", "total": 0.1715, "source_type": "מעיין"}, {"name": "קידוח B-5 (קריות)", "total": 0.1612, "source_type": "קידוח הפקה"}, {"name": "קידוח B-5 (קריות)", "total": 0.1234, "source_type": "קידוח הפקה"}], "fingerprint": {"stations": ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"], "compounds": ["GenX", "PFBS", "PFDA", "PFHxS", "PFNA", "PFOA", "PFOS", "PFUnDA"], "values": [[14.68, 19.71, 4.75, 2.14, 10.04, 39.41, 7.52, 1.76], [5.63, 15.9, 3.15, 8.06, 5.19, 36.24, 25.84, 0.0], [1.66, 9.79, 3.27, 16.3, 4.09, 28.47, 35.38, 1.05], [2.11, 8.96, 2.56, 15.83, 5.3, 23.5, 41.09, 0.65], [2.32, 10.3, 2.65, 17.6, 5.97, 28.32, 31.9, 0.94], [3.97, 11.87, 4.93, 6.53, 7.0, 43.94, 21.76, 0.0], [3.08, 10.94, 4.07, 11.17, 4.58, 43.55, 22.62, 0.0], [2.32, 18.21, 6.24, 6.13, 5.35, 33.72, 28.03, 0.0], [8.12, 8.54, 4.44, 13.92, 4.37, 40.94, 19.66, 0.0], [1.24, 4.44, 1.56, 10.55, 2.28, 19.34, 60.02, 0.57], [1.17, 5.5, 2.08, 10.33, 3.03, 24.87, 52.36, 0.66], [1.68, 4.91, 1.84, 10.91, 3.5, 21.87, 54.69, 0.6], [1.06, 5.04, 1.85, 10.28, 3.13, 18.85, 59.04, 0.76], [1.11, 5.19, 2.3, 10.04, 3.58, 19.02, 58.11, 0.66], [0.92, 4.77, 1.88, 10.58, 3.34, 23.58, 54.62, 0.3], [13.99, 15.6, 5.4, 2.45, 9.86, 44.61, 6.7, 1.38], [14.05, 19.5, 4.88, 2.26, 9.21, 41.84, 6.65, 1.62], [1.27, 4.45, 1.91, 10.78, 3.01, 22.41, 55.47, 0.69]]}, "similarity": {"stations": ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"], "values": [[100.0, 89.3, 70.8, 62.4, 73.7, 91.6, 88.9, 86.2, 89.7, 44.2, 54.5, 50.1, 44.7, 45.5, 51.4, 99.2, 99.9, 49.7], [89.3, 100.0, 94.3, 89.7, 95.0, 98.1, 98.1, 99.1, 96.7, 77.9, 85.1, 82.0, 78.1, 78.7, 83.1, 88.7, 88.9, 81.8], [70.8, 94.3, 100.0, 98.9, 99.7, 89.5, 91.9, 94.5, 90.7, 91.4, 95.5, 94.0, 91.5, 91.8, 94.5, 70.4, 70.1, 93.9], [62.4, 89.7, 98.9, 100.0, 97.9, 83.0, 85.5, 90.7, 84.0, 96.0, 98.2, 97.6, 96.1, 96.3, 97.7, 61.3, 61.1, 97.4], [73.7, 95.0, 99.7, 97.9, 100.0, 90.6, 93.0, 94.6, 92.3, 88.5, 93.2, 91.6, 88.7, 89.0, 92.1, 73.2, 73.0, 91.3], [91.6, 98.1, 89.5, 83.0, 90.6, 100.0, 99.4, 96.4, 98.1, 69.5, 78.3, 74.4, 69.6, 70.3, 75.9, 93.0, 92.0, 74.4], [88.9, 98.1, 91.9, 85.5, 93.0, 99.4, 100.0, 96.1, 99.1, 71.6, 80.2, 76.5, 71.7, 72.3, 77.9, 90.5, 89.4, 76.4], [86.2, 99.1, 94.5, 90.7, 94.6, 96.4, 96.1, 100.0, 93.5, 80.3, 86.8, 84.0, 80.6, 81.2, 85.0, 85.0, 85.7, 83.8], [89.7, 96.7, 90.7, 84.0, 92.3, 98.1, 99.1, 93.5, 100.0, 69.0, 77.7, 74.1, 69.0, 69.6, 75.3, 91.5, 90.1, 74.0], [44.2, 77.9, 91.4, 96.0, 88.5, 69.5, 71.6, 80.3, 69.0, 100.0, 99.1, 99.7, 100.0, 100.0, 99.5, 43.0, 42.7, 99.7], [54.5, 85.1, 95.5, 98.2, 93.2, 78.3, 80.2, 86.8, 77.7, 99.1, 100.0, 99.8, 99.1, 99.2, 99.9, 53.8, 53.3, 99.8], [50.1, 82.0, 94.0, 97.6, 91.6, 74.4, 76.5, 84.0, 74.1, 99.7, 99.8, 100.0, 99.7, 99.8, 100.0, 49.2, 48.7, 100.0], [44.7, 78.1, 91.5, 96.1, 88.7, 69.6, 71.7, 80.6, 69.0, 100.0, 99.1, 99.7, 100.0, 100.0, 99.5, 43.3, 43.1, 99.7], [45.5, 78.7, 91.8, 96.3, 89.0, 70.3, 72.3, 81.2, 69.6, 100.0, 99.2, 99.8, 100.0, 100.0, 99.6, 44.2, 43.9, 99.8], [51.4, 83.1, 94.5, 97.7, 92.1, 75.9, 77.9, 85.0, 75.3, 99.5, 99.9, 100.0, 99.5, 99.6, 100.0, 50.8, 50.2, 100.0], [99.2, 88.7, 70.4, 61.3, 73.2, 93.0, 90.5, 85.0, 91.5, 43.0, 53.8, 49.2, 43.3, 44.2, 50.8, 100.0, 99.6, 48.9], [99.9, 88.9, 70.1, 61.1, 73.0, 92.0, 89.4, 85.7, 90.1, 42.7, 53.3, 48.7, 43.1, 43.9, 50.2, 99.6, 100.0, 48.4], [49.7, 81.8, 93.9, 97.4, 91.3, 74.4, 76.4, 83.8, 74.0, 99.7, 99.8, 100.0, 99.7, 99.8, 100.0, 48.9, 48.4, 100.0]]}, "findings": ["<b>ריכוז הגבוה ביותר:</b> תחנה \"קידוח תעשייתי - סולתם\" (קידוח ניטור) עם ריכוז כולל של 17.47 µg/L.", "<b>תרכובת דומיננטית:</b> PFOS מהווה בממוצע 35.6% מסך הריכוזים בכל התחנות.", "<b>קורלציה חזקה (44 זוגות ≥95%):</b> המטריצה מעידה על קורלציה איתנה בין מקורות תחנה לבין רוב הנקודות במורד נחל דליה וכולל מאגרי מעין צבי. דוגמאות: \"מט\"ש חיפה - פליטה\" ↔ \"קידוח M-3 (ליד מט\"ש)\" (99%), \"מט\"ש חיפה - פליטה\" ↔ \"קידוח M-7 (מורד מט\"ש)\" (100%), \"מעיין B-4\" ↔ \"קידוח B-1 (כרמל)\" (98%), \"מעיין B-4\" ↔ \"קידוח B-2 (נשר)\" (98%), \"מעיין B-4\" ↔ \"קידוח B-3 (טירת כרמל)\" (99%).", "<b>טווח ריכוזים:</b> יחס ריכוז מקסימלי/מינימלי = 142x (מ-0.12 עד 17.47 µg/L), המעיד על דעיכה (Attenuation) לאורך מסלולי הזרימה.", "<b>היקף הסקר:</b> פריסת 18 נקודות דיגום ב-5 סוגי מקור, 8 תרכובות PFAS."]};
+const COMPOUND_COLORS = {"PFOS": "#e74c3c", "PFOA": "#e91e9e", "PFHxS": "#3498db", "PFNA": "#2ecc71", "PFDA": "#f39c12", "PFUnDA": "#9b59b6", "PFUnA": "#9b59b6", "PFBS": "#1abc9c", "GenX": "#e67e22", "PFPeS": "#8e44ad", "PFHpA": "#d35400", "6:2FT": "#7f8c8d", "PFHpS": "#c0392b", "PFPeA": "#16a085", "PFHxA": "#2980b9", "PFDoA": "#c0392b", "PFBA": "#27ae60", "ADONA": "#f1c40f", "PFESA": "#8e44ad", "PFTDA": "#d35400"};
+const SOURCE_COLORS = {"קידוח ניטור": "#3498db", "קידוח הפקה": "#2ecc71", "קידוח": "#2980b9", "מט\"ש": "#e74c3c", "מעיין": "#9b59b6", "מים עיליים": "#f39c12", "נקודה מזוהה בנחל": "#e67e22", "תחנה הידרומטרית": "#1abc9c", "מאגר": "#8e44ad"};
+const DEFAULT_COLOR = '#95a5a6';
+const GROUP_UNIT = 'µg/L';
+const GROUP_NAME = 'PFAS';
+
+// ── State ──
+let selectedStations = new Set(DATA.stations.map(s => s.name));
+let map, markers = [];
+
+// ── Helpers ──
+function getSourceColor(s) { return SOURCE_COLORS[s] || DEFAULT_COLOR; }
+function getCompoundColor(c) { return COMPOUND_COLORS[c] || DEFAULT_COLOR; }
+
+// ── Filter panel ──
+function buildFilterPanel() {
+    // Source type filter buttons
+    const sourceTypes = [...new Set(DATA.stations.map(s => s.source_type))];
+    const srcDiv = document.getElementById('source-filters');
+    sourceTypes.forEach(st => {
+        const btn = document.createElement('button');
+        btn.textContent = st;
+        btn.style.borderRight = '4px solid ' + getSourceColor(st);
+        btn.onclick = () => toggleSourceType(st);
+        srcDiv.appendChild(btn);
+    });
+
+    // Station chips
+    const grid = document.getElementById('station-chips');
+    DATA.stations.forEach(s => {
+        const chip = document.createElement('div');
+        chip.className = 'station-chip selected';
+        chip.dataset.station = s.name;
+        chip.dataset.source = s.source_type;
+        chip.innerHTML = '<span class="dot" style="background:' + getSourceColor(s.source_type) + '"></span>' + s.name;
+        chip.onclick = () => toggleStation(s.name);
+        grid.appendChild(chip);
+    });
+    updateFilterCount();
+}
+
+function toggleStation(name) {
+    if (selectedStations.has(name)) selectedStations.delete(name);
+    else selectedStations.add(name);
+    updateUI();
+}
+
+function toggleSourceType(st) {
+    const stationsOfType = DATA.stations.filter(s => s.source_type === st).map(s => s.name);
+    const allSelected = stationsOfType.every(n => selectedStations.has(n));
+    stationsOfType.forEach(n => {
+        if (allSelected) selectedStations.delete(n);
+        else selectedStations.add(n);
+    });
+    updateUI();
+}
+
+function selectAll() {
+    DATA.stations.forEach(s => selectedStations.add(s.name));
+    updateUI();
+}
+
+function selectNone() {
+    selectedStations.clear();
+    updateUI();
+}
+
+function updateFilterCount() {
+    document.getElementById('filter-count').textContent =
+        selectedStations.size + ' מתוך ' + DATA.stations.length + ' תחנות נבחרו';
+}
+
+function updateChipStyles() {
+    document.querySelectorAll('.station-chip').forEach(chip => {
+        chip.classList.toggle('selected', selectedStations.has(chip.dataset.station));
+    });
+}
+
+// ── Map ──
+function initMap() {
+    const lats = DATA.stations.map(s => s.lat);
+    const lons = DATA.stations.map(s => s.lon);
+    const cLat = lats.reduce((a,b) => a+b, 0) / lats.length;
+    const cLon = lons.reduce((a,b) => a+b, 0) / lons.length;
+
+    map = L.map('map').setView([cLat, cLon], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Legend
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function() {
+        const div = L.DomUtil.create('div');
+        div.style.cssText = 'background:rgba(255,255,255,0.92);padding:10px 14px;border-radius:8px;font-family:sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2);direction:rtl';
+        const types = [...new Set(DATA.stations.map(s => s.source_type))];
+        let html = '<b style="font-size:13px">סוג מקור</b>';
+        types.forEach(t => {
+            html += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0">' +
+                '<span style="width:12px;height:12px;border-radius:50%;background:' + getSourceColor(t) +
+                ';display:inline-block;border:1px solid #fff"></span>' +
+                '<span style="font-size:12px">' + t + '</span></div>';
+        });
+        div.innerHTML = html;
+        return div;
+    };
+    legend.addTo(map);
+
+    updateMap();
+}
+
+function updateMap() {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+
+    DATA.stations.filter(s => selectedStations.has(s.name)).forEach(s => {
+        const m = L.circleMarker([s.lat, s.lon], {
+            radius: 8, fillColor: getSourceColor(s.source_type), color: '#fff',
+            weight: 2, opacity: 1, fillOpacity: 0.85
+        }).addTo(map).bindPopup(
+            '<b>' + s.name + '</b><br>סוג: ' + s.source_type + '<br>תרכובות: ' + s.n_compounds
+        );
+        markers.push(m);
+    });
+
+    if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.15));
+    }
+}
+
+// ── Attenuation chart ──
+function updateAttenuationChart() {
+    const filtered = DATA.attenuation.filter(a => selectedStations.has(a.name));
+    Plotly.react('attenuation-chart', [{
+        x: filtered.map(a => a.name),
+        y: filtered.map(a => a.total),
+        type: 'bar',
+        marker: { color: filtered.map(a => getSourceColor(a.source_type)) },
+        hovertemplate: '<b>%{x}</b><br>&Sigma;' + GROUP_NAME + ': %{y:.2f} ' + GROUP_UNIT + '<extra></extra>'
+    }], {
+        yaxis: { type: 'log', title: { text: 'ריכוז כולל (' + GROUP_UNIT + ')', font: { size: 13 } }, gridcolor: '#e0e0e0' },
+        xaxis: { tickangle: -35, tickfont: { size: 11 } },
+        margin: { t: 20, b: 120, l: 60, r: 20 },
+        plot_bgcolor: '#fafafa', paper_bgcolor: 'white',
+        hoverlabel: { font: { size: 13 } }
+    }, { responsive: true });
+}
+
+// ── Fingerprint chart ──
+function updateFingerprintChart() {
+    const fp = DATA.fingerprint;
+    const selIdx = [];
+    fp.stations.forEach((s, i) => { if (selectedStations.has(s)) selIdx.push(i); });
+
+    const traces = fp.compounds.map((compound, ci) => ({
+        x: selIdx.map(i => fp.stations[i]),
+        y: selIdx.map(i => fp.values[i][ci]),
+        name: compound,
+        type: 'bar',
+        marker: { color: getCompoundColor(compound) },
+        hovertemplate: '<b>' + compound + '</b>: %{y:.1f}%<extra></extra>'
+    }));
+
+    Plotly.react('fingerprint-chart', traces, {
+        barmode: 'stack',
+        yaxis: { title: { text: 'הרכב יחסי (%)', font: { size: 13 } }, range: [0, 100], gridcolor: '#e0e0e0' },
+        xaxis: { tickangle: -35, tickfont: { size: 11 } },
+        margin: { t: 20, b: 120, l: 50, r: 20 },
+        plot_bgcolor: '#fafafa', paper_bgcolor: 'white',
+        legend: { orientation: 'v', x: 1.02, y: 1, font: { size: 11 } },
+        hoverlabel: { font: { size: 13 } }
+    }, { responsive: true });
+}
+
+// ── Heatmap ──
+function updateHeatmap() {
+    const sim = DATA.similarity;
+    const selIdx = [];
+    sim.stations.forEach((s, i) => { if (selectedStations.has(s)) selIdx.push(i); });
+
+    if (selIdx.length === 0) {
+        document.getElementById('heatmap-container').innerHTML = '<p style="color:#999;text-align:center;padding:20px">בחר תחנות כדי להציג את מטריצת הדמיון</p>';
+        return;
+    }
+
+    let html = '<table class="heatmap"><thead><tr><th class="hm-corner"></th>';
+    selIdx.forEach(j => { html += '<th class="hm-header">' + sim.stations[j] + '</th>'; });
+    html += '</tr></thead><tbody>';
+
+    selIdx.forEach(i => {
+        html += '<tr><td class="hm-station">' + sim.stations[i] + '</td>';
+        selIdx.forEach(j => {
+            const val = sim.values[i][j];
+            let bg, tc;
+            if (i === j) { bg = '#0066cc'; tc = '#fff'; }
+            else if (val >= 90) { bg = 'rgba(0,102,204,' + (val/100*0.9).toFixed(2) + ')'; tc = '#fff'; }
+            else if (val >= 70) { bg = 'rgba(0,102,204,' + (val/100*0.7).toFixed(2) + ')'; tc = '#fff'; }
+            else if (val >= 50) { bg = 'rgba(0,102,204,' + (val/100*0.5).toFixed(2) + ')'; tc = '#333'; }
+            else { bg = 'rgba(0,102,204,' + (val/100*0.3).toFixed(2) + ')'; tc = '#333'; }
+            html += '<td class="hm-cell" style="background:' + bg + ';color:' + tc + '">' + val.toFixed(0) + '%</td>';
+        });
+        html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    document.getElementById('heatmap-container').innerHTML = html;
+}
+
+// ── Findings ──
+function renderFindings() {
+    const ul = document.getElementById('findings-list');
+    ul.innerHTML = DATA.findings.map(f => '<li>' + f + '</li>').join('');
+}
+
+// ── Master update ──
+function updateUI() {
+    updateChipStyles();
+    updateFilterCount();
+    updateMap();
+    updateAttenuationChart();
+    updateFingerprintChart();
+    updateHeatmap();
+}
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', function() {
+    buildFilterPanel();
+    initMap();
+    updateAttenuationChart();
+    updateFingerprintChart();
+    updateHeatmap();
+    renderFindings();
+});
+</script>
 
 </body>
 </html>

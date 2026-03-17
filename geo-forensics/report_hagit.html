@@ -9,7 +9,6 @@
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
                  'Helvetica Neue', Arial, sans-serif;
@@ -22,216 +21,126 @@
   /* ── Header ── */
   .report-header {
     background: linear-gradient(135deg, #0066cc 0%, #004999 100%);
-    color: white;
-    text-align: center;
-    padding: 35px 20px 28px;
+    color: white; text-align: center; padding: 35px 20px 28px;
   }
-  .report-header h1 {
-    font-size: 1.9em;
-    margin-bottom: 6px;
-    font-weight: 700;
-  }
-  .report-header .subtitle {
-    font-size: 1.05em;
-    opacity: 0.9;
-  }
+  .report-header h1 { font-size: 1.9em; margin-bottom: 6px; font-weight: 700; }
+  .report-header .subtitle { font-size: 1.05em; opacity: 0.9; }
   .report-header .badge {
-    display: inline-block;
-    background: rgba(255,255,255,0.2);
-    padding: 4px 16px;
-    border-radius: 20px;
-    margin-top: 10px;
-    font-size: 0.85em;
+    display: inline-block; background: rgba(255,255,255,0.2);
+    padding: 4px 16px; border-radius: 20px; margin-top: 10px; font-size: 0.85em;
   }
 
   /* ── Layout ── */
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 25px 20px;
-  }
-
+  .container { max-width: 1200px; margin: 0 auto; padding: 25px 20px; }
   .section {
-    background: white;
-    border-radius: 12px;
-    padding: 28px;
-    margin-bottom: 25px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    background: white; border-radius: 12px; padding: 28px;
+    margin-bottom: 25px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
   }
+  .section h2 { color: #0066cc; font-size: 1.35em; margin-bottom: 8px; font-weight: 700; }
+  .section .section-desc { color: #666; font-size: 0.92em; margin-bottom: 18px; }
 
-  .section h2 {
-    color: #0066cc;
-    font-size: 1.35em;
-    margin-bottom: 8px;
-    font-weight: 700;
-  }
-
-  .section .section-desc {
-    color: #666;
-    font-size: 0.92em;
-    margin-bottom: 18px;
-  }
-
-  /* ── Two column layout ── */
-  .two-col {
-    display: grid;
-    grid-template-columns: 1fr 1.5fr;
-    gap: 25px;
-  }
+  .two-col { display: grid; grid-template-columns: 1fr 1.5fr; gap: 25px; }
+  .two-col-equal { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
   @media (max-width: 850px) {
-    .two-col { grid-template-columns: 1fr; }
-  }
-
-  .two-col-equal {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 25px;
-  }
-  @media (max-width: 850px) {
-    .two-col-equal { grid-template-columns: 1fr; }
+    .two-col, .two-col-equal { grid-template-columns: 1fr; }
   }
 
   /* ── Metrics ── */
-  .metrics {
-    display: flex;
-    gap: 15px;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin: 20px 0;
-  }
+  .metrics { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 20px 0; }
   .metric {
-    background: #f7f9fc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 16px 28px;
-    text-align: center;
-    min-width: 140px;
+    background: #f7f9fc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 16px 28px; text-align: center; min-width: 140px;
   }
-  .metric .value {
-    font-size: 2em;
-    font-weight: 700;
-    color: #0066cc;
+  .metric .value { font-size: 2em; font-weight: 700; color: #0066cc; }
+  .metric .label { color: #666; font-size: 0.9em; margin-top: 3px; }
+
+  /* ── Station filter panel ── */
+  .filter-panel {
+    background: white; border-radius: 12px; padding: 20px 24px;
+    margin-bottom: 25px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
   }
-  .metric .label {
-    color: #666;
-    font-size: 0.9em;
-    margin-top: 3px;
+  .filter-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px; flex-wrap: wrap; gap: 10px;
+  }
+  .filter-header h2 { color: #0066cc; font-size: 1.2em; font-weight: 700; margin: 0; }
+  .filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filter-actions button {
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #ccc;
+    background: #f7f9fc; cursor: pointer; font-size: 0.85em;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .filter-actions button:hover { background: #e8f0fe; border-color: #0066cc; }
+  .filter-actions button.active { background: #0066cc; color: white; border-color: #0066cc; }
+
+  .filter-grid {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .station-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: 18px;
+    border: 2px solid #ddd; background: #f9f9f9;
+    cursor: pointer; font-size: 0.85em; transition: all 0.15s;
+    user-select: none;
+  }
+  .station-chip:hover { border-color: #0066cc; background: #f0f5ff; }
+  .station-chip.selected {
+    border-color: #0066cc; background: #e8f0fe; font-weight: 600;
+  }
+  .station-chip .dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+  }
+  .filter-count {
+    font-size: 0.88em; color: #666; margin-top: 10px;
   }
 
   /* ── Methodology box ── */
   .method-box {
-    background: #f7f9fc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 22px;
+    background: #f7f9fc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 22px;
   }
-  .method-box h3 {
-    color: #333;
-    font-size: 1.1em;
-    margin-bottom: 12px;
-  }
-  .method-box p {
-    font-size: 0.92em;
-    color: #555;
-    margin-bottom: 10px;
-  }
-
-  /* ── Formula ── */
+  .method-box h3 { color: #333; font-size: 1.1em; margin-bottom: 12px; }
+  .method-box p { font-size: 0.92em; color: #555; margin-bottom: 10px; }
   .formula {
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 15px;
-    text-align: center;
-    font-size: 1.15em;
-    margin: 14px 0;
-    direction: ltr;
+    background: white; border: 1px solid #ddd; border-radius: 8px;
+    padding: 15px; text-align: center; font-size: 1.15em; margin: 14px 0; direction: ltr;
   }
-  .frac {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    vertical-align: middle;
-  }
-  .frac .num {
-    border-bottom: 2px solid #333;
-    padding-bottom: 4px;
-  }
-  .frac .den {
-    padding-top: 4px;
-  }
+  .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; }
+  .frac .num { border-bottom: 2px solid #333; padding-bottom: 4px; }
+  .frac .den { padding-top: 4px; }
 
   /* ── Heatmap table ── */
   .table-wrap { overflow-x: auto; }
-
   .heatmap {
-    border-collapse: collapse;
-    width: 100%;
-    direction: ltr;
-    text-align: center;
-    font-size: 0.85em;
+    border-collapse: collapse; width: 100%; direction: ltr;
+    text-align: center; font-size: 0.85em;
   }
-  .heatmap th, .heatmap td {
-    padding: 8px 6px;
-    border: 1px solid #e0e0e0;
-    white-space: nowrap;
-  }
+  .heatmap th, .heatmap td { padding: 8px 6px; border: 1px solid #e0e0e0; white-space: nowrap; }
   .hm-corner { background: #f7f9fc; }
   .hm-header {
-    background: #f7f9fc;
-    color: #333;
-    font-weight: 600;
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    padding: 12px 6px;
-    font-size: 0.85em;
-    max-height: 150px;
+    background: #f7f9fc; color: #333; font-weight: 600;
+    writing-mode: vertical-rl; text-orientation: mixed;
+    padding: 12px 6px; font-size: 0.85em; max-height: 150px;
   }
   .hm-station {
-    background: #f7f9fc;
-    font-weight: 600;
-    text-align: right;
-    padding: 8px 10px;
-    direction: rtl;
+    background: #f7f9fc; font-weight: 600; text-align: right;
+    padding: 8px 10px; direction: rtl;
   }
-  .hm-cell {
-    font-weight: 600;
-    min-width: 52px;
-  }
+  .hm-cell { font-weight: 600; min-width: 52px; }
 
   /* ── Findings ── */
   .findings {
-    background: #f0f7ff;
-    border: 1px solid #b3d4fc;
-    border-radius: 10px;
-    padding: 22px 28px;
+    background: #f0f7ff; border: 1px solid #b3d4fc;
+    border-radius: 10px; padding: 22px 28px;
   }
-  .findings h3 {
-    color: #0066cc;
-    margin-bottom: 14px;
-    font-size: 1.15em;
-  }
-  .findings ul {
-    list-style: none;
-    padding: 0;
-  }
+  .findings h3 { color: #0066cc; margin-bottom: 14px; font-size: 1.15em; }
+  .findings ul { list-style: none; padding: 0; }
   .findings li {
-    padding: 8px 0;
-    border-bottom: 1px solid #d6e8fa;
-    font-size: 0.93em;
-    line-height: 1.7;
+    padding: 8px 0; border-bottom: 1px solid #d6e8fa;
+    font-size: 0.93em; line-height: 1.7;
   }
   .findings li:last-child { border-bottom: none; }
 
-  /* ── Footer ── */
-  .footer {
-    text-align: center;
-    color: #888;
-    padding: 20px;
-    font-size: 0.85em;
-  }
-
-  /* ── Leaflet fixes for RTL ── */
+  .footer { text-align: center; color: #888; padding: 20px; font-size: 0.85em; }
   .leaflet-container { direction: ltr; }
 </style>
 </head>
@@ -240,7 +149,7 @@
 <!-- ════════════════════════ HEADER ════════════════════════ -->
 <div class="report-header">
     <h1>אפיון סביבתי ופורנזי של פלומת PFAS</h1>
-    <div class="subtitle">ניתוח הידרוגיאולוגי והשוואה סטטיסטית של פרופילים כימיים במרחב דליה - מעין צבי</div>
+    <div class="subtitle">ניתוח הידרוגיאולוגי והשוואה סטטיסטית של פרופילים כימיים</div>
     <div class="badge">דו"ח עצמאי (Standalone HTML)</div>
 </div>
 
@@ -248,25 +157,27 @@
 
     <!-- ════════════════════════ METRICS ════════════════════════ -->
     <div class="metrics">
-        <div class="metric">
-            <div class="value">22</div>
-            <div class="label">תחנות דיגום</div>
-        </div>
-        <div class="metric">
-            <div class="value">18</div>
-            <div class="label">תרכובות PFAS</div>
-        </div>
-        <div class="metric">
-            <div class="value">475</div>
-            <div class="label">שורות נתונים</div>
-        </div>
-        <div class="metric">
-            <div class="value">4</div>
-            <div class="label">סוגי מקור</div>
-        </div>
+        <div class="metric"><div class="value">22</div><div class="label">תחנות דיגום</div></div>
+        <div class="metric"><div class="value">18</div><div class="label">תרכובות PFAS</div></div>
+        <div class="metric"><div class="value">475</div><div class="label">שורות נתונים</div></div>
+        <div class="metric"><div class="value">4</div><div class="label">סוגי מקור</div></div>
     </div>
 
-    <!-- ════════════════════════ 1. MAP ════════════════════════ -->
+    <!-- ════════════════════════ STATION FILTER ════════════════════════ -->
+    <div class="filter-panel">
+        <div class="filter-header">
+            <h2>בחירת נקודות דיגום</h2>
+            <div class="filter-actions">
+                <button onclick="selectAll()">בחר הכל</button>
+                <button onclick="selectNone()">נקה הכל</button>
+            </div>
+        </div>
+        <div class="filter-actions" id="source-filters" style="margin-bottom:12px"></div>
+        <div class="filter-grid" id="station-chips"></div>
+        <div class="filter-count" id="filter-count"></div>
+    </div>
+
+    <!-- ════════════════════════ MAP + METHODOLOGY ════════════════════════ -->
     <div class="two-col">
         <div class="section">
             
@@ -274,11 +185,11 @@
         <h3>מתודולוגיה: מדד דמיון הקוסינוס (Cosine Similarity)</h3>
         <p>השוואת 22 תחנות המפתח מבוצעת על בסיס פרופיל ההרכב
         הכימי כווקטור נתונים, תוך נטרול השפעת גודל הריכוזים. מידת
-        הדמיון מחושבת על בסיס הזווית (θ) שבין הווקטורים:</p>
+        הדמיון מחושבת על בסיס הזווית (&theta;) שבין הווקטורים:</p>
         <div class="formula">
-            Similarity = cos(θ) = <span class="frac">
-                <span class="num">Σ (A<sub>i</sub> × B<sub>i</sub>)</span>
-                <span class="den">√Σ(A<sub>i</sub>)² × √Σ(B<sub>i</sub>)²</span>
+            Similarity = cos(&theta;) = <span class="frac">
+                <span class="num">&Sigma; (A<sub>i</sub> &times; B<sub>i</sub>)</span>
+                <span class="den">&radic;&Sigma;(A<sub>i</sub>)&sup2; &times; &radic;&Sigma;(B<sub>i</sub>)&sup2;</span>
             </span>
         </div>
         <p>ערך הקרוב ל-100% מצביע על חותמת כימית זהה. ניתוח
@@ -289,375 +200,286 @@
     
         </div>
         <div class="section">
-            <h2>1. פריסת כלל נקודות הדיגום במרחב הגיאוגרפי</h2>
-            <p class="section-desc">המפה מציגה את 22 התחנות הנדגמות (קואורדינטות ITM מומרות ל-WGS84), מסווגות לפי מדיום הידרולוגי.</p>
-            
-    <div id="map" style="height:450px;border-radius:8px;"></div>
-    <script>
-        var map = L.map('map').setView([32.590516, 34.987355], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-        
-        L.circleMarker([32.590881, 34.987456], {
-            radius: 8, fillColor: '#1abc9c', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>דליה - בת שלמה</b><br>סוג: תחנה הידרומטרית<br>תרכובות: 18');
-        
-        L.circleMarker([32.592835, 34.947592], {
-            radius: 8, fillColor: '#1abc9c', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>דליה- כביש ת''א-חיפה</b><br>סוג: תחנה הידרומטרית<br>תרכובות: 5');
-        
-        L.circleMarker([32.616764, 35.036958], {
-            radius: 8, fillColor: '#e67e22', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>חגית - בריכה 1500</b><br>סוג: נקודה מזוהה בנחל<br>תרכובות: 18');
-        
-        L.circleMarker([32.616704, 35.038802], {
-            radius: 8, fillColor: '#e67e22', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>חגית - בריכה 200</b><br>סוג: נקודה מזוהה בנחל<br>תרכובות: 18');
-        
-        L.circleMarker([32.617628, 35.035582], {
-            radius: 8, fillColor: '#e67e22', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>חגית - יציאה ראשית לנחל</b><br>סוג: נקודה מזוהה בנחל<br>תרכובות: 18');
-        
-        L.circleMarker([32.601015, 34.931132], {
-            radius: 8, fillColor: '#8e44ad', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>מעין צבי</b><br>סוג: מאגר<br>תרכובות: 13');
-        
-        L.circleMarker([32.601022, 34.934328], {
-            radius: 8, fillColor: '#8e44ad', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>מעין צבי ב'</b><br>סוג: מאגר<br>תרכובות: 13');
-        
-        L.circleMarker([32.574327, 34.924184], {
-            radius: 8, fillColor: '#2980b9', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>מעין צבי מ2</b><br>סוג: קידוח<br>תרכובות: 13');
-        
-        L.circleMarker([32.582699, 35.068121], {
-            radius: 8, fillColor: '#2980b9', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>מק דליה 1</b><br>סוג: קידוח<br>תרכובות: 8');
-        
-        L.circleMarker([32.588878, 35.062200], {
-            radius: 8, fillColor: '#2980b9', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>מק דליה 2</b><br>סוג: קידוח<br>תרכובות: 8');
-        
-        L.circleMarker([32.580247, 34.975574], {
-            radius: 8, fillColor: '#2980b9', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>מק טירלי 1</b><br>סוג: קידוח<br>תרכובות: 18');
-        
-        L.circleMarker([32.578063, 34.974462], {
-            radius: 8, fillColor: '#2980b9', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>מק טירלי 5</b><br>סוג: קידוח<br>תרכובות: 18');
-        
-        L.circleMarker([32.579895, 34.975320], {
-            radius: 8, fillColor: '#2980b9', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>מק טירלי 6</b><br>סוג: קידוח<br>תרכובות: 18');
-        
-        L.circleMarker([32.591972, 35.021187], {
-            radius: 8, fillColor: '#2980b9', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>מק תות 4</b><br>סוג: קידוח<br>תרכובות: 18');
-        
-        L.circleMarker([32.588377, 34.924865], {
-            radius: 8, fillColor: '#e67e22', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>נחל דליה - גשר דרך עפר</b><br>סוג: נקודה מזוהה בנחל<br>תרכובות: 18');
-        
-        L.circleMarker([32.582659, 35.064628], {
-            radius: 8, fillColor: '#e67e22', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>נחל דליה במורד קידוח דליה 1</b><br>סוג: נקודה מזוהה בנחל<br>תרכובות: 18');
-        
-        L.circleMarker([32.591122, 35.069451], {
-            radius: 8, fillColor: '#e67e22', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>נחל רון במעלה קידוח מק דליה 2</b><br>סוג: נקודה מזוהה בנחל<br>תרכובות: 18');
-        
-        L.circleMarker([32.616837, 35.037171], {
-            radius: 8, fillColor: '#e67e22', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>ניקוז תחנת כוח חגית לנחל דליה</b><br>סוג: נקודה מזוהה בנחל<br>תרכובות: 18');
-        
-        L.circleMarker([32.572225, 34.940431], {
-            radius: 8, fillColor: '#2980b9', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>פ מעין צבי דקל ז</b><br>סוג: קידוח<br>תרכובות: 18');
-        
-        L.circleMarker([32.576453, 34.931387], {
-            radius: 8, fillColor: '#2980b9', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>פ מעין צבי ה</b><br>סוג: קידוח<br>תרכובות: 18');
-        
-        L.circleMarker([32.577828, 34.921085], {
-            radius: 8, fillColor: '#2980b9', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>פ מעין צבי התפ. 304</b><br>סוג: קידוח<br>תרכובות: 18');
-        
-        L.circleMarker([32.572911, 34.919897], {
-            radius: 8, fillColor: '#2980b9', color: '#fff',
-            weight: 2, opacity: 1, fillOpacity: 0.85
-        }).addTo(map).bindPopup('<b>פ מעין צבי התפ. 305</b><br>סוג: קידוח<br>תרכובות: 18');
-        
-        var legend = L.control({position: 'bottomright'});
-        legend.onAdd = function(m) {
-            var div = L.DomUtil.create('div', 'legend');
-            div.style.cssText = 'background:rgba(255,255,255,0.92);padding:10px 14px;border-radius:8px;font-family:sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2);direction:rtl';
-            div.innerHTML = '<b style="font-size:13px">סוג מקור</b><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#3498db;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">קידוח ניטור</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#2ecc71;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">קידוח הפקה</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#2980b9;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">קידוח</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#e74c3c;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">מט"ש</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#9b59b6;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">מעיין</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#f39c12;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">מים עיליים</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#e67e22;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">נקודה מזוהה בנחל</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#1abc9c;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">תחנה הידרומטרית</span></div><div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:#8e44ad;display:inline-block;border:1px solid #fff"></span><span style="font-size:12px">מאגר</span></div>';
-            return div;
-        };
-        legend.addTo(map);
-    </script>
-    
+            <h2>1. פריסת נקודות הדיגום במרחב הגיאוגרפי</h2>
+            <p class="section-desc">המפה מציגה את התחנות הנבחרות (קואורדינטות ITM מומרות ל-WGS84), מסווגות לפי מדיום הידרולוגי.</p>
+            <div id="map" style="height:450px;border-radius:8px;"></div>
         </div>
     </div>
 
-    <!-- ════════════════════════ 2+3. CHARTS ════════════════════════ -->
+    <!-- ════════════════════════ CHARTS ════════════════════════ -->
     <div class="two-col-equal">
         <div class="section">
-            <h2>2. ריכוז כולל בתחנות נבחרות (ΣPFAS Attenuation)</h2>
+            <h2>2. ריכוז כולל בתחנות נבחרות (&Sigma;PFAS Attenuation)</h2>
             <p class="section-desc">ציר לוגריתמי. בחינת דעיכת מסת המזהם לאורך מסלולי הסעה שונים.</p>
-            
-    <div id="attenuation-chart" style="width:100%;height:420px;"></div>
-    <script>
-        Plotly.newPlot('attenuation-chart', [{
-            x: ["חגית - בריכה 1500", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "חגית - בריכה 200", "דליה - בת שלמה", "נחל דליה - גשר דרך עפר", "מעין צבי ב'", "חגית - יציאה ראשית לנחל", "דליה- כביש ת''א-חיפה", "דליה - בת שלמה", "מעין צבי", "נחל רון במעלה קידוח מק דליה 2", "מק טירלי 6", "מק טירלי 1", "מק טירלי 5", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי ה", "מעין צבי מ2", "מעין צבי", "פ מעין צבי דקל ז", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי התפ. 305", "פ מעין צבי התפ. 304", "מק דליה 1", "מק טירלי 5", "מק תות 4", "מק תות 4", "מק דליה 2", "נחל דליה במורד קידוח דליה 1"],
-            y: [1121.106, 142.683, 6.921, 6.438000000000001, 2.949, 0.8009999999999999, 0.7110000000000001, 0.515, 0.489, 0.44599999999999995, 0.39199999999999996, 0.31899999999999995, 0.279, 0.23700000000000002, 0.228, 0.222, 0.174, 0.068, 0.053000000000000005, 0.048, 0.04, 0.039, 0.034999999999999996, 0.023, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            type: 'bar',
-            marker: { color: ["#e67e22", "#e67e22", "#e67e22", "#e67e22", "#e67e22", "#1abc9c", "#e67e22", "#8e44ad", "#e67e22", "#1abc9c", "#1abc9c", "#8e44ad", "#e67e22", "#2980b9", "#2980b9", "#2980b9", "#e67e22", "#2980b9", "#2980b9", "#8e44ad", "#2980b9", "#e67e22", "#2980b9", "#2980b9", "#2980b9", "#2980b9", "#2980b9", "#2980b9", "#2980b9", "#e67e22"] },
-            hovertemplate: '<b>%{x}</b><br>ΣPFAS: %{y:.2f} µg/L<extra></extra>'
-        }], {
-            yaxis: {
-                type: 'log',
-                title: { text: 'ריכוז כולל (µg/L)', font: { size: 13 } },
-                gridcolor: '#e0e0e0'
-            },
-            xaxis: { tickangle: -35, tickfont: { size: 11 } },
-            margin: { t: 20, b: 120, l: 60, r: 20 },
-            plot_bgcolor: '#fafafa',
-            paper_bgcolor: 'white',
-            hoverlabel: { font: { size: 13 } }
-        }, { responsive: true });
-    </script>
-    
+            <div id="attenuation-chart" style="width:100%;height:420px;"></div>
         </div>
         <div class="section">
             <h2>3. הרכב כימי יחסי (Chromatographic Shift)</h2>
-            <p class="section-desc">מנורמל ל-100%. התפלגות התרכובות העיקריות ב-22 תחנות המפתח.</p>
-            
-    <div id="fingerprint-chart" style="width:100%;height:420px;"></div>
-    <script>
-        Plotly.newPlot('fingerprint-chart', [{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [1.01, 0.0, 7.13, 2.96, 1.62, 11.53, 4.85, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.98, 0.0, 1.79, 3.29, 0.0, 0.0, 0.0, 0.0],
-            name: '6:2FT',
-            type: 'bar',
-            marker: { color: '#7f8c8d' },
-            hovertemplate: '<b>6:2FT</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            name: 'ADONA',
-            type: 'bar',
-            marker: { color: '#f1c40f' },
-            hovertemplate: '<b>ADONA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [1.93, 0.0, 0.04, 0.37, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.7, 0.0, 0.0, 0.0, 2.5, 4.41, 0.0, 0.0],
-            name: 'PFBA',
-            type: 'bar',
-            marker: { color: '#27ae60' },
-            hovertemplate: '<b>PFBA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [1.84, 0.0, 0.31, 0.21, 1.73, 10.74, 6.6, 13.21, 0.0, 0.0, 9.21, 7.92, 8.44, 0.0, 4.78, 0.0, 0.0, 1.88, 0.0, 0.0, 17.39, 14.29],
-            name: 'PFBS',
-            type: 'bar',
-            marker: { color: '#1abc9c' },
-            hovertemplate: '<b>PFBS</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [0.0, 0.0, 0.07, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            name: 'PFDA',
-            type: 'bar',
-            marker: { color: '#f39c12' },
-            hovertemplate: '<b>PFDA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            name: 'PFDoA',
-            type: 'bar',
-            marker: { color: '#c0392b' },
-            hovertemplate: '<b>PFDoA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            name: 'PFESA',
-            type: 'bar',
-            marker: { color: '#8e44ad' },
-            hovertemplate: '<b>PFESA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [0.75, 10.76, 0.38, 0.18, 0.66, 1.59, 1.55, 0.0, 0.0, 0.0, 1.32, 1.13, 1.27, 0.0, 0.98, 0.0, 12.54, 1.41, 0.0, 0.0, 0.0, 0.0],
-            name: 'PFHpA',
-            type: 'bar',
-            marker: { color: '#d35400' },
-            hovertemplate: '<b>PFHpA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [1.51, 0.0, 0.56, 1.17, 1.05, 0.0, 0.0, 0.0, 0.0, 0.0, 1.32, 4.53, 1.69, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            name: 'PFHpS',
-            type: 'bar',
-            marker: { color: '#c0392b' },
-            hovertemplate: '<b>PFHpS</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [4.19, 46.64, 3.04, 0.26, 2.17, 7.95, 6.6, 0.0, 0.0, 0.0, 4.82, 3.4, 4.64, 0.0, 3.38, 0.0, 38.71, 4.23, 5.0, 0.0, 4.35, 2.86],
-            name: 'PFHxA',
-            type: 'bar',
-            marker: { color: '#2980b9' },
-            hovertemplate: '<b>PFHxA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [18.19, 0.0, 4.74, 26.12, 13.77, 22.27, 23.3, 62.26, 0.0, 0.0, 39.04, 33.96, 37.55, 0.0, 26.3, 0.0, 16.49, 7.04, 40.0, 44.12, 47.83, 42.86],
-            name: 'PFHxS',
-            type: 'bar',
-            marker: { color: '#3498db' },
-            hovertemplate: '<b>PFHxS</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [0.0, 0.0, 0.04, 0.04, 0.04, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            name: 'PFNA',
-            type: 'bar',
-            marker: { color: '#2ecc71' },
-            hovertemplate: '<b>PFNA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [2.01, 16.14, 1.45, 1.09, 2.31, 1.79, 2.72, 1.89, 0.0, 0.0, 1.75, 1.13, 1.69, 0.0, 1.83, 0.0, 1.43, 3.76, 2.5, 0.0, 4.35, 0.0],
-            name: 'PFOA',
-            type: 'bar',
-            marker: { color: '#e91e9e' },
-            hovertemplate: '<b>PFOA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [58.51, 26.46, 80.3, 67.36, 72.87, 44.14, 54.37, 22.64, 0.0, 0.0, 33.33, 26.42, 35.44, 0.0, 53.02, 0.0, 1.43, 78.4, 22.5, 17.65, 17.39, 25.71],
-            name: 'PFOS',
-            type: 'bar',
-            marker: { color: '#e74c3c' },
-            hovertemplate: '<b>PFOS</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [5.53, 0.0, 0.17, 0.0, 1.67, 0.0, 0.0, 0.0, 0.0, 0.0, 2.63, 3.4, 2.53, 0.0, 3.66, 0.0, 27.6, 0.0, 17.5, 19.12, 0.0, 5.71],
-            name: 'PFPeA',
-            type: 'bar',
-            marker: { color: '#16a085' },
-            hovertemplate: '<b>PFPeA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [4.53, 0.0, 1.78, 0.23, 2.08, 0.0, 0.0, 0.0, 0.0, 0.0, 6.58, 18.11, 6.75, 0.0, 4.36, 0.0, 0.0, 0.0, 10.0, 14.71, 8.7, 8.57],
-            name: 'PFPeS',
-            type: 'bar',
-            marker: { color: '#8e44ad' },
-            hovertemplate: '<b>PFPeS</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            name: 'PFTDA',
-            type: 'bar',
-            marker: { color: '#d35400' },
-            hovertemplate: '<b>PFTDA</b>: %{y:.1f}%<extra></extra>'
-        },{
-            x: ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"],
-            y: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            name: 'PFUnA',
-            type: 'bar',
-            marker: { color: '#9b59b6' },
-            hovertemplate: '<b>PFUnA</b>: %{y:.1f}%<extra></extra>'
-        }], {
-            barmode: 'stack',
-            yaxis: {
-                title: { text: 'הרכב יחסי (%)', font: { size: 13 } },
-                range: [0, 100],
-                gridcolor: '#e0e0e0'
-            },
-            xaxis: { tickangle: -35, tickfont: { size: 11 } },
-            margin: { t: 20, b: 120, l: 50, r: 20 },
-            plot_bgcolor: '#fafafa',
-            paper_bgcolor: 'white',
-            legend: { orientation: 'v', x: 1.02, y: 1, font: { size: 11 } },
-            hoverlabel: { font: { size: 13 } }
-        }, { responsive: true });
-    </script>
-    
+            <p class="section-desc">מנורמל ל-100%. התפלגות התרכובות העיקריות בתחנות הנבחרות.</p>
+            <div id="fingerprint-chart" style="width:100%;height:420px;"></div>
         </div>
     </div>
 
-    <!-- ════════════════════════ 4. HEATMAP ════════════════════════ -->
+    <!-- ════════════════════════ HEATMAP ════════════════════════ -->
     <div class="section">
         <h2>4. מטריצת דמיון סטטיסטית אובייקטיבית (Cosine Similarity Heatmap)</h2>
-        <p class="section-desc">חישוב מתמטי ישיר לבחינת התאמת תבניות (Pattern Matching). תחנות הרקע הדורות מסודרות משמאל להדגשת שונות.</p>
-        
-    <div class="table-wrap">
-    <table class="heatmap">
-        <thead><tr><th class="hm-corner"></th><th class="hm-header">דליה - בת שלמה</th><th class="hm-header">דליה- כביש ת''א-חיפה</th><th class="hm-header">חגית - בריכה 1500</th><th class="hm-header">חגית - בריכה 200</th><th class="hm-header">חגית - יציאה ראשית לנחל</th><th class="hm-header">מעין צבי</th><th class="hm-header">מעין צבי ב'</th><th class="hm-header">מעין צבי מ2</th><th class="hm-header">מק דליה 1</th><th class="hm-header">מק דליה 2</th><th class="hm-header">מק טירלי 1</th><th class="hm-header">מק טירלי 5</th><th class="hm-header">מק טירלי 6</th><th class="hm-header">מק תות 4</th><th class="hm-header">נחל דליה - גשר דרך עפר</th><th class="hm-header">נחל דליה במורד קידוח דליה 1</th><th class="hm-header">נחל רון במעלה קידוח מק דליה 2</th><th class="hm-header">ניקוז תחנת כוח חגית לנחל דליה</th><th class="hm-header">פ מעין צבי דקל ז</th><th class="hm-header">פ מעין צבי ה</th><th class="hm-header">פ מעין צבי התפ. 304</th><th class="hm-header">פ מעין צבי התפ. 305</th></tr></thead>
-        <tbody><tr><td class="hm-station">דליה - בת שלמה</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.25);color:#333">51%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">94%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.30);color:#333">59%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">84%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">86%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.07);color:#333">22%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">97%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">71%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.30);color:#333">61%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.29);color:#333">58%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">73%</td></tr>
-<tr><td class="hm-station">דליה- כביש ת''א-חיפה</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.25);color:#333">51%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">50%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">44%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">53%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">53%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.05);color:#333">16%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.11);color:#333">38%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.10);color:#333">33%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.12);color:#333">39%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.14);color:#333">47%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">68%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">52%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.09);color:#333">30%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.05);color:#333">15%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.07);color:#333">23%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.08);color:#333">27%</td></tr>
-<tr><td class="hm-station">חגית - בריכה 1500</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">50%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">95%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.12);color:#333">39%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">68%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.30);color:#333">60%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">71%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.02);color:#333">8%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">50%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.11);color:#333">38%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.11);color:#333">38%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.27);color:#333">54%</td></tr>
-<tr><td class="hm-station">חגית - בריכה 200</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">44%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">95%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">95%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.32);color:#333">65%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">86%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">77%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">88%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.04);color:#333">15%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.49);color:#fff">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.30);color:#333">61%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">61%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td></tr>
-<tr><td class="hm-station">חגית - יציאה ראשית לנחל</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">97%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.25);color:#333">50%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">77%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.35);color:#333">69%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.56);color:#fff">80%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.04);color:#333">12%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.30);color:#333">60%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.32);color:#333">64%</td></tr>
-<tr><td class="hm-station">מעין צבי</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">94%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">53%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">95%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">71%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.57);color:#fff">81%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.09);color:#333">29%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">73%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">63%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.57);color:#fff">81%</td></tr>
-<tr><td class="hm-station">מעין צבי ב'</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">53%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">97%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">68%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.56);color:#fff">80%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.07);color:#333">24%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">95%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">62%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">67%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">79%</td></tr>
-<tr><td class="hm-station">מעין צבי מ2</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.30);color:#333">59%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.05);color:#333">16%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.12);color:#333">39%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.32);color:#333">65%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.25);color:#333">50%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">71%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">68%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">87%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.09);color:#333">30%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">42%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">88%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">87%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">97%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td></tr>
-<tr><td class="hm-station">מק דליה 1</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:#0066cc;color:#fff">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td></tr>
-<tr><td class="hm-station">מק דליה 2</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:#0066cc;color:#fff">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td></tr>
-<tr><td class="hm-station">מק טירלי 1</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.59);color:#fff">84%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.11);color:#333">38%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">68%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">86%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">77%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">89%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.11);color:#333">35%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.49);color:#fff">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">87%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td></tr>
-<tr><td class="hm-station">מק טירלי 5</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">78%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.10);color:#333">33%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.30);color:#333">60%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.54);color:#fff">77%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.35);color:#333">69%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.57);color:#fff">81%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.56);color:#fff">80%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">87%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">96%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">85%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.10);color:#333">34%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">62%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td></tr>
-<tr><td class="hm-station">מק טירלי 6</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">86%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.12);color:#333">39%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">71%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">88%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.56);color:#fff">80%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.10);color:#333">34%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">86%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">97%</td></tr>
-<tr><td class="hm-station">מק תות 4</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:#0066cc;color:#fff">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td></tr>
-<tr><td class="hm-station">נחל דליה - גשר דרך עפר</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.14);color:#333">47%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">85%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.07);color:#333">24%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">79%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.35);color:#333">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">71%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.58);color:#fff">83%</td></tr>
-<tr><td class="hm-station">נחל דליה במורד קידוח דליה 1</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:#0066cc;color:#fff">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td></tr>
-<tr><td class="hm-station">נחל רון במעלה קידוח מק דליה 2</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.07);color:#333">22%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">68%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.02);color:#333">8%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.04);color:#333">15%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.04);color:#333">12%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.09);color:#333">29%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.07);color:#333">24%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.09);color:#333">30%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.11);color:#333">35%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.10);color:#333">34%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.10);color:#333">34%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.07);color:#333">24%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.03);color:#333">10%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">52%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.14);color:#333">46%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.10);color:#333">35%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.11);color:#333">37%</td></tr>
-<tr><td class="hm-station">ניקוז תחנת כוח חגית לנחל דליה</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">97%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">52%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.90);color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.89);color:#fff">99%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.85);color:#fff">95%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.13);color:#333">42%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.49);color:#fff">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">62%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.03);color:#333">10%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">52%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.12);color:#333">40%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.12);color:#333">41%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.28);color:#333">56%</td></tr>
-<tr><td class="hm-station">פ מעין צבי דקל ז</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">71%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.09);color:#333">30%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">50%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.49);color:#fff">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.30);color:#333">60%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">73%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.62);color:#fff">88%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.83);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">92%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">79%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">52%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.26);color:#333">52%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">88%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td></tr>
-<tr><td class="hm-station">פ מעין צבי ה</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.30);color:#333">61%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.05);color:#333">15%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.11);color:#333">38%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.30);color:#333">61%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">63%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">62%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">87%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">87%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.63);color:#fff">90%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.60);color:#fff">86%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.35);color:#333">70%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.14);color:#333">46%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.12);color:#333">40%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">87%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td></tr>
-<tr><td class="hm-station">פ מעין צבי התפ. 304</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.29);color:#333">58%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.07);color:#333">23%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.11);color:#333">38%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.31);color:#333">61%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.15);color:#333">49%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">72%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.34);color:#333">67%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">97%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.50);color:#fff">71%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.10);color:#333">35%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.12);color:#333">41%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">88%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.61);color:#fff">87%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">97%</td></tr>
-<tr><td class="hm-station">פ מעין צבי התפ. 305</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.51);color:#fff">73%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.08);color:#333">27%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.27);color:#333">54%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.52);color:#fff">74%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.32);color:#333">64%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.57);color:#fff">81%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.55);color:#fff">79%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">98%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.86);color:#fff">96%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.87);color:#fff">97%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.58);color:#fff">83%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.00);color:#333">0%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.11);color:#333">37%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.28);color:#333">56%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.84);color:#fff">93%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.82);color:#fff">91%</td><td class="hm-cell" style="background:rgba(0, 102, 204, 0.88);color:#fff">97%</td><td class="hm-cell" style="background:#0066cc;color:#fff">100%</td></tr>
-</tbody>
-    </table>
-    </div>
-    
+        <p class="section-desc">חישוב מתמטי ישיר לבחינת התאמת תבניות (Pattern Matching).</p>
+        <div class="table-wrap" id="heatmap-container"></div>
     </div>
 
-    <!-- ════════════════════════ 5. FINDINGS ════════════════════════ -->
+    <!-- ════════════════════════ FINDINGS ════════════════════════ -->
     <div class="section">
         <div class="findings">
             <h3>סיכום ממצאים מתצפיות והרכביות:</h3>
-            <ul>
-                <li><b>ריכוז הגבוה ביותר:</b> תחנה "חגית - בריכה 1500" (נקודה מזוהה בנחל) עם ריכוז כולל של 1121.11 µg/L.</li>
-<li><b>תרכובת דומיננטית:</b> PFOS מהווה בממוצע 33.5% מסך הריכוזים בכל התחנות.</li>
-<li><b>קורלציה חזקה (29 זוגות ≥95%):</b> המטריצה מעידה על קורלציה איתנה בין מקורות תחנה לבין רוב הנקודות במורד נחל דליה וכולל מאגרי מעין צבי. דוגמאות: "דליה - בת שלמה" ↔ "חגית - בריכה 1500" (96%), "דליה - בת שלמה" ↔ "חגית - בריכה 200" (99%), "דליה - בת שלמה" ↔ "חגית - יציאה ראשית לנחל" (99%), "דליה - בת שלמה" ↔ "מעין צבי ב'" (98%), "דליה - בת שלמה" ↔ "נחל דליה - גשר דרך עפר" (99%).</li>
-<li><b>חריגים בהרכב הכימי:</b> התחנות הבאות מציגות פרופיל שונה מרוב האחרות: "דליה- כביש ת''א-חיפה" (ממוצע 33%), "מק דליה 1" (ממוצע -5%), "מק דליה 2" (ממוצע -5%), "מק תות 4" (ממוצע -5%), "נחל דליה במורד קידוח דליה 1" (ממוצע -5%), "נחל רון במעלה קידוח מק דליה 2" (ממוצע 25%). ייתכן שמדובר במקור זיהום נפרד או בתהליכי הנחתה (Retardation) המשפיעים על ההרכב.</li>
-<li><b>היקף הסקר:</b> פריסת 22 נקודות דיגום ב-4 סוגי מקור, 18 תרכובות PFAS.</li>
-            </ul>
+            <ul id="findings-list"></ul>
         </div>
     </div>
 
 </div>
 
-<!-- ════════════════════════ FOOTER ════════════════════════ -->
 <div class="footer">
-    <p>🔒 GeoForensics v0.1.0 | נוצר אוטומטית מקובץ: דוגמה - חגית PFAS.xlsx</p>
+    <p>GeoForensics v0.1.0 | נוצר אוטומטית מקובץ: דוגמה - חגית PFAS.xlsx</p>
 </div>
+
+<!-- ════════════════════════ DATA + LOGIC ════════════════════════ -->
+<script>
+// ── Embedded data ──
+const DATA = {"stations": [{"name": "דליה - בת שלמה", "lat": 32.590881, "lon": 34.987456, "source_type": "תחנה הידרומטרית", "n_compounds": 18}, {"name": "דליה- כביש ת''א-חיפה", "lat": 32.592835, "lon": 34.947592, "source_type": "תחנה הידרומטרית", "n_compounds": 5}, {"name": "חגית - בריכה 1500", "lat": 32.616764, "lon": 35.036958, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18}, {"name": "חגית - בריכה 200", "lat": 32.616704, "lon": 35.038802, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18}, {"name": "חגית - יציאה ראשית לנחל", "lat": 32.617628, "lon": 35.035582, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18}, {"name": "מעין צבי", "lat": 32.601015, "lon": 34.931132, "source_type": "מאגר", "n_compounds": 13}, {"name": "מעין צבי ב'", "lat": 32.601022, "lon": 34.934328, "source_type": "מאגר", "n_compounds": 13}, {"name": "מעין צבי מ2", "lat": 32.574327, "lon": 34.924184, "source_type": "קידוח", "n_compounds": 13}, {"name": "מק דליה 1", "lat": 32.582699, "lon": 35.068121, "source_type": "קידוח", "n_compounds": 8}, {"name": "מק דליה 2", "lat": 32.588878, "lon": 35.0622, "source_type": "קידוח", "n_compounds": 8}, {"name": "מק טירלי 1", "lat": 32.580247, "lon": 34.975574, "source_type": "קידוח", "n_compounds": 18}, {"name": "מק טירלי 5", "lat": 32.578063, "lon": 34.974462, "source_type": "קידוח", "n_compounds": 18}, {"name": "מק טירלי 6", "lat": 32.579895, "lon": 34.97532, "source_type": "קידוח", "n_compounds": 18}, {"name": "מק תות 4", "lat": 32.591972, "lon": 35.021187, "source_type": "קידוח", "n_compounds": 18}, {"name": "נחל דליה - גשר דרך עפר", "lat": 32.588377, "lon": 34.924865, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18}, {"name": "נחל דליה במורד קידוח דליה 1", "lat": 32.582659, "lon": 35.064628, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18}, {"name": "נחל רון במעלה קידוח מק דליה 2", "lat": 32.591122, "lon": 35.069451, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18}, {"name": "ניקוז תחנת כוח חגית לנחל דליה", "lat": 32.616837, "lon": 35.037171, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18}, {"name": "פ מעין צבי דקל ז", "lat": 32.572225, "lon": 34.940431, "source_type": "קידוח", "n_compounds": 18}, {"name": "פ מעין צבי ה", "lat": 32.576453, "lon": 34.931387, "source_type": "קידוח", "n_compounds": 18}, {"name": "פ מעין צבי התפ. 304", "lat": 32.577828, "lon": 34.921085, "source_type": "קידוח", "n_compounds": 18}, {"name": "פ מעין צבי התפ. 305", "lat": 32.572911, "lon": 34.919897, "source_type": "קידוח", "n_compounds": 18}], "attenuation": [{"name": "חגית - בריכה 1500", "total": 1121.106, "source_type": "נקודה מזוהה בנחל"}, {"name": "חגית - בריכה 1500", "total": 142.683, "source_type": "נקודה מזוהה בנחל"}, {"name": "חגית - בריכה 200", "total": 6.921, "source_type": "נקודה מזוהה בנחל"}, {"name": "חגית - יציאה ראשית לנחל", "total": 6.438, "source_type": "נקודה מזוהה בנחל"}, {"name": "חגית - בריכה 200", "total": 2.949, "source_type": "נקודה מזוהה בנחל"}, {"name": "דליה - בת שלמה", "total": 0.801, "source_type": "תחנה הידרומטרית"}, {"name": "נחל דליה - גשר דרך עפר", "total": 0.711, "source_type": "נקודה מזוהה בנחל"}, {"name": "מעין צבי ב'", "total": 0.515, "source_type": "מאגר"}, {"name": "חגית - יציאה ראשית לנחל", "total": 0.489, "source_type": "נקודה מזוהה בנחל"}, {"name": "דליה- כביש ת''א-חיפה", "total": 0.446, "source_type": "תחנה הידרומטרית"}, {"name": "דליה - בת שלמה", "total": 0.392, "source_type": "תחנה הידרומטרית"}, {"name": "מעין צבי", "total": 0.319, "source_type": "מאגר"}, {"name": "נחל רון במעלה קידוח מק דליה 2", "total": 0.279, "source_type": "נקודה מזוהה בנחל"}, {"name": "מק טירלי 6", "total": 0.237, "source_type": "קידוח"}, {"name": "מק טירלי 1", "total": 0.228, "source_type": "קידוח"}, {"name": "מק טירלי 5", "total": 0.222, "source_type": "קידוח"}, {"name": "ניקוז תחנת כוח חגית לנחל דליה", "total": 0.174, "source_type": "נקודה מזוהה בנחל"}, {"name": "פ מעין צבי ה", "total": 0.068, "source_type": "קידוח"}, {"name": "מעין צבי מ2", "total": 0.053, "source_type": "קידוח"}, {"name": "מעין צבי", "total": 0.048, "source_type": "מאגר"}, {"name": "פ מעין צבי דקל ז", "total": 0.04, "source_type": "קידוח"}, {"name": "ניקוז תחנת כוח חגית לנחל דליה", "total": 0.039, "source_type": "נקודה מזוהה בנחל"}, {"name": "פ מעין צבי התפ. 305", "total": 0.035, "source_type": "קידוח"}, {"name": "פ מעין צבי התפ. 304", "total": 0.023, "source_type": "קידוח"}, {"name": "מק דליה 1", "total": 0.0, "source_type": "קידוח"}, {"name": "מק טירלי 5", "total": 0.0, "source_type": "קידוח"}, {"name": "מק תות 4", "total": 0.0, "source_type": "קידוח"}, {"name": "מק תות 4", "total": 0.0, "source_type": "קידוח"}, {"name": "מק דליה 2", "total": 0.0, "source_type": "קידוח"}, {"name": "נחל דליה במורד קידוח דליה 1", "total": 0.0, "source_type": "נקודה מזוהה בנחל"}], "fingerprint": {"stations": ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"], "compounds": ["6:2FT", "ADONA", "PFBA", "PFBS", "PFDA", "PFDoA", "PFESA", "PFHpA", "PFHpS", "PFHxA", "PFHxS", "PFNA", "PFOA", "PFOS", "PFPeA", "PFPeS", "PFTDA", "PFUnA"], "values": [[1.01, 0.0, 1.93, 1.84, 0.0, 0.0, 0.0, 0.75, 1.51, 4.19, 18.19, 0.0, 2.01, 58.51, 5.53, 4.53, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.76, 0.0, 46.64, 0.0, 0.0, 16.14, 26.46, 0.0, 0.0, 0.0, 0.0], [7.13, 0.0, 0.04, 0.31, 0.07, 0.0, 0.0, 0.38, 0.56, 3.04, 4.74, 0.04, 1.45, 80.3, 0.17, 1.78, 0.0, 0.0], [2.96, 0.0, 0.37, 0.21, 0.0, 0.0, 0.0, 0.18, 1.17, 0.26, 26.12, 0.04, 1.09, 67.36, 0.0, 0.23, 0.0, 0.0], [1.62, 0.0, 0.01, 1.73, 0.0, 0.0, 0.0, 0.66, 1.05, 2.17, 13.77, 0.04, 2.31, 72.87, 1.67, 2.08, 0.0, 0.0], [11.53, 0.0, 0.0, 10.74, 0.0, 0.0, 0.0, 1.59, 0.0, 7.95, 22.27, 0.0, 1.79, 44.14, 0.0, 0.0, 0.0, 0.0], [4.85, 0.0, 0.0, 6.6, 0.0, 0.0, 0.0, 1.55, 0.0, 6.6, 23.3, 0.0, 2.72, 54.37, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 13.21, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 62.26, 0.0, 1.89, 22.64, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 9.21, 0.0, 0.0, 0.0, 1.32, 1.32, 4.82, 39.04, 0.0, 1.75, 33.33, 2.63, 6.58, 0.0, 0.0], [0.0, 0.0, 0.0, 7.92, 0.0, 0.0, 0.0, 1.13, 4.53, 3.4, 33.96, 0.0, 1.13, 26.42, 3.4, 18.11, 0.0, 0.0], [0.0, 0.0, 0.0, 8.44, 0.0, 0.0, 0.0, 1.27, 1.69, 4.64, 37.55, 0.0, 1.69, 35.44, 2.53, 6.75, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.98, 0.0, 0.7, 4.78, 0.0, 0.0, 0.0, 0.98, 0.0, 3.38, 26.3, 0.0, 1.83, 53.02, 3.66, 4.36, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [1.79, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12.54, 0.0, 38.71, 16.49, 0.0, 1.43, 1.43, 27.6, 0.0, 0.0, 0.0], [3.29, 0.0, 0.0, 1.88, 0.0, 0.0, 0.0, 1.41, 0.0, 4.23, 7.04, 0.0, 3.76, 78.4, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 2.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 40.0, 0.0, 2.5, 22.5, 17.5, 10.0, 0.0, 0.0], [0.0, 0.0, 4.41, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 44.12, 0.0, 0.0, 17.65, 19.12, 14.71, 0.0, 0.0], [0.0, 0.0, 0.0, 17.39, 0.0, 0.0, 0.0, 0.0, 0.0, 4.35, 47.83, 0.0, 4.35, 17.39, 0.0, 8.7, 0.0, 0.0], [0.0, 0.0, 0.0, 14.29, 0.0, 0.0, 0.0, 0.0, 0.0, 2.86, 42.86, 0.0, 0.0, 25.71, 5.71, 8.57, 0.0, 0.0]]}, "similarity": {"stations": ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"], "values": [[100.0, 50.5, 96.2, 98.8, 98.9, 93.9, 98.1, 59.4, 0.0, 0.0, 83.8, 77.7, 86.5, 0.0, 98.5, 0.0, 22.2, 97.0, 70.9, 60.9, 58.5, 72.8], [50.5, 100.0, 49.8, 44.0, 48.9, 52.9, 52.7, 16.3, 0.0, 0.0, 38.1, 32.5, 39.5, 0.0, 46.9, 0.0, 67.6, 52.1, 30.2, 15.3, 23.5, 26.9], [96.2, 49.8, 100.0, 95.0, 98.9, 88.6, 93.3, 38.8, 0.0, 0.0, 67.7, 60.3, 71.2, 0.0, 91.3, 0.0, 8.0, 99.7, 49.9, 38.3, 37.5, 53.5], [98.8, 44.0, 95.0, 100.0, 98.2, 94.6, 98.6, 64.6, 0.0, 0.0, 85.5, 77.5, 87.9, 0.0, 98.7, 0.0, 14.6, 95.9, 70.3, 60.7, 61.3, 74.4], [98.9, 48.9, 98.9, 98.2, 100.0, 91.7, 96.7, 50.5, 0.0, 0.0, 76.7, 69.3, 79.8, 0.0, 95.9, 0.0, 12.3, 99.4, 60.1, 49.2, 48.9, 63.9], [93.9, 52.9, 88.6, 94.6, 91.7, 100.0, 98.2, 71.3, 0.0, 0.0, 89.3, 81.1, 90.8, 0.0, 96.1, 0.0, 28.6, 89.5, 72.7, 62.7, 71.6, 81.2], [98.1, 52.7, 93.3, 98.6, 96.7, 98.2, 100.0, 68.2, 0.0, 0.0, 88.6, 80.2, 90.6, 0.0, 99.0, 0.0, 24.0, 94.6, 72.3, 61.8, 67.2, 78.6], [59.4, 16.3, 38.8, 64.6, 50.5, 71.3, 68.2, 100.0, 0.0, 0.0, 92.6, 87.2, 90.7, 0.0, 71.9, 0.0, 30.3, 42.0, 88.0, 87.1, 97.4, 95.9], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [83.8, 38.1, 67.7, 85.5, 76.7, 89.3, 88.6, 92.6, 0.0, 0.0, 100.0, 96.1, 99.9, 0.0, 91.6, 0.0, 35.3, 70.2, 91.8, 86.9, 92.8, 97.8], [77.7, 32.5, 60.3, 77.5, 69.3, 81.1, 80.2, 87.2, 0.0, 0.0, 96.1, 100.0, 95.9, 0.0, 85.2, 0.0, 33.8, 62.0, 91.6, 89.8, 91.5, 95.8], [86.5, 39.5, 71.2, 87.9, 79.8, 90.8, 90.6, 90.7, 0.0, 0.0, 99.9, 95.9, 100.0, 0.0, 93.4, 0.0, 34.0, 73.6, 91.0, 85.6, 90.9, 96.8], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [98.5, 46.9, 91.3, 98.7, 95.9, 96.1, 99.0, 71.9, 0.0, 0.0, 91.6, 85.2, 93.4, 0.0, 100.0, 0.0, 24.4, 92.6, 78.7, 69.8, 70.9, 82.8], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [22.2, 67.6, 8.0, 14.6, 12.3, 28.6, 24.0, 30.3, 0.0, 0.0, 35.3, 33.8, 34.0, 0.0, 24.4, 0.0, 100.0, 10.3, 52.3, 46.1, 34.7, 36.7], [97.0, 52.1, 99.7, 95.9, 99.4, 89.5, 94.6, 42.0, 0.0, 0.0, 70.2, 62.0, 73.6, 0.0, 92.6, 0.0, 10.3, 100.0, 52.0, 40.1, 40.8, 56.2], [70.9, 30.2, 49.9, 70.3, 60.1, 72.7, 72.3, 88.0, 0.0, 0.0, 91.8, 91.6, 91.0, 0.0, 78.7, 0.0, 52.3, 52.0, 100.0, 98.3, 87.6, 93.0], [60.9, 15.3, 38.3, 60.7, 49.2, 62.7, 61.8, 87.1, 0.0, 0.0, 86.9, 89.8, 85.6, 0.0, 69.8, 0.0, 46.1, 40.1, 98.3, 100.0, 86.8, 90.9], [58.5, 23.5, 37.5, 61.3, 48.9, 71.6, 67.2, 97.4, 0.0, 0.0, 92.8, 91.5, 90.9, 0.0, 70.9, 0.0, 34.7, 40.8, 87.6, 86.8, 100.0, 97.3], [72.8, 26.9, 53.5, 74.4, 63.9, 81.2, 78.6, 95.9, 0.0, 0.0, 97.8, 95.8, 96.8, 0.0, 82.8, 0.0, 36.7, 56.2, 93.0, 90.9, 97.3, 100.0]]}, "findings": ["<b>ריכוז הגבוה ביותר:</b> תחנה \"חגית - בריכה 1500\" (נקודה מזוהה בנחל) עם ריכוז כולל של 1121.11 µg/L.", "<b>תרכובת דומיננטית:</b> PFOS מהווה בממוצע 33.5% מסך הריכוזים בכל התחנות.", "<b>קורלציה חזקה (29 זוגות ≥95%):</b> המטריצה מעידה על קורלציה איתנה בין מקורות תחנה לבין רוב הנקודות במורד נחל דליה וכולל מאגרי מעין צבי. דוגמאות: \"דליה - בת שלמה\" ↔ \"חגית - בריכה 1500\" (96%), \"דליה - בת שלמה\" ↔ \"חגית - בריכה 200\" (99%), \"דליה - בת שלמה\" ↔ \"חגית - יציאה ראשית לנחל\" (99%), \"דליה - בת שלמה\" ↔ \"מעין צבי ב'\" (98%), \"דליה - בת שלמה\" ↔ \"נחל דליה - גשר דרך עפר\" (99%).", "<b>חריגים בהרכב הכימי:</b> התחנות הבאות מציגות פרופיל שונה מרוב האחרות: \"דליה- כביש ת''א-חיפה\" (ממוצע 33%), \"מק דליה 1\" (ממוצע -5%), \"מק דליה 2\" (ממוצע -5%), \"מק תות 4\" (ממוצע -5%), \"נחל דליה במורד קידוח דליה 1\" (ממוצע -5%), \"נחל רון במעלה קידוח מק דליה 2\" (ממוצע 25%). ייתכן שמדובר במקור זיהום נפרד או בתהליכי הנחתה (Retardation) המשפיעים על ההרכב.", "<b>היקף הסקר:</b> פריסת 22 נקודות דיגום ב-4 סוגי מקור, 18 תרכובות PFAS."]};
+const COMPOUND_COLORS = {"PFOS": "#e74c3c", "PFOA": "#e91e9e", "PFHxS": "#3498db", "PFNA": "#2ecc71", "PFDA": "#f39c12", "PFUnDA": "#9b59b6", "PFUnA": "#9b59b6", "PFBS": "#1abc9c", "GenX": "#e67e22", "PFPeS": "#8e44ad", "PFHpA": "#d35400", "6:2FT": "#7f8c8d", "PFHpS": "#c0392b", "PFPeA": "#16a085", "PFHxA": "#2980b9", "PFDoA": "#c0392b", "PFBA": "#27ae60", "ADONA": "#f1c40f", "PFESA": "#8e44ad", "PFTDA": "#d35400"};
+const SOURCE_COLORS = {"קידוח ניטור": "#3498db", "קידוח הפקה": "#2ecc71", "קידוח": "#2980b9", "מט\"ש": "#e74c3c", "מעיין": "#9b59b6", "מים עיליים": "#f39c12", "נקודה מזוהה בנחל": "#e67e22", "תחנה הידרומטרית": "#1abc9c", "מאגר": "#8e44ad"};
+const DEFAULT_COLOR = '#95a5a6';
+const GROUP_UNIT = 'µg/L';
+const GROUP_NAME = 'PFAS';
+
+// ── State ──
+let selectedStations = new Set(DATA.stations.map(s => s.name));
+let map, markers = [];
+
+// ── Helpers ──
+function getSourceColor(s) { return SOURCE_COLORS[s] || DEFAULT_COLOR; }
+function getCompoundColor(c) { return COMPOUND_COLORS[c] || DEFAULT_COLOR; }
+
+// ── Filter panel ──
+function buildFilterPanel() {
+    // Source type filter buttons
+    const sourceTypes = [...new Set(DATA.stations.map(s => s.source_type))];
+    const srcDiv = document.getElementById('source-filters');
+    sourceTypes.forEach(st => {
+        const btn = document.createElement('button');
+        btn.textContent = st;
+        btn.style.borderRight = '4px solid ' + getSourceColor(st);
+        btn.onclick = () => toggleSourceType(st);
+        srcDiv.appendChild(btn);
+    });
+
+    // Station chips
+    const grid = document.getElementById('station-chips');
+    DATA.stations.forEach(s => {
+        const chip = document.createElement('div');
+        chip.className = 'station-chip selected';
+        chip.dataset.station = s.name;
+        chip.dataset.source = s.source_type;
+        chip.innerHTML = '<span class="dot" style="background:' + getSourceColor(s.source_type) + '"></span>' + s.name;
+        chip.onclick = () => toggleStation(s.name);
+        grid.appendChild(chip);
+    });
+    updateFilterCount();
+}
+
+function toggleStation(name) {
+    if (selectedStations.has(name)) selectedStations.delete(name);
+    else selectedStations.add(name);
+    updateUI();
+}
+
+function toggleSourceType(st) {
+    const stationsOfType = DATA.stations.filter(s => s.source_type === st).map(s => s.name);
+    const allSelected = stationsOfType.every(n => selectedStations.has(n));
+    stationsOfType.forEach(n => {
+        if (allSelected) selectedStations.delete(n);
+        else selectedStations.add(n);
+    });
+    updateUI();
+}
+
+function selectAll() {
+    DATA.stations.forEach(s => selectedStations.add(s.name));
+    updateUI();
+}
+
+function selectNone() {
+    selectedStations.clear();
+    updateUI();
+}
+
+function updateFilterCount() {
+    document.getElementById('filter-count').textContent =
+        selectedStations.size + ' מתוך ' + DATA.stations.length + ' תחנות נבחרו';
+}
+
+function updateChipStyles() {
+    document.querySelectorAll('.station-chip').forEach(chip => {
+        chip.classList.toggle('selected', selectedStations.has(chip.dataset.station));
+    });
+}
+
+// ── Map ──
+function initMap() {
+    const lats = DATA.stations.map(s => s.lat);
+    const lons = DATA.stations.map(s => s.lon);
+    const cLat = lats.reduce((a,b) => a+b, 0) / lats.length;
+    const cLon = lons.reduce((a,b) => a+b, 0) / lons.length;
+
+    map = L.map('map').setView([cLat, cLon], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Legend
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function() {
+        const div = L.DomUtil.create('div');
+        div.style.cssText = 'background:rgba(255,255,255,0.92);padding:10px 14px;border-radius:8px;font-family:sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2);direction:rtl';
+        const types = [...new Set(DATA.stations.map(s => s.source_type))];
+        let html = '<b style="font-size:13px">סוג מקור</b>';
+        types.forEach(t => {
+            html += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0">' +
+                '<span style="width:12px;height:12px;border-radius:50%;background:' + getSourceColor(t) +
+                ';display:inline-block;border:1px solid #fff"></span>' +
+                '<span style="font-size:12px">' + t + '</span></div>';
+        });
+        div.innerHTML = html;
+        return div;
+    };
+    legend.addTo(map);
+
+    updateMap();
+}
+
+function updateMap() {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+
+    DATA.stations.filter(s => selectedStations.has(s.name)).forEach(s => {
+        const m = L.circleMarker([s.lat, s.lon], {
+            radius: 8, fillColor: getSourceColor(s.source_type), color: '#fff',
+            weight: 2, opacity: 1, fillOpacity: 0.85
+        }).addTo(map).bindPopup(
+            '<b>' + s.name + '</b><br>סוג: ' + s.source_type + '<br>תרכובות: ' + s.n_compounds
+        );
+        markers.push(m);
+    });
+
+    if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.15));
+    }
+}
+
+// ── Attenuation chart ──
+function updateAttenuationChart() {
+    const filtered = DATA.attenuation.filter(a => selectedStations.has(a.name));
+    Plotly.react('attenuation-chart', [{
+        x: filtered.map(a => a.name),
+        y: filtered.map(a => a.total),
+        type: 'bar',
+        marker: { color: filtered.map(a => getSourceColor(a.source_type)) },
+        hovertemplate: '<b>%{x}</b><br>&Sigma;' + GROUP_NAME + ': %{y:.2f} ' + GROUP_UNIT + '<extra></extra>'
+    }], {
+        yaxis: { type: 'log', title: { text: 'ריכוז כולל (' + GROUP_UNIT + ')', font: { size: 13 } }, gridcolor: '#e0e0e0' },
+        xaxis: { tickangle: -35, tickfont: { size: 11 } },
+        margin: { t: 20, b: 120, l: 60, r: 20 },
+        plot_bgcolor: '#fafafa', paper_bgcolor: 'white',
+        hoverlabel: { font: { size: 13 } }
+    }, { responsive: true });
+}
+
+// ── Fingerprint chart ──
+function updateFingerprintChart() {
+    const fp = DATA.fingerprint;
+    const selIdx = [];
+    fp.stations.forEach((s, i) => { if (selectedStations.has(s)) selIdx.push(i); });
+
+    const traces = fp.compounds.map((compound, ci) => ({
+        x: selIdx.map(i => fp.stations[i]),
+        y: selIdx.map(i => fp.values[i][ci]),
+        name: compound,
+        type: 'bar',
+        marker: { color: getCompoundColor(compound) },
+        hovertemplate: '<b>' + compound + '</b>: %{y:.1f}%<extra></extra>'
+    }));
+
+    Plotly.react('fingerprint-chart', traces, {
+        barmode: 'stack',
+        yaxis: { title: { text: 'הרכב יחסי (%)', font: { size: 13 } }, range: [0, 100], gridcolor: '#e0e0e0' },
+        xaxis: { tickangle: -35, tickfont: { size: 11 } },
+        margin: { t: 20, b: 120, l: 50, r: 20 },
+        plot_bgcolor: '#fafafa', paper_bgcolor: 'white',
+        legend: { orientation: 'v', x: 1.02, y: 1, font: { size: 11 } },
+        hoverlabel: { font: { size: 13 } }
+    }, { responsive: true });
+}
+
+// ── Heatmap ──
+function updateHeatmap() {
+    const sim = DATA.similarity;
+    const selIdx = [];
+    sim.stations.forEach((s, i) => { if (selectedStations.has(s)) selIdx.push(i); });
+
+    if (selIdx.length === 0) {
+        document.getElementById('heatmap-container').innerHTML = '<p style="color:#999;text-align:center;padding:20px">בחר תחנות כדי להציג את מטריצת הדמיון</p>';
+        return;
+    }
+
+    let html = '<table class="heatmap"><thead><tr><th class="hm-corner"></th>';
+    selIdx.forEach(j => { html += '<th class="hm-header">' + sim.stations[j] + '</th>'; });
+    html += '</tr></thead><tbody>';
+
+    selIdx.forEach(i => {
+        html += '<tr><td class="hm-station">' + sim.stations[i] + '</td>';
+        selIdx.forEach(j => {
+            const val = sim.values[i][j];
+            let bg, tc;
+            if (i === j) { bg = '#0066cc'; tc = '#fff'; }
+            else if (val >= 90) { bg = 'rgba(0,102,204,' + (val/100*0.9).toFixed(2) + ')'; tc = '#fff'; }
+            else if (val >= 70) { bg = 'rgba(0,102,204,' + (val/100*0.7).toFixed(2) + ')'; tc = '#fff'; }
+            else if (val >= 50) { bg = 'rgba(0,102,204,' + (val/100*0.5).toFixed(2) + ')'; tc = '#333'; }
+            else { bg = 'rgba(0,102,204,' + (val/100*0.3).toFixed(2) + ')'; tc = '#333'; }
+            html += '<td class="hm-cell" style="background:' + bg + ';color:' + tc + '">' + val.toFixed(0) + '%</td>';
+        });
+        html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    document.getElementById('heatmap-container').innerHTML = html;
+}
+
+// ── Findings ──
+function renderFindings() {
+    const ul = document.getElementById('findings-list');
+    ul.innerHTML = DATA.findings.map(f => '<li>' + f + '</li>').join('');
+}
+
+// ── Master update ──
+function updateUI() {
+    updateChipStyles();
+    updateFilterCount();
+    updateMap();
+    updateAttenuationChart();
+    updateFingerprintChart();
+    updateHeatmap();
+}
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', function() {
+    buildFilterPanel();
+    initMap();
+    updateAttenuationChart();
+    updateFingerprintChart();
+    updateHeatmap();
+    renderFindings();
+});
+</script>
 
 </body>
 </html>
