@@ -116,7 +116,8 @@ def build_fingerprint_matrix(df: pd.DataFrame, group: ContaminantGroup) -> pd.Da
     בונה מטריצת "טביעת אצבע כימית" - כל תחנה כשורה,
     כל תרכובת כעמודה, הערכים באחוזים יחסיים (סה"כ = 100%).
 
-    זה הבסיס לניתוח PCA ו-Cosine Similarity.
+    לכל תחנה נבחר אירוע הדיגום (תאריך) שבו סכום הריכוזים
+    הכולל הוא המירבי. זה הבסיס לניתוח PCA ו-Cosine Similarity.
 
     Args:
         df: DataFrame מעובד
@@ -129,12 +130,26 @@ def build_fingerprint_matrix(df: pd.DataFrame, group: ContaminantGroup) -> pd.Da
     mask = df["compound"].str.upper().isin(known)
     filtered = df[mask].copy()
 
-    # Pivot: rows = station, columns = compound, values = mean concentration
+    # For each station, find the sampling event (date) with max total concentration
+    totals = (
+        filtered.groupby(["station_name", "sample_date"])["concentration"]
+        .sum()
+        .reset_index(name="total")
+    )
+    best_event = totals.loc[totals.groupby("station_name")["total"].idxmax()]
+    best_keys = set(zip(best_event["station_name"], best_event["sample_date"]))
+
+    # Keep only rows belonging to the max-total event per station
+    filtered = filtered[
+        filtered.apply(lambda r: (r["station_name"], r["sample_date"]) in best_keys, axis=1)
+    ]
+
+    # Pivot: rows = station, columns = compound, values = concentration from max event
     matrix = filtered.pivot_table(
         index="station_name",
         columns="compound",
         values="concentration",
-        aggfunc="mean",
+        aggfunc="sum",
         fill_value=0,
     )
 
