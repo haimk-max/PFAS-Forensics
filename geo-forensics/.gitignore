@@ -1,0 +1,20 @@
+# Uploaded user data - never commit real data
+data/uploads/*.xlsx
+data/uploads/*.csv
+data/uploads/*.xls
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
