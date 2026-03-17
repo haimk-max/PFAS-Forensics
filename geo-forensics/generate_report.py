@@ -42,6 +42,7 @@ COMPOUND_COLORS = {
     "PFNA": "#2ecc71",
     "PFDA": "#f39c12",
     "PFUnDA": "#9b59b6",
+    "PFUnA": "#9b59b6",
     "PFBS": "#1abc9c",
     "GenX": "#e67e22",
     "PFPeS": "#8e44ad",
@@ -49,14 +50,24 @@ COMPOUND_COLORS = {
     "6:2FT": "#7f8c8d",
     "PFHpS": "#c0392b",
     "PFPeA": "#16a085",
+    "PFHxA": "#2980b9",
+    "PFDoA": "#c0392b",
+    "PFBA": "#27ae60",
+    "ADONA": "#f1c40f",
+    "PFESA": "#8e44ad",
+    "PFTDA": "#d35400",
 }
 
 SOURCE_COLORS = {
     "קידוח ניטור": "#3498db",
     "קידוח הפקה": "#2ecc71",
+    "קידוח": "#2980b9",
     "מט\"ש": "#e74c3c",
     "מעיין": "#9b59b6",
     "מים עיליים": "#f39c12",
+    "נקודה מזוהה בנחל": "#e67e22",
+    "תחנה הידרומטרית": "#1abc9c",
+    "מאגר": "#8e44ad",
 }
 
 DEFAULT_COLOR = "#95a5a6"
@@ -284,16 +295,22 @@ def _build_methodology_box(n_stations: int) -> str:
 # =============================================================================
 # Main HTML assembly
 # =============================================================================
-def generate_html_report(output_path: str = "report.html"):
-    """Generate a professional standalone HTML report."""
-    sample_path = os.path.join(os.path.dirname(__file__), "data", "sample", "sample_pfas.xlsx")
+def generate_html_report(input_path: str | None = None, output_path: str = "report.html"):
+    """Generate a professional standalone HTML report.
 
-    if not os.path.exists(sample_path):
-        print("שגיאה: קובץ הדוגמה לא נמצא. הרץ: python -m src.generate_sample_data")
+    Args:
+        input_path: path to Excel/CSV data file. If None, uses sample data.
+        output_path: path for output HTML file.
+    """
+    if input_path is None:
+        input_path = os.path.join(os.path.dirname(__file__), "data", "sample", "sample_pfas.xlsx")
+
+    if not os.path.exists(input_path):
+        print(f"שגיאה: קובץ לא נמצא: {input_path}")
         sys.exit(1)
 
-    print("טוען ומעבד נתונים...")
-    df, group = process_file(sample_path)
+    print(f"טוען ומעבד נתונים מ: {os.path.basename(input_path)}...")
+    df, group = process_file(input_path)
 
     print("מחשב Cosine Similarity...")
     sim_matrix = cosine_similarity_matrix(df, group)
@@ -633,7 +650,7 @@ def generate_html_report(output_path: str = "report.html"):
 
 <!-- ════════════════════════ FOOTER ════════════════════════ -->
 <div class="footer">
-    <p>🔒 דוח זה נוצר מנתוני דוגמה סינתטיים | {APP_NAME} v{APP_VERSION} | נוצר אוטומטית</p>
+    <p>🔒 {APP_NAME} v{APP_VERSION} | נוצר אוטומטית מקובץ: {os.path.basename(input_path)}</p>
 </div>
 
 </body>
@@ -648,5 +665,16 @@ def generate_html_report(output_path: str = "report.html"):
 
 
 if __name__ == "__main__":
-    output = os.path.join(os.path.dirname(__file__), "report.html")
-    generate_html_report(output)
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate PFAS forensic HTML report")
+    parser.add_argument("input_file", nargs="?", default=None, help="Path to Excel/CSV data file")
+    parser.add_argument("-o", "--output", default=None, help="Output HTML file path")
+    args = parser.parse_args()
+
+    if args.output:
+        out = args.output
+    else:
+        out = os.path.join(os.path.dirname(__file__), "report.html")
+
+    generate_html_report(input_path=args.input_file, output_path=out)

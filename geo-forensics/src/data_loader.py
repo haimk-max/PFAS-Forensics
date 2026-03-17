@@ -29,18 +29,22 @@ COLUMN_MAPPING: dict[str, str] = {
     "תחנה": "station_name",
     "station": "station_name",
     "station_name": "station_name",
+    "water_source_name": "station_name",
+    "שם מקור מים": "station_name",
     # X coordinate (ITM)
     "x": "x_itm",
     "x_itm": "x_itm",
     "x (itm)": "x_itm",
     "איקס": "x_itm",
     "קואורדינטה x": "x_itm",
+    "x_coordinate": "x_itm",
     # Y coordinate (ITM)
     "y": "y_itm",
     "y_itm": "y_itm",
     "y (itm)": "y_itm",
     "וואי": "y_itm",
     "קואורדינטה y": "y_itm",
+    "y_coordinate": "y_itm",
     # Sample date
     "תאריך דיגום": "sample_date",
     "תאריך": "sample_date",
@@ -51,12 +55,16 @@ COLUMN_MAPPING: dict[str, str] = {
     "סוג": "source_type",
     "מקור": "source_type",
     "source_type": "source_type",
+    "water_source_type": "source_type",
+    "סוג מקור מים": "source_type",
     # Compound
     "סמל תרכובת": "compound",
     "תרכובת": "compound",
     "שם תרכובת": "compound",
     "compound": "compound",
     "parameter": "compound",
+    "param_symbol": "compound",
+    "סמל פרמטר": "compound",
     # Concentration
     "ריכוז": "concentration",
     "ריכוז (µg/l)": "concentration",
@@ -69,6 +77,8 @@ COLUMN_MAPPING: dict[str, str] = {
     "יחידות": "unit",
     "unit": "unit",
     "units": "unit",
+    "measure_unit": "unit",
+    "יחידת מדידה": "unit",
 }
 
 # עמודות חובה - חייבות להיות בכל קובץ
