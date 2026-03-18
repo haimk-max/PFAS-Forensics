@@ -86,7 +86,7 @@ def _prepare_report_data(df, group):
     totals = totals.sort_values("total_concentration", ascending=False)
     fingerprint = build_fingerprint_matrix(df, group)
     sim_matrix = cosine_similarity_matrix(df, group)
-    findings = generate_findings_summary(df, group, sim_matrix)
+    # findings will be generated after PCA data is ready
 
     # --- Determine max-event per station (date + total) ---
     max_event_per_station = (
@@ -122,16 +122,18 @@ def _prepare_report_data(df, group):
         })
 
     # Attenuation: ONE bar per station (max event only), sorted descending
+    # Filter out stations with zero concentration (< LOD)
     attenuation_list = []
     for _, r in max_event_per_station.reset_index().sort_values(
         "total_concentration", ascending=False
     ).iterrows():
-        attenuation_list.append({
-            "name": r["station_name"],
-            "total": round(r["total_concentration"], 4),
-            "source_type": r["source_type"],
-            "date": str(r["sample_date"])[:10],
-        })
+        if r["total_concentration"] > 0:
+            attenuation_list.append({
+                "name": r["station_name"],
+                "total": round(r["total_concentration"], 4),
+                "source_type": r["source_type"],
+                "date": str(r["sample_date"])[:10],
+            })
 
     # --- Sort compounds by proportion in the highest-concentration station ---
     top_station = max_event_per_station["total_concentration"].idxmax()
@@ -144,36 +146,42 @@ def _prepare_report_data(df, group):
     # Reorder fingerprint columns
     fingerprint = fingerprint[sorted_compounds]
 
+    # Filter fingerprint: remove stations with zero total concentration
+    non_zero_stations = [
+        stn for stn in fingerprint.index
+        if stn in max_event_per_station.index
+        and max_event_per_station.loc[stn, "total_concentration"] > 0
+    ]
+    fingerprint_filtered = fingerprint.loc[non_zero_stations]
+
     # Fingerprint matrix (with per-station absolute totals for labels)
     fp_totals = []
-    for stn in fingerprint.index.tolist():
-        if stn in max_event_per_station.index:
-            fp_totals.append(round(float(max_event_per_station.loc[stn, "total_concentration"]), 3))
-        else:
-            fp_totals.append(0.0)
+    for stn in fingerprint_filtered.index.tolist():
+        fp_totals.append(round(float(max_event_per_station.loc[stn, "total_concentration"]), 3))
 
     fp_data = {
-        "stations": fingerprint.index.tolist(),
-        "compounds": fingerprint.columns.tolist(),
-        "values": [[round(v, 2) for v in row] for row in fingerprint.values.tolist()],
+        "stations": fingerprint_filtered.index.tolist(),
+        "compounds": fingerprint_filtered.columns.tolist(),
+        "values": [[round(v, 2) for v in row] for row in fingerprint_filtered.values.tolist()],
         "totals": fp_totals,
     }
 
-    # --- PFOS/PFHxS ratio per station ---
-    pfos_col = "PFOS" if "PFOS" in fingerprint.columns else None
-    pfhxs_col = "PFHxS" if "PFHxS" in fingerprint.columns else None
+    # --- PFOS/PFHxS ratio per station (only non-zero stations) ---
+    pfos_col = "PFOS" if "PFOS" in fingerprint_filtered.columns else None
+    pfhxs_col = "PFHxS" if "PFHxS" in fingerprint_filtered.columns else None
     ratios = {}
     if pfos_col and pfhxs_col:
-        for stn in fingerprint.index:
-            pfos_val = fingerprint.loc[stn, pfos_col]
-            pfhxs_val = fingerprint.loc[stn, pfhxs_col]
+        for stn in fingerprint_filtered.index:
+            pfos_val = fingerprint_filtered.loc[stn, pfos_col]
+            pfhxs_val = fingerprint_filtered.loc[stn, pfhxs_col]
             if pfhxs_val > 0:
                 ratios[stn] = round(pfos_val / pfhxs_val, 2)
             else:
                 ratios[stn] = None
 
-    # Similarity matrix — cluster-sort stations using hierarchical clustering
-    sim_vals = sim_matrix.values
+    # Similarity matrix — filter out zero-concentration stations, then cluster-sort
+    sim_matrix_filtered = sim_matrix.loc[non_zero_stations, non_zero_stations]
+    sim_vals = sim_matrix_filtered.values
     # Distance = 1 - similarity (normalized to 0-1)
     dist = 1 - sim_vals / 100.0
     np.fill_diagonal(dist, 0)
@@ -190,32 +198,30 @@ def _prepare_report_data(df, group):
     else:
         order = list(range(n))
 
-    clustered_stations = [sim_matrix.index[i] for i in order]
+    clustered_stations = [sim_matrix_filtered.index[i] for i in order]
     sim_data = {
         "stations": clustered_stations,
-        "values": [[round(sim_matrix.loc[a, b], 1) for b in clustered_stations] for a in clustered_stations],
+        "values": [[round(sim_matrix_filtered.loc[a, b], 1) for b in clustered_stations] for a in clustered_stations],
     }
 
     # --- PCA: 2D projection for chemical similarity scatter ---
     from sklearn.decomposition import PCA as _PCA
-    fp_vals = fingerprint.values
-    # Stations with all-zero fingerprints get NaN PCA coords
-    non_zero_mask = fp_vals.sum(axis=1) > 0
+    fp_vals = fingerprint_filtered.values
     pca_data = {"stations": [], "pc1": [], "pc2": [], "var_explained": [0, 0]}
 
-    if non_zero_mask.sum() >= 2:
-        pca_model = _PCA(n_components=min(2, non_zero_mask.sum()))
-        coords = pca_model.fit_transform(fp_vals[non_zero_mask])
+    if len(fp_vals) >= 2:
+        pca_model = _PCA(n_components=min(2, len(fp_vals)))
+        coords = pca_model.fit_transform(fp_vals)
         var_explained = (pca_model.explained_variance_ratio_ * 100).tolist()
         pca_data["var_explained"] = [round(v, 1) for v in var_explained]
 
-        j = 0
-        for i, stn in enumerate(fingerprint.index):
-            if non_zero_mask[i]:
-                pca_data["stations"].append(stn)
-                pca_data["pc1"].append(round(float(coords[j, 0]), 3))
-                pca_data["pc2"].append(round(float(coords[j, 1]) if coords.shape[1] > 1 else 0, 3))
-                j += 1
+        for i, stn in enumerate(fingerprint_filtered.index):
+            pca_data["stations"].append(stn)
+            pca_data["pc1"].append(round(float(coords[i, 0]), 3))
+            pca_data["pc2"].append(round(float(coords[i, 1]) if coords.shape[1] > 1 else 0, 3))
+
+    # Generate findings summary with PCA data
+    findings = generate_findings_summary(df, group, sim_matrix, pca_data=pca_data)
 
     return {
         "stations": stations_list,
@@ -498,16 +504,9 @@ def generate_html_report(input_path=None, output_path="report.html"):
         <div style="width:100%;height:500px;"><canvas id="pca-canvas"></canvas></div>
     </div>
 
-    <!-- ════════════════════════ PFOS/PFHxS RATIO ════════════════════════ -->
-    <div class="section">
-        <h2>5. מדד פורנזי: יחס PFOS/PFHxS</h2>
-        <p class="section-desc">יחס מרכזי להבחנה בין מקורות ולהערכת מידת ה-Transport. יחס גבוה מעיד על קרבה למקור; ירידה ביחס משקפת ספיחה סלקטיבית של PFOS לאורך מסלול הזרימה.</p>
-        <div class="table-wrap" id="ratio-container"></div>
-    </div>
-
     <!-- ════════════════════════ HEATMAP ════════════════════════ -->
     <div class="section">
-        <h2>6. מטריצת Cosine Similarity — השוואת חותמות כימיות</h2>
+        <h2>5. מטריצת Cosine Similarity — השוואת חותמות כימיות</h2>
         <p class="section-desc">התחנות ממוינות לפי Hierarchical Clustering. צבע ירוק = דמיון גבוה, אדום = דמיון נמוך.</p>
         <div class="method-box-compact">
             <div class="method-text"><b>Cosine Similarity</b> — השוואת פרופילים כימיים כווקטורים, תוך נטרול השפעת גודל הריכוזים.
@@ -518,6 +517,13 @@ def generate_html_report(input_path=None, output_path="report.html"):
             </span></div>
         </div>
         <div class="table-wrap" id="heatmap-container"></div>
+    </div>
+
+    <!-- ════════════════════════ PFOS/PFHxS RATIO ════════════════════════ -->
+    <div class="section">
+        <h2>6. מדד פורנזי: יחס PFOS/PFHxS</h2>
+        <p class="section-desc">יחס מקובל בספרות הפורנזית (Charbonnet et al. 2021; Zenobio et al. 2026) להערכת קרבה למקור זיהום ומידת ה-Transport. ב-AFFF מקורי (3M ECF) היחס ~8; ירידה ביחס משקפת ספיחה סלקטיבית של PFOS לאורך מסלול הזרימה. יחסים פורנזיים נוספים (כגון &Sigma;PFCAs/&Sigma;PFSAs, יחס Branched/Linear, ונוכחות 6:2 FTS) מומלצים כקווי ראיה משלימים.</p>
+        <div class="table-wrap" id="ratio-container"></div>
     </div>
 
     <!-- ════════════════════════ FINDINGS ════════════════════════ -->

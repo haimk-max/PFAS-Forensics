@@ -71,6 +71,7 @@ def generate_findings_summary(
     df: pd.DataFrame,
     group: ContaminantGroup,
     sim_matrix: pd.DataFrame,
+    pca_data: dict | None = None,
 ) -> list[str]:
     """
     מייצר סיכום ממצאים אוטומטי לדוח.
@@ -153,7 +154,45 @@ def generate_findings_summary(
                 f"המשפיעים על ההרכב."
             )
 
-    # 5. Attenuation pattern
+    # 5. PCA cluster analysis
+    if pca_data and len(pca_data.get("stations", [])) >= 2:
+        var1 = pca_data["var_explained"][0] if len(pca_data["var_explained"]) > 0 else 0
+        var2 = pca_data["var_explained"][1] if len(pca_data["var_explained"]) > 1 else 0
+        total_var = var1 + var2
+        n_pca = len(pca_data["stations"])
+
+        # Identify clusters using simple distance-based grouping on PCA coords
+        from scipy.cluster.hierarchy import fcluster, linkage as _linkage
+        coords_arr = list(zip(pca_data["pc1"], pca_data["pc2"]))
+        if len(coords_arr) >= 2:
+            from scipy.spatial.distance import pdist
+            dists = pdist(coords_arr)
+            Z_pca = _linkage(dists, method='average')
+            # Cut at 50% of max distance for meaningful clusters
+            max_dist = Z_pca[-1, 2] if len(Z_pca) > 0 else 1.0
+            cluster_labels = fcluster(Z_pca, t=max_dist * 0.35, criterion='distance')
+            n_clusters = len(set(cluster_labels))
+            clusters_dict = {}
+            for idx, cl in enumerate(cluster_labels):
+                clusters_dict.setdefault(cl, []).append(pca_data["stations"][idx])
+
+            cluster_descs = []
+            for cl_id, members in sorted(clusters_dict.items(), key=lambda x: -len(x[1])):
+                if len(members) >= 2:
+                    member_str = ", ".join(f"\"{m}\"" for m in members[:4])
+                    if len(members) > 4:
+                        member_str += f" ועוד {len(members) - 4}"
+                    cluster_descs.append(f"אשכול ({len(members)} תחנות): {member_str}")
+                else:
+                    cluster_descs.append(f"בודדת: \"{members[0]}\"")
+
+            findings.append(
+                f"<b>ניתוח PCA — {n_clusters} אשכולות זוהו:</b> "
+                f"שני הרכיבים הראשיים מסבירים {total_var:.1f}% מהשונות ({var1:.1f}% + {var2:.1f}%). "
+                + " | ".join(cluster_descs) + "."
+            )
+
+    # Attenuation pattern
     if not totals.empty and len(totals) >= 3:
         sorted_totals = totals.sort_values("total_concentration", ascending=False)
         max_conc = sorted_totals.iloc[0]["total_concentration"]
