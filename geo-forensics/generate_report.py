@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import numpy as np
 import pandas as pd
 from scipy.cluster.hierarchy import linkage, leaves_list
+from sklearn.manifold import MDS as _MDS
 
 from config import APP_NAME, APP_VERSION, PAGE_ICON
 from src.analytics import cosine_similarity_matrix, generate_findings_summary
@@ -220,6 +221,20 @@ def _prepare_report_data(df, group):
             pca_data["pc1"].append(round(float(coords[i, 0]), 3))
             pca_data["pc2"].append(round(float(coords[i, 1]) if coords.shape[1] > 1 else 0, 3))
 
+    # --- MDS: 2D projection based on cosine distance ---
+    mds_data = {"stations": [], "x": [], "y": [], "stress": 0}
+    if len(non_zero_stations) >= 2:
+        cos_dist = 1 - sim_matrix_filtered.values / 100.0
+        np.fill_diagonal(cos_dist, 0)
+        cos_dist = (cos_dist + cos_dist.T) / 2  # ensure symmetry
+        mds_model = _MDS(n_components=2, metric_mds=True, metric='precomputed', n_init=4, init='random', random_state=42, normalized_stress='auto')
+        mds_coords = mds_model.fit_transform(cos_dist)
+        mds_data["stress"] = round(float(mds_model.stress_), 4)
+        for i, stn in enumerate(sim_matrix_filtered.index):
+            mds_data["stations"].append(stn)
+            mds_data["x"].append(round(float(mds_coords[i, 0]), 4))
+            mds_data["y"].append(round(float(mds_coords[i, 1]), 4))
+
     # Generate findings summary with PCA data
     findings = generate_findings_summary(df, group, sim_matrix, pca_data=pca_data)
 
@@ -231,6 +246,7 @@ def _prepare_report_data(df, group):
         "findings": findings,
         "pfos_pfhxs_ratios": ratios,
         "pca": pca_data,
+        "mds": mds_data,
         "group_unit": group.unit,
     }
 
@@ -499,14 +515,47 @@ def generate_html_report(input_path=None, output_path="report.html"):
 
     <!-- ════════════════════════ PCA SCATTER ════════════════════════ -->
     <div class="section">
-        <h2>4. פיזור נקודות דיגום לפי דמיון כימי (PCA)</h2>
-        <p class="section-desc">Principal Component Analysis — הקרנת פרופיל ההרכב הכימי של כל תחנה למישור דו-ממדי. נקודות קרובות = חותמת כימית דומה. גודל הנקודה פרופורציונלי לריכוז הכולל. תחנות ללא ריכוזים (&lt; LOD) אינן מוצגות.</p>
+        <h2>4. PCA — פיזור לפי שונות מירבית</h2>
+        <div class="method-box-compact" style="flex-direction:column;align-items:stretch;">
+            <div class="method-text" style="margin-bottom:8px;">
+                <b>Principal Component Analysis (PCA)</b> — מקרין את וקטור ההרכב הכימי (%) של כל תחנה למישור דו-ממדי, כך שהצירים מייצגים את כיווני השונות הגדולים ביותר בנתונים.
+            </div>
+            <div style="display:flex;gap:24px;flex-wrap:wrap;">
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#27ae60;font-weight:600;">&#10003; יתרונות:</span> חושף מגמות וקבוצות על-בסיס ההרכב הכימי המלא; מזהה תרכובות שמניעות את ההפרדה בין קבוצות; מותאם לזיהוי פרקציונציה (Chromatographic Shift).
+                </div>
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#c0392b;font-weight:600;">&#10007; חסרונות:</span> ממקסם שונות ולא דמיון — תחנות עם חותמת כימית דומה אך יחסי-תרכובות מעט שונים עלולות להיראות רחוקות; רגיש לנוכחות תרכובת דומיננטית אחת שמושכת ציר שלם.
+                </div>
+            </div>
+        </div>
+        <p class="section-desc">נקודות קרובות = חותמת כימית דומה <b>לפי כיווני שונות</b>. גודל הנקודה פרופורציונלי לריכוז הכולל. תחנות ללא ריכוזים (&lt; LOD) אינן מוצגות.</p>
         <div style="width:100%;height:500px;"><canvas id="pca-canvas"></canvas></div>
+    </div>
+
+    <!-- ════════════════════════ MDS SCATTER ════════════════════════ -->
+    <div class="section">
+        <h2>5. MDS — פיזור לפי דמיון כימי (Cosine Distance)</h2>
+        <div class="method-box-compact" style="flex-direction:column;align-items:stretch;">
+            <div class="method-text" style="margin-bottom:8px;">
+                <b>Multidimensional Scaling (MDS)</b> — ממפה את מטריצת Cosine Distance למישור דו-ממדי כך שהמרחק בין נקודות על הגרף משקף ככל הניתן את ה<b>דמיון הכימי</b> בפועל. תחנות שדומות ב-Cosine Similarity (מעל 90%) יופיעו <b>צמודות</b>.
+            </div>
+            <div style="display:flex;gap:24px;flex-wrap:wrap;">
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#27ae60;font-weight:600;">&#10003; יתרונות:</span> נאמן למטריקת הדמיון הפורנזית — מרחק על הגרף = מרחק כימי אמיתי; מנטרל הבדלי ריכוז מוחלט; אידיאלי לזיהוי מקור משותף (Source Apportionment).
+                </div>
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#c0392b;font-weight:600;">&#10007; חסרונות:</span> אינו חושף אילו תרכובות מניעות את ההפרדה; עלול לאבד מידע על כיווני פרקציונציה; איכות ההקרנה תלויה בערך ה-Stress (ככל שנמוך יותר, כך מדויק יותר).
+                </div>
+            </div>
+        </div>
+        <p class="section-desc">נקודות קרובות = <b>דמיון כימי גבוה</b> (Cosine Similarity). גודל הנקודה פרופורציונלי לריכוז הכולל. תחנות ללא ריכוזים (&lt; LOD) אינן מוצגות.</p>
+        <div style="width:100%;height:500px;"><canvas id="mds-canvas"></canvas></div>
     </div>
 
     <!-- ════════════════════════ HEATMAP ════════════════════════ -->
     <div class="section">
-        <h2>5. מטריצת Cosine Similarity — השוואת חותמות כימיות</h2>
+        <h2>6. מטריצת Cosine Similarity — השוואת חותמות כימיות</h2>
         <p class="section-desc">התחנות ממוינות לפי Hierarchical Clustering. צבע ירוק = דמיון גבוה, אדום = דמיון נמוך.</p>
         <div class="method-box-compact">
             <div class="method-text"><b>Cosine Similarity</b> — השוואת פרופילים כימיים כווקטורים, תוך נטרול השפעת גודל הריכוזים.
@@ -521,7 +570,7 @@ def generate_html_report(input_path=None, output_path="report.html"):
 
     <!-- ════════════════════════ PFOS/PFHxS RATIO ════════════════════════ -->
     <div class="section">
-        <h2>6. מדד פורנזי: יחס PFOS/PFHxS</h2>
+        <h2>7. מדד פורנזי: יחס PFOS/PFHxS</h2>
         <p class="section-desc">יחס מקובל בספרות הפורנזית (Charbonnet et al. 2021; Zenobio et al. 2026) להערכת קרבה למקור זיהום ומידת ה-Transport. ב-AFFF מקורי (3M ECF) היחס ~8; ירידה ביחס משקפת ספיחה סלקטיבית של PFOS לאורך מסלול הזרימה. יחסים פורנזיים נוספים (כגון &Sigma;PFCAs/&Sigma;PFSAs, יחס Branched/Linear, ונוכחות 6:2 FTS) מומלצים כקווי ראיה משלימים.</p>
         <div class="table-wrap" id="ratio-container"></div>
     </div>
@@ -860,6 +909,85 @@ function updatePcaChart() {{
     }});
 }}
 
+// ── MDS scatter plot ──
+let mdsChart = null;
+function updateMdsChart() {{
+    const mds = DATA.mds;
+    if (!mds || mds.stations.length < 2) {{
+        document.getElementById('mds-canvas').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:40px">אין מספיק תחנות עם ריכוזים לניתוח MDS</p>';
+        return;
+    }}
+    const ctx = document.getElementById('mds-canvas').getContext('2d');
+    if (mdsChart) mdsChart.destroy();
+
+    const stationInfo = {{}};
+    DATA.stations.forEach(s => {{ stationInfo[s.name] = s; }});
+    const sourceGroups = {{}};
+    mds.stations.forEach((stn, i) => {{
+        if (!selectedStations.has(stn)) return;
+        const info = stationInfo[stn];
+        const st = info ? info.source_type : 'אחר';
+        if (!sourceGroups[st]) sourceGroups[st] = [];
+        sourceGroups[st].push({{ x: mds.x[i], y: mds.y[i], name: stn, total: info ? info.max_total : 0 }});
+    }});
+
+    const datasets = Object.entries(sourceGroups).map(([st, pts]) => ({{
+        label: st,
+        data: pts.map(p => ({{ x: p.x, y: p.y }})),
+        backgroundColor: getSourceColor(st),
+        borderColor: '#fff',
+        borderWidth: 1.5,
+        pointRadius: pts.map(p => Math.max(5, Math.min(20, 5 + Math.log10(p.total + 1) * 5))),
+        pointHoverRadius: pts.map(p => Math.max(7, Math.min(22, 7 + Math.log10(p.total + 1) * 5))),
+        _stationNames: pts.map(p => p.name),
+        _totals: pts.map(p => p.total)
+    }}));
+
+    mdsChart = new Chart(ctx, {{
+        type: 'scatter',
+        data: {{ datasets: datasets }},
+        options: {{
+            responsive: true, maintainAspectRatio: false,
+            plugins: {{
+                legend: {{ position: 'top', labels: {{ font: {{ size: 12 }}, boxWidth: 14 }} }},
+                tooltip: {{
+                    callbacks: {{
+                        label: function(ctx) {{
+                            const ds = ctx.dataset;
+                            const name = ds._stationNames[ctx.dataIndex];
+                            const total = ds._totals[ctx.dataIndex];
+                            return name + ' (' + (total >= 1 ? total.toFixed(1) : total.toFixed(3)) + ' ' + GROUP_UNIT + ')';
+                        }}
+                    }}
+                }}
+            }},
+            scales: {{
+                x: {{ title: {{ display: true, text: 'MDS ציר 1', font: {{ size: 13 }} }}, grid: {{ color: '#eee' }} }},
+                y: {{ title: {{ display: true, text: 'MDS ציר 2', font: {{ size: 13 }} }}, grid: {{ color: '#eee' }} }}
+            }}
+        }},
+        plugins: [{{
+            id: 'mdsLabels',
+            afterDraw(chart) {{
+                const ctx2 = chart.ctx;
+                ctx2.save();
+                ctx2.font = '11px sans-serif';
+                ctx2.fillStyle = '#333';
+                ctx2.textAlign = 'right';
+                chart.data.datasets.forEach((ds, di) => {{
+                    const meta = chart.getDatasetMeta(di);
+                    meta.data.forEach((pt, pi) => {{
+                        const name = ds._stationNames[pi];
+                        const shortName = name.length > 20 ? name.split(' - ').pop() || name.slice(0, 18) + '...' : name;
+                        ctx2.fillText(shortName, pt.x - 8, pt.y - 8);
+                    }});
+                }});
+                ctx2.restore();
+            }}
+        }}]
+    }});
+}}
+
 // ── PFOS/PFHxS ratio table ──
 function renderRatioTable() {{
     const ratios = DATA.pfos_pfhxs_ratios;
@@ -928,6 +1056,7 @@ function updateUI() {{
     updateAttenuationChart();
     updateFingerprintChart();
     updatePcaChart();
+    updateMdsChart();
     renderRatioTable();
     updateHeatmap();
 }}
@@ -939,6 +1068,7 @@ document.addEventListener('DOMContentLoaded', function() {{
     updateAttenuationChart();
     updateFingerprintChart();
     updatePcaChart();
+    updateMdsChart();
     renderRatioTable();
     updateHeatmap();
     renderFindings();
