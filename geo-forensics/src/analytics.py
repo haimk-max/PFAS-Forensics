@@ -122,15 +122,29 @@ def generate_findings_summary(
                 f"דוגמאות: {', '.join(pair_strs)}."
             )
 
-        # 4. Find outliers (low similarity)
+        # 4. Find zero-data stations and outliers separately
+        zero_stations = []
         low_sim_stations = []
         for i in range(n):
-            row_mean = (sim_matrix.iloc[i].sum() - 100) / (n - 1) if n > 1 else 100
-            if row_mean < 50:
-                low_sim_stations.append((sim_matrix.index[i], row_mean))
+            # Check if station has all-zero similarity (except self)
+            non_self_vals = [sim_matrix.iloc[i, j] for j in range(n) if j != i]
+            if all(v == 0 for v in non_self_vals):
+                zero_stations.append(sim_matrix.index[i])
+            else:
+                row_mean = sum(non_self_vals) / len(non_self_vals) if non_self_vals else 100
+                if row_mean < 50:
+                    low_sim_stations.append((sim_matrix.index[i], row_mean))
+
+        if zero_stations:
+            zero_strs = [f"\"{s}\"" for s in zero_stations]
+            findings.append(
+                f"<b>תחנות ללא ריכוזים משמעותיים ({'< LOD'}):</b> "
+                f"{', '.join(zero_strs)} — "
+                f"כל הריכוזים מתחת לסף הזיהוי. תחנות אלו לא נכללו בניתוח ההשוואתי."
+            )
 
         if low_sim_stations:
-            outlier_strs = [f"\"{s}\" (ממוצע {v:.0f}%)" for s, v in low_sim_stations]
+            outlier_strs = [f"\"{s}\" (ממוצע דמיון {v:.0f}%)" for s, v in low_sim_stations]
             findings.append(
                 f"<b>חריגים בהרכב הכימי:</b> "
                 f"התחנות הבאות מציגות פרופיל שונה מרוב האחרות: "

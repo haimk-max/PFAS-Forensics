@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import numpy as np
 import pandas as pd
+from scipy.cluster.hierarchy import linkage, leaves_list
 
 from config import APP_NAME, APP_VERSION, PAGE_ICON
 from src.analytics import cosine_similarity_matrix, generate_findings_summary
@@ -87,7 +88,13 @@ def _prepare_report_data(df, group):
     sim_matrix = cosine_similarity_matrix(df, group)
     findings = generate_findings_summary(df, group, sim_matrix)
 
-    # Station info
+    # --- Determine max-event per station (date + total) ---
+    max_event_per_station = (
+        totals.loc[totals.groupby("station_name")["total_concentration"].idxmax()]
+        .set_index("station_name")
+    )
+
+    # Station info (enriched with max total + selected date)
     stations_info = df.groupby("station_name").agg(
         lat=("lat", "first"),
         lon=("lon", "first"),
@@ -97,34 +104,96 @@ def _prepare_report_data(df, group):
 
     stations_list = []
     for _, r in stations_info.iterrows():
+        name = r["station_name"]
+        max_total = 0.0
+        selected_date = ""
+        if name in max_event_per_station.index:
+            row = max_event_per_station.loc[name]
+            max_total = float(row["total_concentration"])
+            selected_date = str(row["sample_date"])[:10]
         stations_list.append({
-            "name": r["station_name"],
+            "name": name,
             "lat": round(r["lat"], 6),
             "lon": round(r["lon"], 6),
             "source_type": r["source_type"],
             "n_compounds": int(r["n_compounds"]),
+            "max_total": round(max_total, 4),
+            "selected_date": selected_date,
         })
 
-    # Totals for attenuation chart
+    # Attenuation: ONE bar per station (max event only), sorted descending
     attenuation_list = []
-    for _, r in totals.iterrows():
+    for _, r in max_event_per_station.reset_index().sort_values(
+        "total_concentration", ascending=False
+    ).iterrows():
         attenuation_list.append({
             "name": r["station_name"],
             "total": round(r["total_concentration"], 4),
             "source_type": r["source_type"],
+            "date": str(r["sample_date"])[:10],
         })
 
-    # Fingerprint matrix
+    # --- Sort compounds by proportion in the highest-concentration station ---
+    top_station = max_event_per_station["total_concentration"].idxmax()
+    if top_station in fingerprint.index:
+        top_profile = fingerprint.loc[top_station]
+        sorted_compounds = top_profile.sort_values(ascending=False).index.tolist()
+    else:
+        sorted_compounds = fingerprint.columns.tolist()
+
+    # Reorder fingerprint columns
+    fingerprint = fingerprint[sorted_compounds]
+
+    # Fingerprint matrix (with per-station absolute totals for labels)
+    fp_totals = []
+    for stn in fingerprint.index.tolist():
+        if stn in max_event_per_station.index:
+            fp_totals.append(round(float(max_event_per_station.loc[stn, "total_concentration"]), 3))
+        else:
+            fp_totals.append(0.0)
+
     fp_data = {
         "stations": fingerprint.index.tolist(),
         "compounds": fingerprint.columns.tolist(),
         "values": [[round(v, 2) for v in row] for row in fingerprint.values.tolist()],
+        "totals": fp_totals,
     }
 
-    # Similarity matrix
+    # --- PFOS/PFHxS ratio per station ---
+    pfos_col = "PFOS" if "PFOS" in fingerprint.columns else None
+    pfhxs_col = "PFHxS" if "PFHxS" in fingerprint.columns else None
+    ratios = {}
+    if pfos_col and pfhxs_col:
+        for stn in fingerprint.index:
+            pfos_val = fingerprint.loc[stn, pfos_col]
+            pfhxs_val = fingerprint.loc[stn, pfhxs_col]
+            if pfhxs_val > 0:
+                ratios[stn] = round(pfos_val / pfhxs_val, 2)
+            else:
+                ratios[stn] = None
+
+    # Similarity matrix — cluster-sort stations using hierarchical clustering
+    sim_vals = sim_matrix.values
+    # Distance = 1 - similarity (normalized to 0-1)
+    dist = 1 - sim_vals / 100.0
+    np.fill_diagonal(dist, 0)
+    # Condensed distance matrix for linkage
+    n = len(dist)
+    condensed = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            condensed.append(dist[i][j])
+    condensed = np.array(condensed)
+    if len(condensed) > 0 and np.all(np.isfinite(condensed)):
+        Z = linkage(condensed, method='average')
+        order = leaves_list(Z).tolist()
+    else:
+        order = list(range(n))
+
+    clustered_stations = [sim_matrix.index[i] for i in order]
     sim_data = {
-        "stations": sim_matrix.index.tolist(),
-        "values": [[round(v, 1) for v in row] for row in sim_matrix.values.tolist()],
+        "stations": clustered_stations,
+        "values": [[round(sim_matrix.loc[a, b], 1) for b in clustered_stations] for a in clustered_stations],
     }
 
     return {
@@ -133,31 +202,9 @@ def _prepare_report_data(df, group):
         "fingerprint": fp_data,
         "similarity": sim_data,
         "findings": findings,
+        "pfos_pfhxs_ratios": ratios,
+        "group_unit": group.unit,
     }
-
-
-# =============================================================================
-# Build methodology box (static HTML)
-# =============================================================================
-def _build_methodology_box(n_stations):
-    return f"""
-    <div class="method-box">
-        <h3>מתודולוגיה: מדד דמיון הקוסינוס (Cosine Similarity)</h3>
-        <p>השוואת {n_stations} תחנות המפתח מבוצעת על בסיס פרופיל ההרכב
-        הכימי כווקטור נתונים, תוך נטרול השפעת גודל הריכוזים. מידת
-        הדמיון מחושבת על בסיס הזווית (&theta;) שבין הווקטורים:</p>
-        <div class="formula">
-            Similarity = cos(&theta;) = <span class="frac">
-                <span class="num">&Sigma; (A<sub>i</sub> &times; B<sub>i</sub>)</span>
-                <span class="den">&radic;&Sigma;(A<sub>i</sub>)&sup2; &times; &radic;&Sigma;(B<sub>i</sub>)&sup2;</span>
-            </span>
-        </div>
-        <p>ערך הקרוב ל-100% מצביע על חותמת כימית זהה. ניתוח
-        אובייקטיבי זה מאפשר לאמת קיומו של נתיב זרימה (Pathway)
-        בין מוקדי ההזנה לקולטנים השונים בסביבה התת-קרקעית
-        והעילית.</p>
-    </div>
-    """
 
 
 # =============================================================================
@@ -183,8 +230,6 @@ def generate_html_report(input_path=None, output_path="report.html"):
     n_rows = len(df)
     n_sources = df["source_type"].nunique()
 
-    methodology_html = _build_methodology_box(n_stations)
-
     # JSON data for embedding
     data_json = json.dumps(report_data, ensure_ascii=False)
     compound_colors_json = json.dumps(COMPOUND_COLORS, ensure_ascii=False)
@@ -200,7 +245,7 @@ def generate_html_report(input_path=None, output_path="report.html"):
 <title>{PAGE_ICON} אפיון סביבתי ופורנזי של פלומת {group.name}</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{
@@ -288,19 +333,37 @@ def generate_html_report(input_path=None, output_path="report.html"):
     font-size: 0.88em; color: #666; margin-top: 10px;
   }}
 
-  /* ── Methodology box ── */
-  .method-box {{
-    background: #f7f9fc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 22px;
+  /* ── Max-concentration banner ── */
+  .max-banner {{
+    background: linear-gradient(90deg, #fff3cd 0%, #ffeeba 100%);
+    border: 1px solid #ffc107; border-radius: 10px;
+    padding: 14px 22px; margin-bottom: 25px;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 0.95em; color: #856404;
   }}
-  .method-box h3 {{ color: #333; font-size: 1.1em; margin-bottom: 12px; }}
-  .method-box p {{ font-size: 0.92em; color: #555; margin-bottom: 10px; }}
-  .formula {{
+  .max-banner .icon {{ font-size: 1.5em; }}
+
+  /* ── Methodology box (compact) ── */
+  .method-box-compact {{
+    background: #f7f9fc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 14px 20px; margin-bottom: 18px;
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  }}
+  .method-box-compact .method-text {{ font-size: 0.88em; color: #555; flex: 1; min-width: 200px; }}
+  .method-box-compact .method-text b {{ color: #333; }}
+  .method-box-compact .formula-inline {{
     background: white; border: 1px solid #ddd; border-radius: 8px;
-    padding: 15px; text-align: center; font-size: 1.15em; margin: 14px 0; direction: ltr;
+    padding: 8px 16px; font-size: 0.95em; direction: ltr; white-space: nowrap;
   }}
   .frac {{ display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; }}
-  .frac .num {{ border-bottom: 2px solid #333; padding-bottom: 4px; }}
-  .frac .den {{ padding-top: 4px; }}
+  .frac .num {{ border-bottom: 2px solid #333; padding-bottom: 3px; font-size: 0.9em; }}
+  .frac .den {{ padding-top: 3px; font-size: 0.9em; }}
+
+  /* ── Ratio table ── */
+  .ratio-table {{ border-collapse: collapse; width: 100%; font-size: 0.88em; }}
+  .ratio-table th {{ background: #f7f9fc; padding: 8px 10px; border: 1px solid #e0e0e0; font-weight: 600; text-align: right; }}
+  .ratio-table td {{ padding: 8px 10px; border: 1px solid #e0e0e0; text-align: center; }}
+  .ratio-table tr:hover {{ background: #f0f5ff; }}
 
   /* ── Heatmap table ── */
   .table-wrap {{ overflow-x: auto; }}
@@ -371,43 +434,60 @@ def generate_html_report(input_path=None, output_path="report.html"):
         <div class="filter-count" id="filter-count"></div>
     </div>
 
-    <!-- ════════════════════════ MAP + METHODOLOGY ════════════════════════ -->
-    <div class="two-col">
-        <div class="section">
-            {methodology_html}
-        </div>
-        <div class="section">
-            <h2>1. פריסת נקודות הדיגום במרחב הגיאוגרפי</h2>
-            <p class="section-desc">המפה מציגה את התחנות הנבחרות (קואורדינטות ITM מומרות ל-WGS84), מסווגות לפי מדיום הידרולוגי.</p>
-            <div id="map" style="height:450px;border-radius:8px;"></div>
-        </div>
+    <!-- ════════════════════════ MAX-CONCENTRATION BANNER ════════════════════════ -->
+    <div class="max-banner">
+        <span class="icon">&#9888;</span>
+        <div><b>כלל הנתונים, הגרפים והניתוחים בדוח זה מתייחסים לאירוע הדיגום בו נמדד הריכוז הסכומי המירבי (&Sigma;{group.name}) בכל תחנה.</b>
+        גישה זו מייצגת את תרחיש החשיפה המקסימלי ואת החותמת הכימית הבולטת ביותר.</div>
+    </div>
+
+    <!-- ════════════════════════ MAP ════════════════════════ -->
+    <div class="section">
+        <h2>1. פריסת נקודות הדיגום במרחב הגיאוגרפי</h2>
+        <p class="section-desc">גודל הסמן פרופורציונלי ל-&Sigma;{group.name} המירבי בתחנה. לחיצה על סמן מציגה פרטים כולל התאריך הנבחר.</p>
+        <div id="map" style="height:480px;border-radius:8px;"></div>
     </div>
 
     <!-- ════════════════════════ CHARTS ════════════════════════ -->
     <div class="two-col-equal">
         <div class="section">
-            <h2>2. ריכוז כולל בתחנות נבחרות (&Sigma;{group.name} Attenuation)</h2>
-            <p class="section-desc">ציר לוגריתמי. בחינת דעיכת מסת המזהם לאורך מסלולי הסעה שונים.</p>
-            <div id="attenuation-chart" style="width:100%;height:420px;"></div>
+            <h2>2. ריכוז כולל — &Sigma;{group.name} Attenuation</h2>
+            <p class="section-desc">ציר לוגריתמי. עמודה אחת לכל תחנה (אירוע מירבי). בחינת דעיכת מסת המזהם לאורך מסלולי הסעה.</p>
+            <div style="width:100%;height:420px;"><canvas id="attenuation-canvas"></canvas></div>
         </div>
         <div class="section">
-            <h2>3. הרכב כימי יחסי (Chromatographic Shift)</h2>
-            <p class="section-desc">מנורמל ל-100%. התפלגות התרכובות העיקריות בתחנות הנבחרות.</p>
-            <div id="fingerprint-chart" style="width:100%;height:420px;"></div>
+            <h2>3. הרכב כימי יחסי — Chromatographic Shift</h2>
+            <p class="section-desc">מנורמל ל-100%. מעל כל עמודה מוצג הריכוז הסכומי ({group.unit}). התרכובות ממוינות לפי שיעורן בתחנה המרוכזת ביותר.</p>
+            <div style="width:100%;height:420px;"><canvas id="fingerprint-canvas"></canvas></div>
         </div>
+    </div>
+
+    <!-- ════════════════════════ PFOS/PFHxS RATIO ════════════════════════ -->
+    <div class="section">
+        <h2>4. מדד פורנזי: יחס PFOS/PFHxS</h2>
+        <p class="section-desc">יחס מרכזי להבחנה בין מקורות ולהערכת מידת ה-Transport. יחס גבוה מעיד על קרבה למקור; ירידה ביחס משקפת ספיחה סלקטיבית של PFOS לאורך מסלול הזרימה.</p>
+        <div class="table-wrap" id="ratio-container"></div>
     </div>
 
     <!-- ════════════════════════ HEATMAP ════════════════════════ -->
     <div class="section">
-        <h2>4. מטריצת דמיון סטטיסטית אובייקטיבית (Cosine Similarity Heatmap)</h2>
-        <p class="section-desc">חישוב מתמטי ישיר לבחינת התאמת תבניות (Pattern Matching).</p>
+        <h2>5. מטריצת Cosine Similarity — השוואת חותמות כימיות</h2>
+        <p class="section-desc">התחנות ממוינות לפי Hierarchical Clustering. צבע ירוק = דמיון גבוה, אדום = דמיון נמוך.</p>
+        <div class="method-box-compact">
+            <div class="method-text"><b>Cosine Similarity</b> — השוואת פרופילים כימיים כווקטורים, תוך נטרול השפעת גודל הריכוזים.
+            ערך הקרוב ל-100% מצביע על חותמת כימית זהה ומאפשר לאמת קיומו של נתיב זרימה (Pathway).</div>
+            <div class="formula-inline">cos(&theta;) = <span class="frac">
+                <span class="num">&Sigma;(A<sub>i</sub>&times;B<sub>i</sub>)</span>
+                <span class="den">&radic;&Sigma;A<sub>i</sub>&sup2; &times; &radic;&Sigma;B<sub>i</sub>&sup2;</span>
+            </span></div>
+        </div>
         <div class="table-wrap" id="heatmap-container"></div>
     </div>
 
     <!-- ════════════════════════ FINDINGS ════════════════════════ -->
     <div class="section">
         <div class="findings">
-            <h3>סיכום ממצאים מתצפיות והרכביות:</h3>
+            <h3>סיכום ממצאים:</h3>
             <ul id="findings-list"></ul>
         </div>
     </div>
@@ -431,14 +511,34 @@ const GROUP_NAME = '{group.name}';
 // ── State ──
 let selectedStations = new Set(DATA.stations.map(s => s.name));
 let map, markers = [];
+let attenuationChart = null, fingerprintChart = null;
 
 // ── Helpers ──
 function getSourceColor(s) {{ return SOURCE_COLORS[s] || DEFAULT_COLOR; }}
 function getCompoundColor(c) {{ return COMPOUND_COLORS[c] || DEFAULT_COLOR; }}
 
+// Heatmap color: red (0%) -> yellow (50%) -> green (100%)
+function heatmapColor(val) {{
+    if (val <= 50) {{
+        const t = val / 50;
+        const r = 220; const g = Math.round(60 + t * 160); const b = Math.round(60 * (1 - t));
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    }} else {{
+        const t = (val - 50) / 50;
+        const r = Math.round(220 - t * 185); const g = Math.round(220 - t * 35); const b = Math.round(t * 80);
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    }}
+}}
+
+// Graduated marker radius (log scale)
+function markerRadius(total) {{
+    if (total <= 0) return 5;
+    const r = 5 + Math.log10(total + 1) * 6;
+    return Math.min(Math.max(r, 5), 28);
+}}
+
 // ── Filter panel ──
 function buildFilterPanel() {{
-    // Source type filter buttons
     const sourceTypes = [...new Set(DATA.stations.map(s => s.source_type))];
     const srcDiv = document.getElementById('source-filters');
     sourceTypes.forEach(st => {{
@@ -448,8 +548,6 @@ function buildFilterPanel() {{
         btn.onclick = () => toggleSourceType(st);
         srcDiv.appendChild(btn);
     }});
-
-    // Station chips
     const grid = document.getElementById('station-chips');
     DATA.stations.forEach(s => {{
         const chip = document.createElement('div');
@@ -468,45 +566,30 @@ function toggleStation(name) {{
     else selectedStations.add(name);
     updateUI();
 }}
-
 function toggleSourceType(st) {{
     const stationsOfType = DATA.stations.filter(s => s.source_type === st).map(s => s.name);
     const allSelected = stationsOfType.every(n => selectedStations.has(n));
-    stationsOfType.forEach(n => {{
-        if (allSelected) selectedStations.delete(n);
-        else selectedStations.add(n);
-    }});
+    stationsOfType.forEach(n => {{ if (allSelected) selectedStations.delete(n); else selectedStations.add(n); }});
     updateUI();
 }}
-
-function selectAll() {{
-    DATA.stations.forEach(s => selectedStations.add(s.name));
-    updateUI();
-}}
-
-function selectNone() {{
-    selectedStations.clear();
-    updateUI();
-}}
-
+function selectAll() {{ DATA.stations.forEach(s => selectedStations.add(s.name)); updateUI(); }}
+function selectNone() {{ selectedStations.clear(); updateUI(); }}
 function updateFilterCount() {{
     document.getElementById('filter-count').textContent =
         selectedStations.size + ' מתוך ' + DATA.stations.length + ' תחנות נבחרו';
 }}
-
 function updateChipStyles() {{
     document.querySelectorAll('.station-chip').forEach(chip => {{
         chip.classList.toggle('selected', selectedStations.has(chip.dataset.station));
     }});
 }}
 
-// ── Map ──
+// ── Map (graduated markers) ──
 function initMap() {{
     const lats = DATA.stations.map(s => s.lat);
     const lons = DATA.stations.map(s => s.lon);
     const cLat = lats.reduce((a,b) => a+b, 0) / lats.length;
     const cLon = lons.reduce((a,b) => a+b, 0) / lons.length;
-
     map = L.map('map').setView([cLat, cLon], 12);
     L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
         attribution: '&copy; OpenStreetMap contributors'
@@ -525,79 +608,147 @@ function initMap() {{
                 ';display:inline-block;border:1px solid #fff"></span>' +
                 '<span style="font-size:12px">' + t + '</span></div>';
         }});
+        html += '<div style="margin-top:8px;border-top:1px solid #ddd;padding-top:6px"><b style="font-size:11px">גודל = &Sigma;' + GROUP_NAME + '</b></div>';
         div.innerHTML = html;
         return div;
     }};
     legend.addTo(map);
-
     updateMap();
 }}
 
 function updateMap() {{
     markers.forEach(m => map.removeLayer(m));
     markers = [];
-
     DATA.stations.filter(s => selectedStations.has(s.name)).forEach(s => {{
+        const r = markerRadius(s.max_total);
         const m = L.circleMarker([s.lat, s.lon], {{
-            radius: 8, fillColor: getSourceColor(s.source_type), color: '#fff',
+            radius: r, fillColor: getSourceColor(s.source_type), color: '#fff',
             weight: 2, opacity: 1, fillOpacity: 0.85
         }}).addTo(map).bindPopup(
-            '<b>' + s.name + '</b><br>סוג: ' + s.source_type + '<br>תרכובות: ' + s.n_compounds
+            '<b>' + s.name + '</b><br>סוג: ' + s.source_type +
+            '<br>&Sigma;' + GROUP_NAME + ': ' + (s.max_total > 0 ? s.max_total.toFixed(2) : '< LOD') + ' ' + GROUP_UNIT +
+            '<br>תאריך נבחר: ' + (s.selected_date || '-') +
+            '<br>תרכובות: ' + s.n_compounds
         );
         markers.push(m);
     }});
-
     if (markers.length > 0) {{
         const group = L.featureGroup(markers);
         map.fitBounds(group.getBounds().pad(0.15));
     }}
 }}
 
-// ── Attenuation chart ──
+// ── Attenuation chart (Chart.js) ──
 function updateAttenuationChart() {{
     const filtered = DATA.attenuation.filter(a => selectedStations.has(a.name));
-    Plotly.react('attenuation-chart', [{{
-        x: filtered.map(a => a.name),
-        y: filtered.map(a => a.total),
+    const ctx = document.getElementById('attenuation-canvas').getContext('2d');
+    if (attenuationChart) attenuationChart.destroy();
+    attenuationChart = new Chart(ctx, {{
         type: 'bar',
-        marker: {{ color: filtered.map(a => getSourceColor(a.source_type)) }},
-        hovertemplate: '<b>%{{x}}</b><br>&Sigma;' + GROUP_NAME + ': %{{y:.2f}} ' + GROUP_UNIT + '<extra></extra>'
-    }}], {{
-        yaxis: {{ type: 'log', title: {{ text: 'ריכוז כולל (' + GROUP_UNIT + ')', font: {{ size: 13 }} }}, gridcolor: '#e0e0e0' }},
-        xaxis: {{ tickangle: -35, tickfont: {{ size: 11 }} }},
-        margin: {{ t: 20, b: 120, l: 60, r: 20 }},
-        plot_bgcolor: '#fafafa', paper_bgcolor: 'white',
-        hoverlabel: {{ font: {{ size: 13 }} }}
-    }}, {{ responsive: true }});
+        data: {{
+            labels: filtered.map(a => a.name),
+            datasets: [{{ data: filtered.map(a => a.total), backgroundColor: filtered.map(a => getSourceColor(a.source_type)), borderWidth: 0 }}]
+        }},
+        options: {{
+            responsive: true, maintainAspectRatio: false,
+            plugins: {{
+                legend: {{ display: false }},
+                tooltip: {{ callbacks: {{ label: function(ctx) {{ return '\\u03A3' + GROUP_NAME + ': ' + ctx.parsed.y.toFixed(2) + ' ' + GROUP_UNIT; }} }} }}
+            }},
+            scales: {{
+                y: {{ type: 'logarithmic', title: {{ display: true, text: '\\u03A3' + GROUP_NAME + ' (' + GROUP_UNIT + ')', font: {{ size: 13 }} }}, grid: {{ color: '#e0e0e0' }} }},
+                x: {{ ticks: {{ maxRotation: 50, minRotation: 35, font: {{ size: 9 }} }} }}
+            }}
+        }}
+    }});
 }}
 
-// ── Fingerprint chart ──
+// ── Fingerprint chart with total labels on top ──
 function updateFingerprintChart() {{
     const fp = DATA.fingerprint;
     const selIdx = [];
     fp.stations.forEach((s, i) => {{ if (selectedStations.has(s)) selIdx.push(i); }});
+    const ctx = document.getElementById('fingerprint-canvas').getContext('2d');
+    if (fingerprintChart) fingerprintChart.destroy();
 
-    const traces = fp.compounds.map((compound, ci) => ({{
-        x: selIdx.map(i => fp.stations[i]),
-        y: selIdx.map(i => fp.values[i][ci]),
-        name: compound,
-        type: 'bar',
-        marker: {{ color: getCompoundColor(compound) }},
-        hovertemplate: '<b>' + compound + '</b>: %{{y:.1f}}%<extra></extra>'
+    const datasets = fp.compounds.map((compound, ci) => ({{
+        label: compound,
+        data: selIdx.map(i => fp.values[i][ci]),
+        backgroundColor: getCompoundColor(compound),
+        borderWidth: 0
     }}));
 
-    Plotly.react('fingerprint-chart', traces, {{
-        barmode: 'stack',
-        yaxis: {{ title: {{ text: 'הרכב יחסי (%)', font: {{ size: 13 }} }}, range: [0, 100], gridcolor: '#e0e0e0' }},
-        xaxis: {{ tickangle: -35, tickfont: {{ size: 11 }} }},
-        margin: {{ t: 20, b: 120, l: 50, r: 20 }},
-        plot_bgcolor: '#fafafa', paper_bgcolor: 'white',
-        legend: {{ orientation: 'v', x: 1.02, y: 1, font: {{ size: 11 }} }},
-        hoverlabel: {{ font: {{ size: 13 }} }}
-    }}, {{ responsive: true }});
+    // Total concentration labels plugin
+    const totalLabelsPlugin = {{
+        id: 'totalLabels',
+        afterDraw(chart) {{
+            const ctx2 = chart.ctx;
+            const meta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+            ctx2.save();
+            ctx2.font = 'bold 10px sans-serif';
+            ctx2.textAlign = 'center';
+            ctx2.fillStyle = '#333';
+            selIdx.forEach((si, barIdx) => {{
+                const total = fp.totals[si];
+                if (total > 0 && meta.data[barIdx]) {{
+                    const bar = meta.data[barIdx];
+                    const label = total >= 1 ? total.toFixed(1) : total.toFixed(3);
+                    ctx2.fillText(label, bar.x, bar.y - 6);
+                }} else if (meta.data[barIdx]) {{
+                    const bar = meta.data[barIdx];
+                    ctx2.fillStyle = '#999';
+                    ctx2.fillText('< LOD', bar.x, chart.chartArea.top + chart.chartArea.height / 2);
+                    ctx2.fillStyle = '#333';
+                }}
+            }});
+            ctx2.restore();
+        }}
+    }};
+
+    fingerprintChart = new Chart(ctx, {{
+        type: 'bar',
+        data: {{ labels: selIdx.map(i => fp.stations[i]), datasets: datasets }},
+        options: {{
+            responsive: true, maintainAspectRatio: false,
+            layout: {{ padding: {{ top: 20 }} }},
+            plugins: {{
+                legend: {{ position: 'right', labels: {{ font: {{ size: 10 }}, boxWidth: 12 }} }},
+                tooltip: {{ callbacks: {{ label: function(ctx) {{ return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%'; }} }} }}
+            }},
+            scales: {{
+                x: {{ stacked: true, ticks: {{ maxRotation: 50, minRotation: 35, font: {{ size: 9 }} }} }},
+                y: {{ stacked: true, max: 100, title: {{ display: true, text: 'הרכב יחסי (%)', font: {{ size: 13 }} }}, grid: {{ color: '#e0e0e0' }} }}
+            }}
+        }},
+        plugins: [totalLabelsPlugin]
+    }});
 }}
 
-// ── Heatmap ──
+// ── PFOS/PFHxS ratio table ──
+function renderRatioTable() {{
+    const ratios = DATA.pfos_pfhxs_ratios;
+    if (!ratios || Object.keys(ratios).length === 0) {{
+        document.getElementById('ratio-container').innerHTML = '<p style="color:#999;text-align:center">אין נתונים זמינים</p>';
+        return;
+    }}
+    const entries = Object.entries(ratios).filter(([s, v]) => v !== null && selectedStations.has(s)).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) {{
+        document.getElementById('ratio-container').innerHTML = '<p style="color:#999;text-align:center">בחר תחנות עם ריכוזי PFOS ו-PFHxS</p>';
+        return;
+    }}
+    let html = '<table class="ratio-table"><thead><tr><th>תחנה</th><th>PFOS/PFHxS</th><th>פרשנות</th></tr></thead><tbody>';
+    entries.forEach(([stn, ratio]) => {{
+        let interp = '';
+        if (ratio >= 5) interp = '<span style="color:#c0392b;font-weight:600">קרוב למקור</span>';
+        else if (ratio >= 2) interp = '<span style="color:#e67e22;font-weight:600">אזור מעבר</span>';
+        else interp = '<span style="color:#27ae60;font-weight:600">מרוחק / Transport</span>';
+        html += '<tr><td style="text-align:right;font-weight:600">' + stn + '</td><td><b>' + ratio.toFixed(2) + '</b></td><td>' + interp + '</td></tr>';
+    }});
+    html += '</tbody></table>';
+    document.getElementById('ratio-container').innerHTML = html;
+}}
+
+// ── Heatmap (red-yellow-green, clustered) ──
 function updateHeatmap() {{
     const sim = DATA.similarity;
     const selIdx = [];
@@ -617,16 +768,12 @@ function updateHeatmap() {{
         selIdx.forEach(j => {{
             const val = sim.values[i][j];
             let bg, tc;
-            if (i === j) {{ bg = '#0066cc'; tc = '#fff'; }}
-            else if (val >= 90) {{ bg = 'rgba(0,102,204,' + (val/100*0.9).toFixed(2) + ')'; tc = '#fff'; }}
-            else if (val >= 70) {{ bg = 'rgba(0,102,204,' + (val/100*0.7).toFixed(2) + ')'; tc = '#fff'; }}
-            else if (val >= 50) {{ bg = 'rgba(0,102,204,' + (val/100*0.5).toFixed(2) + ')'; tc = '#333'; }}
-            else {{ bg = 'rgba(0,102,204,' + (val/100*0.3).toFixed(2) + ')'; tc = '#333'; }}
+            if (i === j) {{ bg = '#555'; tc = '#fff'; }}
+            else {{ bg = heatmapColor(val); tc = (val >= 40 && val <= 75) ? '#333' : '#fff'; }}
             html += '<td class="hm-cell" style="background:' + bg + ';color:' + tc + '">' + val.toFixed(0) + '%</td>';
         }});
         html += '</tr>';
     }});
-
     html += '</tbody></table>';
     document.getElementById('heatmap-container').innerHTML = html;
 }}
@@ -644,6 +791,7 @@ function updateUI() {{
     updateMap();
     updateAttenuationChart();
     updateFingerprintChart();
+    renderRatioTable();
     updateHeatmap();
 }}
 
@@ -653,6 +801,7 @@ document.addEventListener('DOMContentLoaded', function() {{
     initMap();
     updateAttenuationChart();
     updateFingerprintChart();
+    renderRatioTable();
     updateHeatmap();
     renderFindings();
 }});
