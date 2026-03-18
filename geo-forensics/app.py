@@ -15,14 +15,9 @@ import streamlit as st
 # Ensure project root is in path
 sys.path.insert(0, os.path.dirname(__file__))
 
-from config import APP_DESCRIPTION, APP_NAME, APP_VERSION, PAGE_ICON
+from config import APP_DESCRIPTION, APP_NAME, APP_VERSION, DATA_DIR, PAGE_ICON, SUPPORTED_EXTENSIONS
 from src.contaminant_groups import get_group, list_groups
-from src.data_model import (
-    build_fingerprint_matrix,
-    calc_total_concentration,
-    get_station_summary,
-    process_file,
-)
+from src.data_loader import load_file, normalize_columns, validate_schema, clean_data
 
 # =============================================================================
 # Page Config - must be first Streamlit command
@@ -44,6 +39,10 @@ st.markdown(
     .stDataFrame { direction: ltr; }
     /* Keep number inputs LTR */
     input[type="number"] { direction: ltr; text-align: left; }
+    /* Sidebar RTL adjustments */
+    section[data-testid="stSidebar"] { direction: rtl; }
+    section[data-testid="stSidebar"] .stSelectbox label,
+    section[data-testid="stSidebar"] .stFileUploader label { text-align: right; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -51,13 +50,41 @@ st.markdown(
 
 
 # =============================================================================
-# Session State - שמירת מצב בין ריענוני דף
+# Helpers
+# =============================================================================
+def _list_data_files() -> list[str]:
+    """מחזיר רשימת קבצי Excel/CSV מתיקיית DATA_DIR."""
+    data_path = os.path.join(os.path.dirname(__file__), DATA_DIR)
+    if not os.path.isdir(data_path):
+        return []
+    files = []
+    for f in sorted(os.listdir(data_path)):
+        ext = os.path.splitext(f)[1].lower()
+        if ext in SUPPORTED_EXTENSIONS:
+            files.append(f)
+    return files
+
+
+def _load_and_process(file_path_or_obj):
+    """טוען קובץ, מנרמל עמודות, מוולד ומנקה. מחזיר (df, missing)."""
+    raw = load_file(file_path_or_obj)
+    df = normalize_columns(raw)
+    is_valid, missing = validate_schema(df)
+    if not is_valid:
+        return None, missing
+    df = clean_data(df)
+    return df, []
+
+
+# =============================================================================
+# Session State
 # =============================================================================
 def init_session_state():
-    """מאתחל את משתני ה-session אם הם לא קיימים."""
     defaults = {
-        "df": None,  # DataFrame מעובד
-        "group": None,  # ContaminantGroup
+        "df": None,
+        "raw_df": None,
+        "group_name": None,
+        "file_name": None,
         "file_loaded": False,
     }
     for key, value in defaults.items():
@@ -69,157 +96,152 @@ init_session_state()
 
 
 # =============================================================================
-# Sidebar - בחירת קבוצת מזהמים והעלאת קובץ
+# Sidebar
 # =============================================================================
 with st.sidebar:
     st.title(f"{PAGE_ICON} {APP_NAME}")
     st.caption(f"v{APP_VERSION} | {APP_DESCRIPTION}")
     st.divider()
 
-    # Contaminant group selection
-    st.subheader("1. בחר קבוצת מזהמים")
+    # --- 1. Contaminant group ---
+    st.subheader("1. קבוצת מזהמים")
     groups = list_groups()
+    # PFAS first, then the rest
+    if "PFAS" in groups:
+        groups.remove("PFAS")
+        groups.insert(0, "PFAS")
     selected_group = st.selectbox(
         "קבוצה",
-        options=["זיהוי אוטומטי"] + groups,
-        help="המערכת תנסה לזהות אוטומטית לפי שמות התרכובות בקובץ",
+        options=groups,
+        index=0,
+        help="בחר את קבוצת המזהמים לניתוח",
     )
 
     st.divider()
 
-    # File upload
-    st.subheader("2. העלה קובץ נתונים")
-    uploaded_file = st.file_uploader(
-        "Excel או CSV",
-        type=["xlsx", "xls", "csv"],
-        help="קובץ עם עמודות: שם תחנה, X, Y, תאריך דיגום, תרכובת, ריכוז",
+    # --- 2. Data source ---
+    st.subheader("2. מקור נתונים")
+
+    data_files = _list_data_files()
+    source_mode = st.radio(
+        "טעינת קובץ",
+        options=["מתיקיית נתונים", "העלאה ידנית"],
+        horizontal=True,
+        label_visibility="collapsed",
     )
 
-    # Quick load sample data
-    st.divider()
-    use_sample = st.button(
-        "📂 טען נתונים לדוגמה",
-        help="טוען קובץ סינתטי של PFAS באזור נחל הקישון לצורך הדגמה",
-        use_container_width=True,
-    )
+    chosen_file = None
 
-    if use_sample:
-        sample_path = os.path.join(os.path.dirname(__file__), "data", "sample", "sample_pfas.xlsx")
-        if os.path.exists(sample_path):
-            uploaded_file = sample_path
+    if source_mode == "מתיקיית נתונים":
+        if data_files:
+            chosen_name = st.selectbox(
+                "בחר קובץ",
+                options=data_files,
+                index=0,
+                help=f"קבצים מתוך {DATA_DIR}/",
+            )
+            chosen_file = os.path.join(os.path.dirname(__file__), DATA_DIR, chosen_name)
         else:
-            st.error("קובץ הדוגמה לא נמצא. הרץ: python -m src.generate_sample_data")
+            st.warning(f"לא נמצאו קבצים בתיקייה {DATA_DIR}/")
+    else:
+        uploaded = st.file_uploader(
+            "העלה קובץ Excel או CSV",
+            type=["xlsx", "xls", "csv"],
+            help="קובץ עם עמודות: שם תחנה, X, Y, תאריך דיגום, תרכובת, ריכוז",
+        )
+        if uploaded:
+            chosen_file = uploaded
+
+    # Load button
+    load_clicked = st.button("טען נתונים", use_container_width=True, type="primary")
 
 
 # =============================================================================
-# Process uploaded file
+# Process file on button click
 # =============================================================================
-if uploaded_file and not st.session_state.file_loaded:
-    group_name = None if selected_group == "זיהוי אוטומטי" else selected_group
-
+if load_clicked and chosen_file is not None:
     with st.spinner("טוען ומעבד את הנתונים..."):
         try:
-            df, group = process_file(uploaded_file, group_name)
-            st.session_state.df = df
-            st.session_state.group = group
-            st.session_state.file_loaded = True
-            st.rerun()
-        except ValueError as e:
-            st.error(f"שגיאה בטעינת הקובץ:\n{e}")
+            df, missing = _load_and_process(chosen_file)
+            if df is None:
+                st.error(f"עמודות חסרות בקובץ: {', '.join(missing)}")
+            else:
+                st.session_state.df = df
+                st.session_state.raw_df = df.copy()
+                st.session_state.group_name = selected_group
+                st.session_state.file_name = (
+                    chosen_file.name if hasattr(chosen_file, "name")
+                    else os.path.basename(str(chosen_file))
+                )
+                st.session_state.file_loaded = True
+                st.rerun()
         except Exception as e:
-            st.error(f"שגיאה לא צפויה:\n{e}")
+            st.error(f"שגיאה בטעינת הקובץ:\n{e}")
 
-# Reset when file is removed
-if not uploaded_file and st.session_state.file_loaded and not use_sample:
-    st.session_state.df = None
-    st.session_state.group = None
-    st.session_state.file_loaded = False
+elif load_clicked and chosen_file is None:
+    st.warning("יש לבחור קובץ לפני טעינה.")
 
 
 # =============================================================================
 # Main Content
 # =============================================================================
 if not st.session_state.file_loaded:
-    # Welcome screen
     st.title(f"ברוכים הבאים ל-{APP_NAME}")
     st.markdown(
         """
         ### כלי לחקירת מקורות זיהום במים, קרקע ושפכים
 
         **שלבי העבודה:**
-        1. **בחר קבוצת מזהמים** (או זיהוי אוטומטי)
-        2. **העלה קובץ** Excel/CSV עם נתוני דיגום
-        3. **צפה במפה** ובחר אזור לחקירה
-        4. **הפעל כלי ניתוח** - Attenuation, Fingerprint, PCA, Cosine Similarity
-        5. **ייצא דוח** HTML עצמאי
+        1. **בחר קבוצת מזהמים** בסרגל הצד
+        2. **בחר או העלה קובץ** נתונים
+        3. **לחץ "טען נתונים"**
+        4. צפה בסיכום התחנות, טווח תאריכים והנתונים הגולמיים
 
         ---
-
-        **דרישות הקובץ:**
-
-        | עמודה | דוגמה |
-        |-------|-------|
-        | שם תחנה | קידוח K-12 |
-        | X (ITM) | 198500 |
-        | Y (ITM) | 741200 |
-        | תאריך דיגום | 15/03/2024 |
-        | סוג מקור | קידוח ניטור |
-        | סמל תרכובת | PFOS |
-        | ריכוז (µg/L) | 0.85 |
-
-        ---
-        *👈 התחל מהסרגל השמאלי - בחר קבוצה והעלה קובץ*
+        *👈 התחל מהסרגל השמאלי*
         """
     )
 
 else:
-    # Data is loaded - show overview
     df = st.session_state.df
-    group = st.session_state.group
+    group_name = st.session_state.group_name
+    group = get_group(group_name)
+    file_name = st.session_state.file_name
 
-    st.title(f"סקירת נתונים - {group.name}")
+    st.title(f"סקירת נתונים — {group.name}")
+    st.caption(f"קובץ: {file_name}")
 
-    # Summary metrics
+    # --- Summary metrics ---
+    n_stations = df["station_name"].nunique()
+
+    date_min = date_max = None
+    if "sample_date" in df.columns:
+        dates = df["sample_date"].dropna()
+        if len(dates) > 0:
+            date_min = dates.min()
+            date_max = dates.max()
+
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("תחנות", df["station_name"].nunique())
+        st.metric("תחנות", n_stations)
     with col2:
-        st.metric("תרכובות", df["compound"].nunique())
+        st.metric("שורות נתונים", f"{len(df):,}")
     with col3:
-        st.metric("שורות נתונים", len(df))
+        if "compound" in df.columns:
+            st.metric("תרכובות", df["compound"].nunique())
+        else:
+            st.metric("תרכובות", "—")
     with col4:
-        source_types = df["source_type"].nunique()
-        st.metric("סוגי מקור", source_types)
+        if date_min and date_max:
+            st.metric("טווח תאריכים", f"{date_min:%d/%m/%Y} — {date_max:%d/%m/%Y}")
+        else:
+            st.metric("טווח תאריכים", "—")
 
     st.divider()
 
-    # Tabs for different views
-    tab1, tab2, tab3 = st.tabs(["📊 סיכום תחנות", "📋 נתונים גולמיים", "🔬 טביעת אצבע"])
-
-    with tab1:
-        st.subheader("סיכום לפי תחנות")
-        summary = get_station_summary(df)
-        st.dataframe(summary, use_container_width=True, hide_index=True)
-
-    with tab2:
-        st.subheader("נתונים גולמיים")
-        st.dataframe(df, use_container_width=True, hide_index=True)
-
-    with tab3:
-        st.subheader("מטריצת טביעת אצבע כימית (%)")
-        fingerprint = build_fingerprint_matrix(df, group)
-        st.dataframe(
-            fingerprint.style.format("{:.1f}%"),
-            use_container_width=True,
-        )
-
-    # Total concentrations
-    st.divider()
-    st.subheader("סה\"כ ריכוזים לפי תחנה")
-    totals = calc_total_concentration(df, group)
-    totals_display = totals[["station_name", "source_type", "total_concentration", "sample_date"]].copy()
-    totals_display = totals_display.sort_values("total_concentration", ascending=False)
-    st.dataframe(totals_display, use_container_width=True, hide_index=True)
+    # --- Raw data table ---
+    st.subheader("נתונים גולמיים")
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 # =============================================================================
@@ -227,6 +249,6 @@ else:
 # =============================================================================
 st.sidebar.divider()
 st.sidebar.caption(
-    f"🔒 כל הנתונים נשארים על המחשב שלך.\n"
+    f"כל הנתונים נשארים על המחשב שלך.\n"
     f"רק תמונות רקע של המפה נטענות מהאינטרנט."
 )

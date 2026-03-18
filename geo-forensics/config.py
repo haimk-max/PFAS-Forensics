@@ -36,6 +36,10 @@ WGS84_EPSG = 4326
 ITM_X_RANGE = (100_000, 300_000)   # Easting
 ITM_Y_RANGE = (350_000, 800_000)   # Northing
 
+# --- Data Directory ---
+DATA_DIR = "data/sample"  # פיתוח
+# DATA_DIR = "data/real"  # הפקה — שנה שורה זו בלבד
+
 # --- Data Defaults ---
 MAX_UPLOAD_SIZE_MB = 50
 SUPPORTED_EXTENSIONS = [".xlsx", ".xls", ".csv"]
