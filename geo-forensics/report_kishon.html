@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔬 אפיון סביבתי ופורנזי של פלומת PFAS</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                 'Helvetica Neue', Arial, sans-serif;
+    background: #f0f2f5;
+    color: #333;
+    direction: rtl;
+    line-height: 1.6;
+  }
+
+  /* ── Header ── */
+  .report-header {
+    background: linear-gradient(135deg, #0066cc 0%, #004999 100%);
+    color: white; text-align: center; padding: 35px 20px 28px;
+  }
+  .report-header h1 { font-size: 1.9em; margin-bottom: 6px; font-weight: 700; }
+  .report-header .subtitle { font-size: 1.05em; opacity: 0.9; }
+  .report-header .badge {
+    display: inline-block; background: rgba(255,255,255,0.2);
+    padding: 4px 16px; border-radius: 20px; margin-top: 10px; font-size: 0.85em;
+  }
+
+  /* ── Layout ── */
+  .container { max-width: 1200px; margin: 0 auto; padding: 25px 20px; }
+  .section {
+    background: white; border-radius: 12px; padding: 28px;
+    margin-bottom: 25px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .section h2 { color: #0066cc; font-size: 1.35em; margin-bottom: 8px; font-weight: 700; }
+  .section .section-desc { color: #666; font-size: 0.92em; margin-bottom: 18px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1.5fr; gap: 25px; }
+  .two-col-equal { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+  @media (max-width: 850px) {
+    .two-col, .two-col-equal { grid-template-columns: 1fr; }
+  }
+
+  /* ── Metrics ── */
+  .metrics { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 20px 0; }
+  .metric {
+    background: #f7f9fc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 16px 28px; text-align: center; min-width: 140px;
+  }
+  .metric .value { font-size: 2em; font-weight: 700; color: #0066cc; }
+  .metric .label { color: #666; font-size: 0.9em; margin-top: 3px; }
+
+  /* ── Station filter panel ── */
+  .filter-panel {
+    background: white; border-radius: 12px; padding: 20px 24px;
+    margin-bottom: 25px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .filter-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px; flex-wrap: wrap; gap: 10px;
+  }
+  .filter-header h2 { color: #0066cc; font-size: 1.2em; font-weight: 700; margin: 0; }
+  .filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filter-actions button {
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #ccc;
+    background: #f7f9fc; cursor: pointer; font-size: 0.85em;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .filter-actions button:hover { background: #e8f0fe; border-color: #0066cc; }
+  .filter-actions button.active { background: #0066cc; color: white; border-color: #0066cc; }
+
+  .filter-grid {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .station-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: 18px;
+    border: 2px solid #ddd; background: #f9f9f9;
+    cursor: pointer; font-size: 0.85em; transition: all 0.15s;
+    user-select: none;
+  }
+  .station-chip:hover { border-color: #0066cc; background: #f0f5ff; }
+  .station-chip.selected {
+    border-color: #0066cc; background: #e8f0fe; font-weight: 600;
+  }
+  .station-chip .dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+  }
+  .filter-count {
+    font-size: 0.88em; color: #666; margin-top: 10px;
+  }
+
+  /* ── Max-concentration banner ── */
+  .max-banner {
+    background: linear-gradient(90deg, #fff3cd 0%, #ffeeba 100%);
+    border: 1px solid #ffc107; border-radius: 10px;
+    padding: 14px 22px; margin-bottom: 25px;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 0.95em; color: #856404;
+  }
+  .max-banner .icon { font-size: 1.5em; }
+
+  /* ── Methodology box (compact) ── */
+  .method-box-compact {
+    background: #f7f9fc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 14px 20px; margin-bottom: 18px;
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  }
+  .method-box-compact .method-text { font-size: 0.88em; color: #555; flex: 1; min-width: 200px; }
+  .method-box-compact .method-text b { color: #333; }
+  .method-box-compact .formula-inline {
+    background: white; border: 1px solid #ddd; border-radius: 8px;
+    padding: 8px 16px; font-size: 0.95em; direction: ltr; white-space: nowrap;
+  }
+  .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; }
+  .frac .num { border-bottom: 2px solid #333; padding-bottom: 3px; font-size: 0.9em; }
+  .frac .den { padding-top: 3px; font-size: 0.9em; }
+
+  /* ── Ratio table ── */
+  .ratio-table { border-collapse: collapse; width: 100%; font-size: 0.88em; }
+  .ratio-table th { background: #f7f9fc; padding: 8px 10px; border: 1px solid #e0e0e0; font-weight: 600; text-align: right; }
+  .ratio-table td { padding: 8px 10px; border: 1px solid #e0e0e0; text-align: center; }
+  .ratio-table tr:hover { background: #f0f5ff; }
+
+  /* ── Heatmap table ── */
+  .table-wrap { overflow-x: auto; }
+  .heatmap {
+    border-collapse: collapse; width: 100%; direction: ltr;
+    text-align: center; font-size: 0.85em;
+  }
+  .heatmap th, .heatmap td { padding: 8px 6px; border: 1px solid #e0e0e0; white-space: nowrap; }
+  .hm-corner { background: #f7f9fc; }
+  .hm-header {
+    background: #f7f9fc; color: #333; font-weight: 600;
+    writing-mode: vertical-rl; text-orientation: mixed;
+    padding: 12px 6px; font-size: 0.85em; max-height: 150px;
+  }
+  .hm-station {
+    background: #f7f9fc; font-weight: 600; text-align: right;
+    padding: 8px 10px; direction: rtl;
+  }
+  .hm-cell { font-weight: 600; min-width: 52px; }
+
+  /* ── Findings ── */
+  .findings {
+    background: #f0f7ff; border: 1px solid #b3d4fc;
+    border-radius: 10px; padding: 22px 28px;
+  }
+  .findings h3 { color: #0066cc; margin-bottom: 14px; font-size: 1.15em; }
+  .findings ul { list-style: none; padding: 0; }
+  .findings li {
+    padding: 8px 0; border-bottom: 1px solid #d6e8fa;
+    font-size: 0.93em; line-height: 1.7;
+  }
+  .findings li:last-child { border-bottom: none; }
+
+  .footer { text-align: center; color: #888; padding: 20px; font-size: 0.85em; }
+  .leaflet-container { direction: ltr; }
+  .map-label { background: none; border: none; }
+  .map-label span {
+    font-size: 11px; color: #333; white-space: nowrap;
+    text-shadow: 1px 1px 2px #fff, -1px -1px 2px #fff, 1px -1px 2px #fff, -1px 1px 2px #fff;
+    direction: rtl; line-height: 1.3;
+  }
+  .map-label b { color: #0066cc; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════ HEADER ════════════════════════ -->
+<div class="report-header">
+    <h1>אפיון סביבתי ופורנזי של פלומת PFAS</h1>
+    <div class="subtitle">ניתוח הידרוגיאולוגי והשוואה סטטיסטית של פרופילים כימיים</div>
+    <div class="badge">דו"ח עצמאי (Standalone HTML)</div>
+</div>
+
+<div class="container">
+
+    <!-- ════════════════════════ METRICS ════════════════════════ -->
+    <div class="metrics">
+        <div class="metric"><div class="value">32</div><div class="label">תחנות דיגום</div></div>
+        <div class="metric"><div class="value">19</div><div class="label">תרכובות PFAS</div></div>
+        <div class="metric"><div class="value">1084</div><div class="label">שורות נתונים</div></div>
+        <div class="metric"><div class="value">4</div><div class="label">סוגי מקור</div></div>
+    </div>
+
+    <!-- ════════════════════════ STATION FILTER ════════════════════════ -->
+    <div class="filter-panel">
+        <div class="filter-header">
+            <h2>בחירת נקודות דיגום</h2>
+            <div class="filter-actions">
+                <button onclick="selectAll()">בחר הכל</button>
+                <button onclick="selectNone()">נקה הכל</button>
+            </div>
+        </div>
+        <div class="filter-actions" id="source-filters" style="margin-bottom:12px"></div>
+        <div class="filter-grid" id="station-chips"></div>
+        <div class="filter-count" id="filter-count"></div>
+    </div>
+
+    <!-- ════════════════════════ MAX-CONCENTRATION BANNER ════════════════════════ -->
+    <div class="max-banner">
+        <span class="icon">&#9888;</span>
+        <div><b>כלל הנתונים, הגרפים והניתוחים בדוח זה מתייחסים לאירוע הדיגום בו נמדד הריכוז הסכומי המירבי (&Sigma;PFAS) בכל תחנה.</b>
+        גישה זו מייצגת את תרחיש החשיפה המקסימלי ואת החותמת הכימית הבולטת ביותר.</div>
+    </div>
+
+    <!-- ════════════════════════ MAP ════════════════════════ -->
+    <div class="section">
+        <h2>1. פריסת נקודות הדיגום במרחב הגיאוגרפי</h2>
+        <p class="section-desc">גודל הסמן פרופורציונלי ל-&Sigma;PFAS המירבי בתחנה. לחיצה על סמן מציגה פרטים כולל התאריך הנבחר.</p>
+        <div id="map" style="height:480px;border-radius:8px;"></div>
+    </div>
+
+    <!-- ════════════════════════ CHARTS ════════════════════════ -->
+    <div class="two-col-equal">
+        <div class="section">
+            <h2>2. ריכוז כולל — &Sigma;PFAS Attenuation</h2>
+            <p class="section-desc">ציר לוגריתמי. עמודה אחת לכל תחנה (אירוע מירבי). בחינת דעיכת מסת המזהם לאורך מסלולי הסעה.</p>
+            <div style="width:100%;height:420px;"><canvas id="attenuation-canvas"></canvas></div>
+        </div>
+        <div class="section">
+            <h2>3. הרכב כימי יחסי — Chromatographic Shift</h2>
+            <p class="section-desc">מנורמל ל-100%. מעל כל עמודה מוצג הריכוז הסכומי (µg/L). התרכובות ממוינות לפי שיעורן בתחנה המרוכזת ביותר.</p>
+            <div style="width:100%;height:420px;"><canvas id="fingerprint-canvas"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════ PCA SCATTER ════════════════════════ -->
+    <div class="section">
+        <h2>4. PCA — פיזור לפי שונות מירבית</h2>
+        <div class="method-box-compact" style="flex-direction:column;align-items:stretch;">
+            <div class="method-text" style="margin-bottom:8px;">
+                <b>Principal Component Analysis (PCA)</b> — מקרין את וקטור ההרכב הכימי (%) של כל תחנה למישור דו-ממדי, כך שהצירים מייצגים את כיווני השונות הגדולים ביותר בנתונים.
+            </div>
+            <div style="display:flex;gap:24px;flex-wrap:wrap;">
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#27ae60;font-weight:600;">&#10003; יתרונות:</span> חושף מגמות וקבוצות על-בסיס ההרכב הכימי המלא; מזהה תרכובות שמניעות את ההפרדה בין קבוצות; מותאם לזיהוי פרקציונציה (Chromatographic Shift).
+                </div>
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#c0392b;font-weight:600;">&#10007; חסרונות:</span> ממקסם שונות ולא דמיון — תחנות עם חותמת כימית דומה אך יחסי-תרכובות מעט שונים עלולות להיראות רחוקות; רגיש לנוכחות תרכובת דומיננטית אחת שמושכת ציר שלם.
+                </div>
+            </div>
+        </div>
+        <p class="section-desc">נקודות קרובות = חותמת כימית דומה <b>לפי כיווני שונות</b>. גודל הנקודה פרופורציונלי לריכוז הכולל. תחנות ללא ריכוזים (&lt; LOD) אינן מוצגות.</p>
+        <div style="width:100%;height:500px;"><canvas id="pca-canvas"></canvas></div>
+    </div>
+
+    <!-- ════════════════════════ MDS SCATTER ════════════════════════ -->
+    <div class="section">
+        <h2>5. MDS — פיזור לפי דמיון כימי (Cosine Distance)</h2>
+        <div class="method-box-compact" style="flex-direction:column;align-items:stretch;">
+            <div class="method-text" style="margin-bottom:8px;">
+                <b>Multidimensional Scaling (MDS)</b> — ממפה את מטריצת Cosine Distance למישור דו-ממדי כך שהמרחק בין נקודות על הגרף משקף ככל הניתן את ה<b>דמיון הכימי</b> בפועל. תחנות שדומות ב-Cosine Similarity (מעל 90%) יופיעו <b>צמודות</b>.
+            </div>
+            <div style="display:flex;gap:24px;flex-wrap:wrap;">
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#27ae60;font-weight:600;">&#10003; יתרונות:</span> נאמן למטריקת הדמיון הפורנזית — מרחק על הגרף = מרחק כימי אמיתי; מנטרל הבדלי ריכוז מוחלט; אידיאלי לזיהוי מקור משותף (Source Apportionment).
+                </div>
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#c0392b;font-weight:600;">&#10007; חסרונות:</span> אינו חושף אילו תרכובות מניעות את ההפרדה; עלול לאבד מידע על כיווני פרקציונציה; איכות ההקרנה תלויה בערך ה-Stress (ככל שנמוך יותר, כך מדויק יותר).
+                </div>
+            </div>
+        </div>
+        <p class="section-desc">נקודות קרובות = <b>דמיון כימי גבוה</b> (Cosine Similarity). גודל הנקודה פרופורציונלי לריכוז הכולל. תחנות ללא ריכוזים (&lt; LOD) אינן מוצגות.</p>
+        <div style="width:100%;height:500px;"><canvas id="mds-canvas"></canvas></div>
+    </div>
+
+    <!-- ════════════════════════ HEATMAP ════════════════════════ -->
+    <div class="section">
+        <h2>6. מטריצת Cosine Similarity — השוואת חותמות כימיות</h2>
+        <p class="section-desc">התחנות ממוינות לפי Hierarchical Clustering. צבע ירוק = דמיון גבוה, אדום = דמיון נמוך.</p>
+        <div class="method-box-compact">
+            <div class="method-text"><b>Cosine Similarity</b> — השוואת פרופילים כימיים כווקטורים, תוך נטרול השפעת גודל הריכוזים.
+            ערך הקרוב ל-100% מצביע על חותמת כימית זהה ומאפשר לאמת קיומו של נתיב זרימה (Pathway).</div>
+            <div class="formula-inline">cos(&theta;) = <span class="frac">
+                <span class="num">&Sigma;(A<sub>i</sub>&times;B<sub>i</sub>)</span>
+                <span class="den">&radic;&Sigma;A<sub>i</sub>&sup2; &times; &radic;&Sigma;B<sub>i</sub>&sup2;</span>
+            </span></div>
+        </div>
+        <div class="table-wrap" id="heatmap-container"></div>
+    </div>
+
+    <!-- ════════════════════════ PFOS/PFHxS RATIO ════════════════════════ -->
+    <div class="section">
+        <h2>7. מדד פורנזי: יחס PFOS/PFHxS</h2>
+        <p class="section-desc">יחס מקובל בספרות הפורנזית (Charbonnet et al. 2021; Zenobio et al. 2026) להערכת קרבה למקור זיהום ומידת ה-Transport. ב-AFFF מקורי (3M ECF) היחס ~8; ירידה ביחס משקפת ספיחה סלקטיבית של PFOS לאורך מסלול הזרימה. יחסים פורנזיים נוספים (כגון &Sigma;PFCAs/&Sigma;PFSAs, יחס Branched/Linear, ונוכחות 6:2 FTS) מומלצים כקווי ראיה משלימים.</p>
+        <div class="table-wrap" id="ratio-container"></div>
+    </div>
+
+    <!-- ════════════════════════ FINDINGS ════════════════════════ -->
+    <div class="section">
+        <div class="findings">
+            <h3>סיכום ממצאים:</h3>
+            <ul id="findings-list"></ul>
+        </div>
+    </div>
+
+</div>
+
+<div class="footer">
+    <p>GeoForensics v0.1.0 | נוצר אוטומטית מקובץ: נתוני קישון.xlsx</p>
+</div>
+
+<!-- ════════════════════════ DATA + LOGIC ════════════════════════ -->
+<script>
+// ── Embedded data ──
+const DATA = {"stations": [{"name": "אלוני אבא  ב' (בית)", "lat": 32.721238, "lon": 35.179306, "source_type": "מאגר", "n_compounds": 13, "max_total": 0.0, "selected_date": "1970-01-01"}, {"name": "אלונים  ב' (תל שור)", "lat": 32.659915, "lon": 35.155872, "source_type": "מאגר", "n_compounds": 19, "max_total": 18.55, "selected_date": "1970-01-01"}, {"name": "אלונים ב' (בית לחם)", "lat": 32.719887, "lon": 35.193174, "source_type": "מאגר", "n_compounds": 13, "max_total": 0.0, "selected_date": "1970-01-01"}, {"name": "יגור  א", "lat": 32.785264, "lon": 35.05621, "source_type": "מאגר", "n_compounds": 13, "max_total": 0.163, "selected_date": "1970-01-01"}, {"name": "יגור בית", "lat": 32.750932, "lon": 35.076861, "source_type": "מאגר", "n_compounds": 13, "max_total": 0.133, "selected_date": "1970-01-01"}, {"name": "יפעת +רמת דוד+מדרך עוז", "lat": 32.623854, "lon": 35.187858, "source_type": "מאגר", "n_compounds": 13, "max_total": 0.023, "selected_date": "1970-01-01"}, {"name": "יקנעם  א'", "lat": 32.66982, "lon": 35.128148, "source_type": "מאגר", "n_compounds": 13, "max_total": 0.011, "selected_date": "1970-01-01"}, {"name": "מעלה קישון מערבי", "lat": 32.613255, "lon": 35.240939, "source_type": "מאגר", "n_compounds": 13, "max_total": 0.203, "selected_date": "1970-01-01"}, {"name": "מעלה קישון(מקורות) מז' מע", "lat": 32.616472, "lon": 35.246289, "source_type": "מאגר", "n_compounds": 13, "max_total": 0.08, "selected_date": "1970-01-01"}, {"name": "מק יקנעם 2", "lat": 32.664464, "lon": 35.103816, "source_type": "קידוח", "n_compounds": 14, "max_total": 1.583, "selected_date": "1970-01-01"}, {"name": "מק יקנעם 5", "lat": 32.656614, "lon": 35.096619, "source_type": "קידוח", "n_compounds": 14, "max_total": 0.0, "selected_date": "1970-01-01"}, {"name": "נחל צבי מעל רמת דוד", "lat": 32.668499, "lon": 35.202242, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18, "max_total": 0.092, "selected_date": "1970-01-01"}, {"name": "נחלאות ד' (אלונים)", "lat": 32.648643, "lon": 35.154279, "source_type": "מאגר", "n_compounds": 13, "max_total": 0.025, "selected_date": "1970-01-01"}, {"name": "ניקוז רמת דוד לנחל נהלל", "lat": 32.670078, "lon": 35.159054, "source_type": "נקודה מזוהה בנחל", "n_compounds": 19, "max_total": 3.256, "selected_date": "1970-01-01"}, {"name": "נת סולתם 1", "lat": 32.671092, "lon": 35.103467, "source_type": "קידוח", "n_compounds": 19, "max_total": 0.021, "selected_date": "1970-01-01"}, {"name": "נת סולתם 14D", "lat": 32.666539, "lon": 35.104059, "source_type": "קידוח", "n_compounds": 19, "max_total": 0.008, "selected_date": "1970-01-01"}, {"name": "נת סולתם 2", "lat": 32.667196, "lon": 35.103408, "source_type": "קידוח", "n_compounds": 14, "max_total": 0.005, "selected_date": "1970-01-01"}, {"name": "נת סולתם 3", "lat": 32.672672, "lon": 35.106195, "source_type": "קידוח", "n_compounds": 13, "max_total": 0.282, "selected_date": "1970-01-01"}, {"name": "נת סולתם 4", "lat": 32.671473, "lon": 35.106622, "source_type": "קידוח", "n_compounds": 14, "max_total": 0.076, "selected_date": "1970-01-01"}, {"name": "פ יגור קבוץ א", "lat": 32.737967, "lon": 35.079067, "source_type": "קידוח", "n_compounds": 19, "max_total": 0.158, "selected_date": "1970-01-01"}, {"name": "קישון - גשר קרית חרושת", "lat": 32.697656, "lon": 35.103, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18, "max_total": 0.197, "selected_date": "1970-01-01"}, {"name": "קישון - גשר קרית חרושת טבעון", "lat": 32.694805, "lon": 36.062726, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18, "max_total": 0.197, "selected_date": "1970-01-01"}, {"name": "קישון - מחצבה", "lat": 32.721339, "lon": 35.097298, "source_type": "תחנה הידרומטרית", "n_compounds": 18, "max_total": 0.58, "selected_date": "1970-01-01"}, {"name": "קישון -אחרי כניסת נהלל", "lat": 32.66467, "lon": 35.14264, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18, "max_total": 0.166, "selected_date": "1970-01-01"}, {"name": "קישון גשר 722", "lat": 32.680978, "lon": 35.120014, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18, "max_total": 0.235, "selected_date": "1970-01-01"}, {"name": "קישון ליד כפר חסידים", "lat": 32.753707, "lon": 35.074584, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18, "max_total": 0.514, "selected_date": "1970-01-01"}, {"name": "קישון מפל ראש", "lat": 32.5222, "lon": 35.278463, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18, "max_total": 0.0, "selected_date": "1970-01-01"}, {"name": "רמת דוד - כיבוי אש", "lat": 32.667686, "lon": 35.184822, "source_type": "נקודה מזוהה בנחל", "n_compounds": 18, "max_total": 1046.303, "selected_date": "1970-01-01"}, {"name": "תעלת ניקוז רמת דוד - מזרח", "lat": 32.657345, "lon": 35.194343, "source_type": "נקודה מזוהה בנחל", "n_compounds": 17, "max_total": 8.804, "selected_date": "1970-01-01"}, {"name": "תעלת ניקוז רמת דוד - מזרח 2", "lat": 32.65445, "lon": 35.19348, "source_type": "נקודה מזוהה בנחל", "n_compounds": 17, "max_total": 6.038, "selected_date": "1970-01-01"}, {"name": "תעלת ניקוז רמת דוד - מערב", "lat": 32.665057, "lon": 35.163161, "source_type": "נקודה מזוהה בנחל", "n_compounds": 19, "max_total": 60.106, "selected_date": "1970-01-01"}, {"name": "תעלת ניקוז רמת דוד - מערב 2", "lat": 32.664751, "lon": 35.164121, "source_type": "נקודה מזוהה בנחל", "n_compounds": 17, "max_total": 6.292, "selected_date": "1970-01-01"}], "attenuation": [{"name": "רמת דוד - כיבוי אש", "total": 1046.303, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "תעלת ניקוז רמת דוד - מערב", "total": 60.106, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "אלונים  ב' (תל שור)", "total": 18.55, "source_type": "מאגר", "date": "1970-01-01"}, {"name": "תעלת ניקוז רמת דוד - מזרח", "total": 8.804, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "תעלת ניקוז רמת דוד - מערב 2", "total": 6.292, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "תעלת ניקוז רמת דוד - מזרח 2", "total": 6.038, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "ניקוז רמת דוד לנחל נהלל", "total": 3.256, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "מק יקנעם 2", "total": 1.583, "source_type": "קידוח", "date": "1970-01-01"}, {"name": "קישון - מחצבה", "total": 0.58, "source_type": "תחנה הידרומטרית", "date": "1970-01-01"}, {"name": "קישון ליד כפר חסידים", "total": 0.514, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "נת סולתם 3", "total": 0.282, "source_type": "קידוח", "date": "1970-01-01"}, {"name": "קישון גשר 722", "total": 0.235, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "מעלה קישון מערבי", "total": 0.203, "source_type": "מאגר", "date": "1970-01-01"}, {"name": "קישון - גשר קרית חרושת", "total": 0.197, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "קישון - גשר קרית חרושת טבעון", "total": 0.197, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "קישון -אחרי כניסת נהלל", "total": 0.166, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "יגור  א", "total": 0.163, "source_type": "מאגר", "date": "1970-01-01"}, {"name": "פ יגור קבוץ א", "total": 0.158, "source_type": "קידוח", "date": "1970-01-01"}, {"name": "יגור בית", "total": 0.133, "source_type": "מאגר", "date": "1970-01-01"}, {"name": "נחל צבי מעל רמת דוד", "total": 0.092, "source_type": "נקודה מזוהה בנחל", "date": "1970-01-01"}, {"name": "מעלה קישון(מקורות) מז' מע", "total": 0.08, "source_type": "מאגר", "date": "1970-01-01"}, {"name": "נת סולתם 4", "total": 0.076, "source_type": "קידוח", "date": "1970-01-01"}, {"name": "נחלאות ד' (אלונים)", "total": 0.025, "source_type": "מאגר", "date": "1970-01-01"}, {"name": "יפעת +רמת דוד+מדרך עוז", "total": 0.023, "source_type": "מאגר", "date": "1970-01-01"}, {"name": "נת סולתם 1", "total": 0.021, "source_type": "קידוח", "date": "1970-01-01"}, {"name": "יקנעם  א'", "total": 0.011, "source_type": "מאגר", "date": "1970-01-01"}, {"name": "נת סולתם 14D", "total": 0.008, "source_type": "קידוח", "date": "1970-01-01"}, {"name": "נת סולתם 2", "total": 0.005, "source_type": "קידוח", "date": "1970-01-01"}], "fingerprint": {"stations": ["אלונים  ב' (תל שור)", "יגור  א", "יגור בית", "יפעת +רמת דוד+מדרך עוז", "יקנעם  א'", "מעלה קישון מערבי", "מעלה קישון(מקורות) מז' מע", "מק יקנעם 2", "נחל צבי מעל רמת דוד", "נחלאות ד' (אלונים)", "ניקוז רמת דוד לנחל נהלל", "נת סולתם 1", "נת סולתם 14D", "נת סולתם 2", "נת סולתם 3", "נת סולתם 4", "פ יגור קבוץ א", "קישון - גשר קרית חרושת", "קישון - גשר קרית חרושת טבעון", "קישון - מחצבה", "קישון -אחרי כניסת נהלל", "קישון גשר 722", "קישון ליד כפר חסידים", "רמת דוד - כיבוי אש", "תעלת ניקוז רמת דוד - מזרח", "תעלת ניקוז רמת דוד - מזרח 2", "תעלת ניקוז רמת דוד - מערב", "תעלת ניקוז רמת דוד - מערב 2"], "compounds": ["PFOS", "6:2FT", "PFHxS", "PFHxA", "PFOA", "PFPeS", "PFHpA", "PFHpS", "PFBS", "PFBA", "PFPeA", "PFDA", "PFNA", "PFDoA", "PFUnA", "PFTDA", "ADONA", "PFESA"], "values": [[35.82, 33.47, 11.89, 6.37, 1.32, 1.8, 1.2, 0.83, 1.44, 0.23, 5.38, 0.05, 0.2, 0.0, 0.0, 0.0, 0.0, 0.0], [29.45, 12.27, 21.47, 17.18, 5.52, 0.0, 4.29, 0.0, 7.98, 1.84, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [3.01, 16.54, 32.33, 21.8, 6.77, 0.0, 6.77, 0.0, 12.78, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [36.36, 0.0, 0.0, 36.36, 0.0, 0.0, 0.0, 0.0, 27.27, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [77.83, 4.93, 0.0, 8.87, 0.49, 0.0, 7.39, 0.0, 0.49, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [62.5, 0.0, 0.0, 25.0, 0.0, 0.0, 2.5, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.63, 0.0, 0.06, 0.25, 0.88, 0.0, 0.13, 0.0, 0.06, 97.92, 0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0], [34.78, 0.0, 42.39, 6.52, 2.17, 6.52, 0.0, 0.0, 7.61, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [44.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 28.0, 28.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [37.47, 8.29, 23.1, 9.28, 1.47, 3.87, 2.33, 0.98, 3.93, 0.68, 8.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [23.81, 0.0, 14.29, 14.29, 19.05, 0.0, 14.29, 0.0, 4.76, 4.76, 0.0, 0.0, 4.76, 0.0, 0.0, 0.0, 0.0, 0.0], [50.0, 0.0, 0.0, 0.0, 50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 20.0, 80.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [6.38, 0.0, 2.48, 29.43, 1.42, 0.0, 17.73, 0.0, 0.0, 42.55, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [39.47, 0.0, 28.95, 13.16, 6.58, 0.0, 5.26, 0.0, 5.26, 1.32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [16.46, 0.0, 39.24, 10.13, 12.66, 6.33, 5.06, 1.27, 5.06, 0.0, 3.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [21.83, 0.0, 26.9, 6.09, 0.51, 4.06, 0.51, 0.0, 29.95, 10.15, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [21.83, 0.0, 26.9, 6.09, 0.51, 4.06, 0.51, 0.0, 29.95, 10.15, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [37.41, 0.0, 25.34, 7.24, 10.17, 3.28, 0.86, 0.0, 10.34, 1.72, 3.62, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [21.69, 0.0, 7.83, 0.6, 1.2, 0.0, 0.0, 0.0, 2.41, 66.27, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [25.11, 4.68, 34.47, 11.91, 2.13, 5.11, 2.13, 0.0, 6.81, 0.0, 7.66, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [39.3, 0.39, 29.57, 7.0, 9.34, 4.47, 2.14, 0.0, 4.47, 0.0, 3.31, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [48.21, 35.84, 7.04, 3.76, 1.34, 1.22, 0.92, 0.72, 0.31, 0.29, 0.22, 0.07, 0.05, 0.01, 0.01, 0.0, 0.0, 0.0], [22.88, 7.22, 31.85, 10.02, 3.82, 4.45, 3.54, 1.0, 3.95, 0.84, 10.04, 0.0, 0.39, 0.0, 0.0, 0.0, 0.0, 0.0], [53.83, 4.41, 22.26, 4.11, 1.39, 1.89, 1.29, 1.16, 1.16, 0.0, 8.25, 0.0, 0.26, 0.0, 0.0, 0.0, 0.0, 0.0], [32.11, 40.22, 11.98, 5.04, 1.23, 1.82, 1.02, 0.9, 1.48, 0.25, 3.77, 0.04, 0.13, 0.0, 0.0, 0.0, 0.0, 0.0], [46.25, 6.48, 18.5, 8.87, 1.59, 3.21, 2.61, 0.79, 2.83, 0.0, 8.52, 0.0, 0.35, 0.0, 0.0, 0.0, 0.0, 0.0]], "totals": [18.55, 0.163, 0.133, 0.023, 0.011, 0.203, 0.08, 1.583, 0.092, 0.025, 3.256, 0.021, 0.008, 0.005, 0.282, 0.076, 0.158, 0.197, 0.197, 0.58, 0.166, 0.235, 0.514, 1046.303, 8.804, 6.038, 60.106, 6.292]}, "similarity": {"stations": ["נת סולתם 3", "מק יקנעם 2", "קישון -אחרי כניסת נהלל", "נת סולתם 14D", "נת סולתם 2", "יגור בית", "רמת דוד - כיבוי אש", "אלונים  ב' (תל שור)", "תעלת ניקוז רמת דוד - מערב", "קישון - גשר קרית חרושת", "קישון - גשר קרית חרושת טבעון", "נת סולתם 1", "פ יגור קבוץ א", "נחל צבי מעל רמת דוד", "קישון גשר 722", "תעלת ניקוז רמת דוד - מזרח", "יגור  א", "נת סולתם 4", "קישון - מחצבה", "קישון ליד כפר חסידים", "ניקוז רמת דוד לנחל נהלל", "תעלת ניקוז רמת דוד - מזרח 2", "תעלת ניקוז רמת דוד - מערב 2", "יקנעם  א'", "נחלאות ד' (אלונים)", "מעלה קישון(מקורות) מז' מע", "יפעת +רמת דוד+מדרך עוז", "מעלה קישון מערבי"], "values": [[100.0, 77.4, 77.4, 10.0, 15.4, 34.8, 13.9, 16.9, 14.1, 31.6, 31.6, 49.3, 23.6, 16.9, 25.1, 26.3, 37.9, 30.5, 23.2, 20.6, 24.8, 16.7, 22.7, 40.6, 45.1, 31.4, 11.6, 20.5], [77.4, 100.0, 94.6, 1.1, 0.9, 0.4, 1.0, 1.0, 0.9, 21.8, 21.8, 12.9, 0.6, 0.5, 0.5, 2.5, 4.9, 3.3, 4.3, 0.7, 2.1, 0.7, 0.7, 0.6, 47.8, 0.7, 0.6, 0.7], [77.4, 94.6, 100.0, 23.1, 1.9, 11.6, 26.4, 24.9, 21.8, 43.0, 43.0, 35.0, 21.3, 28.2, 26.0, 27.2, 31.6, 33.0, 34.4, 30.9, 32.0, 32.4, 31.8, 21.4, 69.2, 29.2, 30.9, 30.6], [10.0, 1.1, 23.1, 100.0, 68.6, 15.2, 57.8, 51.3, 44.2, 33.3, 33.3, 75.5, 44.1, 46.5, 41.8, 43.8, 56.9, 63.0, 69.7, 67.3, 58.6, 65.9, 65.1, 44.2, 52.6, 64.9, 70.7, 70.2], [15.4, 0.9, 1.9, 68.6, 100.0, 26.1, 3.6, 5.5, 4.5, 4.1, 4.1, 54.7, 31.6, 6.6, 10.8, 14.2, 21.9, 18.5, 24.1, 21.1, 7.8, 4.0, 7.1, 15.2, 0.0, 8.9, 0.0, 3.3], [34.8, 0.4, 11.6, 15.2, 26.1, 100.0, 38.8, 52.5, 53.5, 67.7, 67.7, 62.2, 81.4, 67.9, 78.6, 78.6, 77.5, 63.5, 59.2, 59.0, 59.8, 40.1, 46.7, 47.4, 18.3, 28.4, 6.6, 15.9], [13.9, 1.0, 26.4, 57.8, 3.6, 38.8, 100.0, 97.9, 95.9, 44.6, 44.6, 55.2, 40.3, 59.1, 60.2, 62.9, 79.3, 69.3, 69.4, 69.9, 81.3, 81.7, 83.7, 53.8, 59.6, 75.4, 79.5, 83.0], [16.9, 1.0, 24.9, 51.3, 5.5, 52.5, 97.9, 100.0, 98.9, 49.1, 49.1, 56.7, 49.5, 63.2, 68.1, 71.7, 83.3, 70.5, 70.5, 71.2, 83.9, 79.8, 83.1, 52.8, 53.5, 69.3, 69.9, 74.8], [14.1, 0.9, 21.8, 44.2, 4.5, 53.5, 95.9, 98.9, 100.0, 43.8, 43.8, 49.3, 44.4, 56.2, 61.9, 66.1, 78.0, 61.8, 61.8, 62.7, 76.3, 70.8, 74.3, 44.8, 46.3, 59.2, 60.2, 65.5], [31.6, 21.8, 43.0, 33.3, 4.1, 67.7, 44.6, 49.1, 43.8, 100.0, 100.0, 62.9, 75.0, 82.3, 81.1, 76.6, 76.9, 77.3, 82.4, 76.4, 73.5, 65.5, 67.3, 66.3, 74.1, 56.2, 46.0, 47.3], [31.6, 21.8, 43.0, 33.3, 4.1, 67.7, 44.6, 49.1, 43.8, 100.0, 100.0, 62.9, 75.0, 82.3, 81.1, 76.6, 76.9, 77.3, 82.4, 76.4, 73.5, 65.5, 67.3, 66.3, 74.1, 56.2, 46.0, 47.3], [49.3, 12.9, 35.0, 75.5, 54.7, 62.2, 55.2, 56.7, 49.3, 62.9, 62.9, 100.0, 76.6, 71.2, 73.8, 74.7, 84.1, 85.5, 83.6, 82.3, 76.3, 72.0, 75.5, 64.9, 55.3, 70.6, 59.3, 66.3], [23.6, 0.6, 21.3, 44.1, 31.6, 81.4, 40.3, 49.5, 44.4, 75.0, 75.0, 76.6, 100.0, 91.9, 93.9, 93.5, 80.4, 85.2, 84.4, 86.8, 78.7, 67.8, 69.1, 40.6, 31.3, 42.3, 35.2, 38.5], [16.9, 0.5, 28.2, 46.5, 6.6, 67.9, 59.1, 63.2, 56.2, 82.3, 82.3, 71.2, 91.9, 100.0, 96.7, 94.2, 86.8, 94.4, 93.8, 95.8, 91.0, 86.2, 85.5, 52.3, 52.4, 63.1, 61.9, 62.6], [25.1, 0.5, 26.0, 41.8, 10.8, 78.6, 60.2, 68.1, 61.9, 81.1, 81.1, 73.8, 93.9, 96.7, 100.0, 99.1, 90.7, 92.7, 91.6, 93.2, 92.7, 83.4, 85.4, 57.1, 47.5, 61.9, 54.5, 57.9], [26.3, 2.5, 27.2, 43.8, 14.2, 78.6, 62.9, 71.7, 66.1, 76.6, 76.6, 74.7, 93.5, 94.2, 99.1, 100.0, 90.1, 90.9, 89.9, 92.1, 92.9, 83.1, 85.3, 52.0, 44.7, 58.9, 53.1, 57.0], [37.9, 4.9, 31.6, 56.9, 21.9, 77.5, 79.3, 83.3, 78.0, 76.9, 76.9, 84.1, 80.4, 86.8, 90.7, 90.1, 100.0, 94.1, 91.3, 90.7, 93.6, 85.9, 90.0, 75.6, 61.0, 79.7, 67.7, 74.2], [30.5, 3.3, 33.0, 63.0, 18.5, 63.5, 69.3, 70.5, 61.8, 77.3, 77.3, 85.5, 85.2, 94.4, 92.7, 90.9, 94.1, 100.0, 97.5, 98.3, 95.3, 93.0, 93.7, 68.4, 62.8, 81.3, 76.4, 79.4], [23.2, 4.3, 34.4, 69.7, 24.1, 59.2, 69.4, 70.5, 61.8, 82.4, 82.4, 83.6, 84.4, 93.8, 91.6, 89.9, 91.3, 97.5, 100.0, 98.9, 95.1, 93.4, 93.7, 67.8, 69.4, 79.8, 77.5, 78.6], [20.6, 0.7, 30.9, 67.3, 21.1, 59.0, 69.9, 71.2, 62.7, 76.4, 76.4, 82.3, 86.8, 95.8, 93.2, 92.1, 90.7, 98.3, 98.9, 100.0, 96.1, 94.5, 94.3, 60.7, 61.3, 77.1, 76.9, 78.1], [24.8, 2.1, 32.0, 58.6, 7.8, 59.8, 81.3, 83.9, 76.3, 73.5, 73.5, 76.3, 78.7, 91.0, 92.7, 92.9, 93.6, 95.3, 95.1, 96.1, 100.0, 96.9, 98.4, 66.1, 63.9, 81.9, 79.8, 82.6], [16.7, 0.7, 32.4, 65.9, 4.0, 40.1, 81.7, 79.8, 70.8, 65.5, 65.5, 72.0, 67.8, 86.2, 83.4, 83.1, 85.9, 93.0, 93.4, 94.5, 96.9, 100.0, 99.1, 62.0, 68.5, 86.3, 90.9, 91.2], [22.7, 0.7, 31.8, 65.1, 7.1, 46.7, 83.7, 83.1, 74.3, 67.3, 67.3, 75.5, 69.1, 85.5, 85.4, 85.3, 90.0, 93.7, 93.7, 94.3, 98.4, 99.1, 100.0, 68.8, 68.7, 88.9, 89.0, 91.0], [40.6, 0.6, 21.4, 44.2, 15.2, 47.4, 53.8, 52.8, 44.8, 66.3, 66.3, 64.9, 40.6, 52.3, 57.1, 52.0, 75.6, 68.4, 67.8, 60.7, 66.1, 62.0, 68.8, 100.0, 68.6, 87.1, 62.5, 69.0], [45.1, 47.8, 69.2, 52.6, 0.0, 18.3, 59.6, 53.5, 46.3, 74.1, 74.1, 55.3, 31.3, 52.4, 47.5, 44.7, 61.0, 62.8, 69.4, 61.3, 63.9, 68.5, 68.7, 68.6, 100.0, 75.2, 74.3, 73.7], [31.4, 0.7, 29.2, 64.9, 8.9, 28.4, 75.4, 69.3, 59.2, 56.2, 56.2, 70.6, 42.3, 63.1, 61.9, 58.9, 79.7, 81.3, 79.8, 77.1, 81.9, 86.3, 88.9, 87.1, 75.2, 100.0, 91.8, 95.2], [11.6, 0.6, 30.9, 70.7, 0.0, 6.6, 79.5, 69.9, 60.2, 46.0, 46.0, 59.3, 35.2, 61.9, 54.5, 53.1, 67.7, 76.4, 77.5, 76.9, 79.8, 90.9, 89.0, 62.5, 74.3, 91.8, 100.0, 98.7], [20.5, 0.7, 30.6, 70.2, 3.3, 15.9, 83.0, 74.8, 65.5, 47.3, 47.3, 66.3, 38.5, 62.6, 57.9, 57.0, 74.2, 79.4, 78.6, 78.1, 82.6, 91.2, 91.0, 69.0, 73.7, 95.2, 98.7, 100.0]]}, "findings": ["<b>ריכוז הגבוה ביותר:</b> תחנה \"רמת דוד - כיבוי אש\" (נקודה מזוהה בנחל) עם ריכוז כולל של 1046.30 µg/L.", "<b>תרכובת דומיננטית:</b> PFOS מהווה בממוצע 30.3% מסך הריכוזים בכל התחנות.", "<b>קורלציה חזקה (18 זוגות ≥95%):</b> המטריצה מעידה על קורלציה איתנה בין מקורות תחנה לבין רוב הנקודות במורד נחל דליה וכולל מאגרי מעין צבי. דוגמאות: \"אלונים  ב' (תל שור)\" ↔ \"רמת דוד - כיבוי אש\" (98%), \"אלונים  ב' (תל שור)\" ↔ \"תעלת ניקוז רמת דוד - מערב\" (99%), \"יפעת +רמת דוד+מדרך עוז\" ↔ \"מעלה קישון מערבי\" (99%), \"מעלה קישון מערבי\" ↔ \"מעלה קישון(מקורות) מז' מע\" (95%), \"נחל צבי מעל רמת דוד\" ↔ \"קישון גשר 722\" (97%).", "<b>תחנות ללא ריכוזים משמעותיים (< LOD):</b> \"אלוני אבא  ב' (בית)\", \"אלונים ב' (בית לחם)\", \"מק יקנעם 5\", \"קישון מפל ראש\" — כל הריכוזים מתחת לסף הזיהוי. תחנות אלו לא נכללו בניתוח ההשוואתי.", "<b>חריגים בהרכב הכימי:</b> התחנות הבאות מציגות פרופיל שונה מרוב האחרות: \"יגור בית\" (ממוצע דמיון 41%), \"יקנעם  א'\" (ממוצע דמיון 48%), \"מק יקנעם 2\" (ממוצע דמיון 10%), \"נחלאות ד' (אלונים)\" (ממוצע דמיון 49%), \"נת סולתם 14D\" (ממוצע דמיון 43%), \"נת סולתם 2\" (ממוצע דמיון 12%), \"נת סולתם 3\" (ממוצע דמיון 25%), \"קישון -אחרי כניסת נהלל\" (ממוצע דמיון 29%), \"תעלת ניקוז רמת דוד - מערב\" (ממוצע דמיון 47%). ייתכן שמדובר במקור זיהום נפרד או בתהליכי הנחתה (Retardation) המשפיעים על ההרכב.", "<b>ניתוח PCA — 7 אשכולות זוהו:</b> שני הרכיבים הראשיים מסבירים 63.2% מהשונות (38.7% + 24.5%). אשכול (19 תחנות): \"אלונים  ב' (תל שור)\", \"יגור  א\", \"יקנעם  א'\", \"מעלה קישון(מקורות) מז' מע\" ועוד 15 | אשכול (2 תחנות): \"יגור בית\", \"פ יגור קבוץ א\" | אשכול (2 תחנות): \"יפעת +רמת דוד+מדרך עוז\", \"מעלה קישון מערבי\" | אשכול (2 תחנות): \"נת סולתם 3\", \"קישון -אחרי כניסת נהלל\" | בודדת: \"מק יקנעם 2\" | בודדת: \"נחלאות ד' (אלונים)\" | בודדת: \"נת סולתם 2\".", "<b>היקף הסקר:</b> פריסת 32 נקודות דיגום ב-4 סוגי מקור, 19 תרכובות PFAS."], "pfos_pfhxs_ratios": {"אלונים  ב' (תל שור)": 3.01, "יגור  א": 1.37, "יגור בית": 0.09, "יפעת +רמת דוד+מדרך עוז": null, "יקנעם  א'": null, "מעלה קישון מערבי": null, "מעלה קישון(מקורות) מז' מע": null, "מק יקנעם 2": 10.0, "נחל צבי מעל רמת דוד": 0.82, "נחלאות ד' (אלונים)": null, "ניקוז רמת דוד לנחל נהלל": 1.62, "נת סולתם 1": 1.67, "נת סולתם 14D": null, "נת סולתם 2": null, "נת סולתם 3": 2.57, "נת סולתם 4": 1.36, "פ יגור קבוץ א": 0.42, "קישון - גשר קרית חרושת": 0.81, "קישון - גשר קרית חרושת טבעון": 0.81, "קישון - מחצבה": 1.48, "קישון -אחרי כניסת נהלל": 2.77, "קישון גשר 722": 0.73, "קישון ליד כפר חסידים": 1.33, "רמת דוד - כיבוי אש": 6.84, "תעלת ניקוז רמת דוד - מזרח": 0.72, "תעלת ניקוז רמת דוד - מזרח 2": 2.42, "תעלת ניקוז רמת דוד - מערב": 2.68, "תעלת ניקוז רמת דוד - מערב 2": 2.5}, "pca": {"stations": ["אלונים  ב' (תל שור)", "יגור  א", "יגור בית", "יפעת +רמת דוד+מדרך עוז", "יקנעם  א'", "מעלה קישון מערבי", "מעלה קישון(מקורות) מז' מע", "מק יקנעם 2", "נחל צבי מעל רמת דוד", "נחלאות ד' (אלונים)", "ניקוז רמת דוד לנחל נהלל", "נת סולתם 1", "נת סולתם 14D", "נת סולתם 2", "נת סולתם 3", "נת סולתם 4", "פ יגור קבוץ א", "קישון - גשר קרית חרושת", "קישון - גשר קרית חרושת טבעון", "קישון - מחצבה", "קישון -אחרי כניסת נהלל", "קישון גשר 722", "קישון ליד כפר חסידים", "רמת דוד - כיבוי אש", "תעלת ניקוז רמת דוד - מזרח", "תעלת ניקוז רמת דוד - מזרח 2", "תעלת ניקוז רמת דוד - מערב", "תעלת ניקוז רמת דוד - מערב 2"], "pc1": [-10.351, -2.868, 12.85, -50.113, -6.726, -35.379, -24.515, 88.267, -8.227, 8.235, -9.538, 5.303, -13.936, 21.417, 44.5, -9.281, 4.775, 8.821, 8.821, -7.497, 50.643, -1.87, -10.348, -18.472, 0.148, -20.709, -8.41, -15.538], "pc2": [0.394, -8.961, -30.711, 44.452, 0.675, 29.572, 18.22, 39.362, -10.533, 26.153, -2.406, -13.928, -8.048, -54.399, 6.417, -5.439, -25.748, -7.08, -7.08, -6.192, 31.48, -14.598, -6.93, 9.848, -15.079, 8.196, -1.654, 4.017], "var_explained": [38.7, 24.5]}, "mds": {"stations": ["אלונים  ב' (תל שור)", "יגור  א", "יגור בית", "יפעת +רמת דוד+מדרך עוז", "יקנעם  א'", "מעלה קישון מערבי", "מעלה קישון(מקורות) מז' מע", "מק יקנעם 2", "נחל צבי מעל רמת דוד", "נחלאות ד' (אלונים)", "ניקוז רמת דוד לנחל נהלל", "נת סולתם 1", "נת סולתם 14D", "נת סולתם 2", "נת סולתם 3", "נת סולתם 4", "פ יגור קבוץ א", "קישון - גשר קרית חרושת", "קישון - גשר קרית חרושת טבעון", "קישון - מחצבה", "קישון -אחרי כניסת נהלל", "קישון גשר 722", "קישון ליד כפר חסידים", "רמת דוד - כיבוי אש", "תעלת ניקוז רמת דוד - מזרח", "תעלת ניקוז רמת דוד - מזרח 2", "תעלת ניקוז רמת דוד - מערב", "תעלת ניקוז רמת דוד - מערב 2"], "x": [-0.2654, -0.0301, 0.2461, -0.2821, -0.0597, -0.2502, -0.185, 0.6598, 0.022, 0.1031, -0.0825, 0.031, -0.3005, -0.2004, 0.5508, -0.0307, 0.1158, 0.2054, 0.2054, -0.0324, 0.4516, 0.029, -0.0475, -0.3067, 0.0175, -0.1344, -0.3077, -0.1223], "y": [-0.1847, -0.1224, -0.3776, 0.0464, 0.1965, 0.0339, 0.0638, 0.4929, -0.1976, 0.2167, -0.1235, 0.0525, 0.267, 0.7479, 0.2994, -0.0995, -0.2758, -0.1192, -0.1192, -0.0848, 0.3594, -0.2116, -0.114, -0.122, -0.2219, -0.0821, -0.2389, -0.0816], "stress": 3.0585}, "group_unit": "µg/L"};
+const COMPOUND_COLORS = {"PFOS": "#e74c3c", "PFOA": "#e91e9e", "PFHxS": "#3498db", "PFNA": "#2ecc71", "PFDA": "#f39c12", "PFUnDA": "#9b59b6", "PFUnA": "#9b59b6", "PFBS": "#1abc9c", "GenX": "#e67e22", "PFPeS": "#8e44ad", "PFHpA": "#d35400", "6:2FT": "#7f8c8d", "PFHpS": "#c0392b", "PFPeA": "#16a085", "PFHxA": "#2980b9", "PFDoA": "#c0392b", "PFBA": "#27ae60", "ADONA": "#f1c40f", "PFESA": "#8e44ad", "PFTDA": "#d35400"};
+const SOURCE_COLORS = {"קידוח ניטור": "#3498db", "קידוח הפקה": "#2ecc71", "קידוח": "#2980b9", "מט\"ש": "#e74c3c", "מעיין": "#9b59b6", "מים עיליים": "#f39c12", "נקודה מזוהה בנחל": "#e67e22", "תחנה הידרומטרית": "#1abc9c", "מאגר": "#8e44ad"};
+const DEFAULT_COLOR = '#95a5a6';
+const GROUP_UNIT = 'µg/L';
+const GROUP_NAME = 'PFAS';
+
+// ── State ──
+let selectedStations = new Set(DATA.stations.map(s => s.name));
+let map, markers = [];
+let attenuationChart = null, fingerprintChart = null;
+
+// ── Helpers ──
+function getSourceColor(s) { return SOURCE_COLORS[s] || DEFAULT_COLOR; }
+function getCompoundColor(c) { return COMPOUND_COLORS[c] || DEFAULT_COLOR; }
+
+// Heatmap color: red (0%) -> yellow (50%) -> green (100%)
+function heatmapColor(val) {
+    if (val <= 50) {
+        const t = val / 50;
+        const r = 220; const g = Math.round(60 + t * 160); const b = Math.round(60 * (1 - t));
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    } else {
+        const t = (val - 50) / 50;
+        const r = Math.round(220 - t * 185); const g = Math.round(220 - t * 35); const b = Math.round(t * 80);
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    }
+}
+
+// Graduated marker radius (log scale)
+function markerRadius(total) {
+    if (total <= 0) return 5;
+    const r = 5 + Math.log10(total + 1) * 6;
+    return Math.min(Math.max(r, 5), 28);
+}
+
+// ── Filter panel ──
+function buildFilterPanel() {
+    const sourceTypes = [...new Set(DATA.stations.map(s => s.source_type))];
+    const srcDiv = document.getElementById('source-filters');
+    sourceTypes.forEach(st => {
+        const btn = document.createElement('button');
+        btn.textContent = st;
+        btn.style.borderRight = '4px solid ' + getSourceColor(st);
+        btn.onclick = () => toggleSourceType(st);
+        srcDiv.appendChild(btn);
+    });
+    const grid = document.getElementById('station-chips');
+    DATA.stations.forEach(s => {
+        const chip = document.createElement('div');
+        chip.className = 'station-chip selected';
+        chip.dataset.station = s.name;
+        chip.dataset.source = s.source_type;
+        chip.innerHTML = '<span class="dot" style="background:' + getSourceColor(s.source_type) + '"></span>' + s.name;
+        chip.onclick = () => toggleStation(s.name);
+        grid.appendChild(chip);
+    });
+    updateFilterCount();
+}
+
+function toggleStation(name) {
+    if (selectedStations.has(name)) selectedStations.delete(name);
+    else selectedStations.add(name);
+    updateUI();
+}
+function toggleSourceType(st) {
+    const stationsOfType = DATA.stations.filter(s => s.source_type === st).map(s => s.name);
+    const allSelected = stationsOfType.every(n => selectedStations.has(n));
+    stationsOfType.forEach(n => { if (allSelected) selectedStations.delete(n); else selectedStations.add(n); });
+    updateUI();
+}
+function selectAll() { DATA.stations.forEach(s => selectedStations.add(s.name)); updateUI(); }
+function selectNone() { selectedStations.clear(); updateUI(); }
+function updateFilterCount() {
+    document.getElementById('filter-count').textContent =
+        selectedStations.size + ' מתוך ' + DATA.stations.length + ' תחנות נבחרו';
+}
+function updateChipStyles() {
+    document.querySelectorAll('.station-chip').forEach(chip => {
+        chip.classList.toggle('selected', selectedStations.has(chip.dataset.station));
+    });
+}
+
+// ── Map (graduated markers) ──
+function initMap() {
+    const lats = DATA.stations.map(s => s.lat);
+    const lons = DATA.stations.map(s => s.lon);
+    const cLat = lats.reduce((a,b) => a+b, 0) / lats.length;
+    const cLon = lons.reduce((a,b) => a+b, 0) / lons.length;
+    map = L.map('map').setView([cLat, cLon], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Legend
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function() {
+        const div = L.DomUtil.create('div');
+        div.style.cssText = 'background:rgba(255,255,255,0.92);padding:10px 14px;border-radius:8px;font-family:sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2);direction:rtl';
+        const types = [...new Set(DATA.stations.map(s => s.source_type))];
+        let html = '<b style="font-size:13px">סוג מקור</b>';
+        types.forEach(t => {
+            html += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0">' +
+                '<span style="width:12px;height:12px;border-radius:50%;background:' + getSourceColor(t) +
+                ';display:inline-block;border:1px solid #fff"></span>' +
+                '<span style="font-size:12px">' + t + '</span></div>';
+        });
+        html += '<div style="margin-top:8px;border-top:1px solid #ddd;padding-top:6px"><b style="font-size:11px">גודל = &Sigma;' + GROUP_NAME + '</b></div>';
+        div.innerHTML = html;
+        return div;
+    };
+    legend.addTo(map);
+    updateMap();
+}
+
+function updateMap() {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+    DATA.stations.filter(s => selectedStations.has(s.name)).forEach(s => {
+        const r = markerRadius(s.max_total);
+        const m = L.circleMarker([s.lat, s.lon], {
+            radius: r, fillColor: getSourceColor(s.source_type), color: '#fff',
+            weight: 2, opacity: 1, fillOpacity: 0.85
+        }).addTo(map).bindPopup(
+            '<b>' + s.name + '</b><br>סוג: ' + s.source_type +
+            '<br>&Sigma;' + GROUP_NAME + ': ' + (s.max_total > 0 ? s.max_total.toFixed(2) : '< LOD') + ' ' + GROUP_UNIT +
+            '<br>תאריך נבחר: ' + (s.selected_date || '-') +
+            '<br>תרכובות: ' + s.n_compounds
+        );
+        markers.push(m);
+
+        // Permanent label: station name + total concentration
+        const concLabel = s.max_total > 0 ? (s.max_total >= 1 ? s.max_total.toFixed(1) : s.max_total.toFixed(3)) : '< LOD';
+        const label = L.marker([s.lat, s.lon], {
+            icon: L.divIcon({
+                className: 'map-label',
+                html: '<span>' + s.name + '<br><b>' + concLabel + '</b></span>',
+                iconSize: [120, 30],
+                iconAnchor: [-r - 2, 15]
+            })
+        }).addTo(map);
+        markers.push(label);
+    });
+    if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.15));
+    }
+}
+
+// ── Attenuation chart (Chart.js) ──
+function updateAttenuationChart() {
+    const filtered = DATA.attenuation.filter(a => selectedStations.has(a.name));
+    const ctx = document.getElementById('attenuation-canvas').getContext('2d');
+    if (attenuationChart) attenuationChart.destroy();
+    attenuationChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: filtered.map(a => a.name),
+            datasets: [{ data: filtered.map(a => a.total), backgroundColor: filtered.map(a => getSourceColor(a.source_type)), borderWidth: 0 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: function(ctx) { return '\u03A3' + GROUP_NAME + ': ' + ctx.parsed.y.toFixed(2) + ' ' + GROUP_UNIT; } } }
+            },
+            scales: {
+                y: { type: 'logarithmic', title: { display: true, text: '\u03A3' + GROUP_NAME + ' (' + GROUP_UNIT + ')', font: { size: 13 } }, grid: { color: '#e0e0e0' } },
+                x: { ticks: { maxRotation: 55, minRotation: 35, font: { size: 12, weight: 'bold' } } }
+            }
+        }
+    });
+}
+
+// ── Fingerprint chart with total labels on top ──
+function updateFingerprintChart() {
+    const fp = DATA.fingerprint;
+    const selIdx = [];
+    fp.stations.forEach((s, i) => { if (selectedStations.has(s)) selIdx.push(i); });
+    const ctx = document.getElementById('fingerprint-canvas').getContext('2d');
+    if (fingerprintChart) fingerprintChart.destroy();
+
+    const datasets = fp.compounds.map((compound, ci) => ({
+        label: compound,
+        data: selIdx.map(i => fp.values[i][ci]),
+        backgroundColor: getCompoundColor(compound),
+        borderWidth: 0
+    }));
+
+    // Total concentration labels plugin
+    const totalLabelsPlugin = {
+        id: 'totalLabels',
+        afterDraw(chart) {
+            const ctx2 = chart.ctx;
+            const meta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+            ctx2.save();
+            ctx2.font = 'bold 10px sans-serif';
+            ctx2.textAlign = 'center';
+            ctx2.fillStyle = '#333';
+            selIdx.forEach((si, barIdx) => {
+                const total = fp.totals[si];
+                if (total > 0 && meta.data[barIdx]) {
+                    const bar = meta.data[barIdx];
+                    const label = total >= 1 ? total.toFixed(1) : total.toFixed(3);
+                    ctx2.fillText(label, bar.x, bar.y - 6);
+                } else if (meta.data[barIdx]) {
+                    const bar = meta.data[barIdx];
+                    ctx2.fillStyle = '#999';
+                    ctx2.fillText('< LOD', bar.x, chart.chartArea.top + chart.chartArea.height / 2);
+                    ctx2.fillStyle = '#333';
+                }
+            });
+            ctx2.restore();
+        }
+    };
+
+    fingerprintChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: selIdx.map(i => fp.stations[i]), datasets: datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            layout: { padding: { top: 20 } },
+            plugins: {
+                legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } },
+                tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%'; } } }
+            },
+            scales: {
+                x: { stacked: true, ticks: { maxRotation: 55, minRotation: 35, font: { size: 12, weight: 'bold' } } },
+                y: { stacked: true, max: 100, title: { display: true, text: 'הרכב יחסי (%)', font: { size: 13 } }, grid: { color: '#e0e0e0' } }
+            }
+        },
+        plugins: [totalLabelsPlugin]
+    });
+}
+
+// ── PCA scatter plot ──
+let pcaChart = null;
+function updatePcaChart() {
+    const pca = DATA.pca;
+    if (!pca || pca.stations.length < 2) {
+        document.getElementById('pca-canvas').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:40px">אין מספיק תחנות עם ריכוזים לניתוח PCA</p>';
+        return;
+    }
+    const ctx = document.getElementById('pca-canvas').getContext('2d');
+    if (pcaChart) pcaChart.destroy();
+
+    // Build datasets grouped by source_type
+    const stationInfo = {};
+    DATA.stations.forEach(s => { stationInfo[s.name] = s; });
+    const sourceGroups = {};
+    pca.stations.forEach((stn, i) => {
+        if (!selectedStations.has(stn)) return;
+        const info = stationInfo[stn];
+        const st = info ? info.source_type : 'אחר';
+        if (!sourceGroups[st]) sourceGroups[st] = [];
+        sourceGroups[st].push({ x: pca.pc1[i], y: pca.pc2[i], name: stn, total: info ? info.max_total : 0 });
+    });
+
+    const datasets = Object.entries(sourceGroups).map(([st, pts]) => ({
+        label: st,
+        data: pts.map(p => ({ x: p.x, y: p.y })),
+        backgroundColor: getSourceColor(st),
+        borderColor: '#fff',
+        borderWidth: 1.5,
+        pointRadius: pts.map(p => Math.max(5, Math.min(20, 5 + Math.log10(p.total + 1) * 5))),
+        pointHoverRadius: pts.map(p => Math.max(7, Math.min(22, 7 + Math.log10(p.total + 1) * 5))),
+        _stationNames: pts.map(p => p.name),
+        _totals: pts.map(p => p.total)
+    }));
+
+    pcaChart = new Chart(ctx, {
+        type: 'scatter',
+        data: { datasets: datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 14 } },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const ds = ctx.dataset;
+                            const name = ds._stationNames[ctx.dataIndex];
+                            const total = ds._totals[ctx.dataIndex];
+                            return name + ' (' + (total >= 1 ? total.toFixed(1) : total.toFixed(3)) + ' ' + GROUP_UNIT + ')';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { title: { display: true, text: 'PC1 (' + pca.var_explained[0] + '% שונות)', font: { size: 13 } }, grid: { color: '#eee' } },
+                y: { title: { display: true, text: 'PC2 (' + pca.var_explained[1] + '% שונות)', font: { size: 13 } }, grid: { color: '#eee' } }
+            }
+        },
+        plugins: [{
+            // Draw station name labels on each point
+            id: 'pcaLabels',
+            afterDraw(chart) {
+                const ctx2 = chart.ctx;
+                ctx2.save();
+                ctx2.font = '11px sans-serif';
+                ctx2.fillStyle = '#333';
+                ctx2.textAlign = 'right';
+                chart.data.datasets.forEach((ds, di) => {
+                    const meta = chart.getDatasetMeta(di);
+                    meta.data.forEach((pt, pi) => {
+                        const name = ds._stationNames[pi];
+                        // Short name (last part after " - ")
+                        const shortName = name.length > 20 ? name.split(' - ').pop() || name.slice(0, 18) + '...' : name;
+                        ctx2.fillText(shortName, pt.x - 8, pt.y - 8);
+                    });
+                });
+                ctx2.restore();
+            }
+        }]
+    });
+}
+
+// ── MDS scatter plot ──
+let mdsChart = null;
+function updateMdsChart() {
+    const mds = DATA.mds;
+    if (!mds || mds.stations.length < 2) {
+        document.getElementById('mds-canvas').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:40px">אין מספיק תחנות עם ריכוזים לניתוח MDS</p>';
+        return;
+    }
+    const ctx = document.getElementById('mds-canvas').getContext('2d');
+    if (mdsChart) mdsChart.destroy();
+
+    const stationInfo = {};
+    DATA.stations.forEach(s => { stationInfo[s.name] = s; });
+    const sourceGroups = {};
+    mds.stations.forEach((stn, i) => {
+        if (!selectedStations.has(stn)) return;
+        const info = stationInfo[stn];
+        const st = info ? info.source_type : 'אחר';
+        if (!sourceGroups[st]) sourceGroups[st] = [];
+        sourceGroups[st].push({ x: mds.x[i], y: mds.y[i], name: stn, total: info ? info.max_total : 0 });
+    });
+
+    const datasets = Object.entries(sourceGroups).map(([st, pts]) => ({
+        label: st,
+        data: pts.map(p => ({ x: p.x, y: p.y })),
+        backgroundColor: getSourceColor(st),
+        borderColor: '#fff',
+        borderWidth: 1.5,
+        pointRadius: pts.map(p => Math.max(5, Math.min(20, 5 + Math.log10(p.total + 1) * 5))),
+        pointHoverRadius: pts.map(p => Math.max(7, Math.min(22, 7 + Math.log10(p.total + 1) * 5))),
+        _stationNames: pts.map(p => p.name),
+        _totals: pts.map(p => p.total)
+    }));
+
+    mdsChart = new Chart(ctx, {
+        type: 'scatter',
+        data: { datasets: datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 14 } },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const ds = ctx.dataset;
+                            const name = ds._stationNames[ctx.dataIndex];
+                            const total = ds._totals[ctx.dataIndex];
+                            return name + ' (' + (total >= 1 ? total.toFixed(1) : total.toFixed(3)) + ' ' + GROUP_UNIT + ')';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { title: { display: true, text: 'MDS ציר 1', font: { size: 13 } }, grid: { color: '#eee' } },
+                y: { title: { display: true, text: 'MDS ציר 2', font: { size: 13 } }, grid: { color: '#eee' } }
+            }
+        },
+        plugins: [{
+            id: 'mdsLabels',
+            afterDraw(chart) {
+                const ctx2 = chart.ctx;
+                ctx2.save();
+                ctx2.font = '11px sans-serif';
+                ctx2.fillStyle = '#333';
+                ctx2.textAlign = 'right';
+                chart.data.datasets.forEach((ds, di) => {
+                    const meta = chart.getDatasetMeta(di);
+                    meta.data.forEach((pt, pi) => {
+                        const name = ds._stationNames[pi];
+                        const shortName = name.length > 20 ? name.split(' - ').pop() || name.slice(0, 18) + '...' : name;
+                        ctx2.fillText(shortName, pt.x - 8, pt.y - 8);
+                    });
+                });
+                ctx2.restore();
+            }
+        }]
+    });
+}
+
+// ── PFOS/PFHxS ratio table ──
+function renderRatioTable() {
+    const ratios = DATA.pfos_pfhxs_ratios;
+    if (!ratios || Object.keys(ratios).length === 0) {
+        document.getElementById('ratio-container').innerHTML = '<p style="color:#999;text-align:center">אין נתונים זמינים</p>';
+        return;
+    }
+    const entries = Object.entries(ratios).filter(([s, v]) => v !== null && selectedStations.has(s)).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) {
+        document.getElementById('ratio-container').innerHTML = '<p style="color:#999;text-align:center">בחר תחנות עם ריכוזי PFOS ו-PFHxS</p>';
+        return;
+    }
+    let html = '<table class="ratio-table"><thead><tr><th>תחנה</th><th>PFOS/PFHxS</th><th>פרשנות</th></tr></thead><tbody>';
+    entries.forEach(([stn, ratio]) => {
+        let interp = '';
+        if (ratio >= 5) interp = '<span style="color:#c0392b;font-weight:600">קרוב למקור</span>';
+        else if (ratio >= 2) interp = '<span style="color:#e67e22;font-weight:600">אזור מעבר</span>';
+        else interp = '<span style="color:#27ae60;font-weight:600">מרוחק / Transport</span>';
+        html += '<tr><td style="text-align:right;font-weight:600">' + stn + '</td><td><b>' + ratio.toFixed(2) + '</b></td><td>' + interp + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('ratio-container').innerHTML = html;
+}
+
+// ── Heatmap (red-yellow-green, clustered) ──
+function updateHeatmap() {
+    const sim = DATA.similarity;
+    const selIdx = [];
+    sim.stations.forEach((s, i) => { if (selectedStations.has(s)) selIdx.push(i); });
+
+    if (selIdx.length === 0) {
+        document.getElementById('heatmap-container').innerHTML = '<p style="color:#999;text-align:center;padding:20px">בחר תחנות כדי להציג את מטריצת הדמיון</p>';
+        return;
+    }
+
+    let html = '<table class="heatmap"><thead><tr><th class="hm-corner"></th>';
+    selIdx.forEach(j => { html += '<th class="hm-header">' + sim.stations[j] + '</th>'; });
+    html += '</tr></thead><tbody>';
+
+    selIdx.forEach(i => {
+        html += '<tr><td class="hm-station">' + sim.stations[i] + '</td>';
+        selIdx.forEach(j => {
+            const val = sim.values[i][j];
+            let bg, tc;
+            if (i === j) { bg = '#555'; tc = '#fff'; }
+            else { bg = heatmapColor(val); tc = (val >= 40 && val <= 75) ? '#333' : '#fff'; }
+            html += '<td class="hm-cell" style="background:' + bg + ';color:' + tc + '">' + val.toFixed(0) + '%</td>';
+        });
+        html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('heatmap-container').innerHTML = html;
+}
+
+// ── Findings ──
+function renderFindings() {
+    const ul = document.getElementById('findings-list');
+    ul.innerHTML = DATA.findings.map(f => '<li>' + f + '</li>').join('');
+}
+
+// ── Master update ──
+function updateUI() {
+    updateChipStyles();
+    updateFilterCount();
+    updateMap();
+    updateAttenuationChart();
+    updateFingerprintChart();
+    updatePcaChart();
+    updateMdsChart();
+    renderRatioTable();
+    updateHeatmap();
+}
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', function() {
+    buildFilterPanel();
+    initMap();
+    updateAttenuationChart();
+    updateFingerprintChart();
+    updatePcaChart();
+    updateMdsChart();
+    renderRatioTable();
+    updateHeatmap();
+    renderFindings();
+});
+</script>
+
+</body>
+</html>
