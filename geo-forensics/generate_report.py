@@ -196,6 +196,27 @@ def _prepare_report_data(df, group):
         "values": [[round(sim_matrix.loc[a, b], 1) for b in clustered_stations] for a in clustered_stations],
     }
 
+    # --- PCA: 2D projection for chemical similarity scatter ---
+    from sklearn.decomposition import PCA as _PCA
+    fp_vals = fingerprint.values
+    # Stations with all-zero fingerprints get NaN PCA coords
+    non_zero_mask = fp_vals.sum(axis=1) > 0
+    pca_data = {"stations": [], "pc1": [], "pc2": [], "var_explained": [0, 0]}
+
+    if non_zero_mask.sum() >= 2:
+        pca_model = _PCA(n_components=min(2, non_zero_mask.sum()))
+        coords = pca_model.fit_transform(fp_vals[non_zero_mask])
+        var_explained = (pca_model.explained_variance_ratio_ * 100).tolist()
+        pca_data["var_explained"] = [round(v, 1) for v in var_explained]
+
+        j = 0
+        for i, stn in enumerate(fingerprint.index):
+            if non_zero_mask[i]:
+                pca_data["stations"].append(stn)
+                pca_data["pc1"].append(round(float(coords[j, 0]), 3))
+                pca_data["pc2"].append(round(float(coords[j, 1]) if coords.shape[1] > 1 else 0, 3))
+                j += 1
+
     return {
         "stations": stations_list,
         "attenuation": attenuation_list,
@@ -203,6 +224,7 @@ def _prepare_report_data(df, group):
         "similarity": sim_data,
         "findings": findings,
         "pfos_pfhxs_ratios": ratios,
+        "pca": pca_data,
         "group_unit": group.unit,
     }
 
@@ -399,6 +421,13 @@ def generate_html_report(input_path=None, output_path="report.html"):
 
   .footer {{ text-align: center; color: #888; padding: 20px; font-size: 0.85em; }}
   .leaflet-container {{ direction: ltr; }}
+  .map-label {{ background: none; border: none; }}
+  .map-label span {{
+    font-size: 11px; color: #333; white-space: nowrap;
+    text-shadow: 1px 1px 2px #fff, -1px -1px 2px #fff, 1px -1px 2px #fff, -1px 1px 2px #fff;
+    direction: rtl; line-height: 1.3;
+  }}
+  .map-label b {{ color: #0066cc; }}
 </style>
 </head>
 <body>
@@ -462,16 +491,23 @@ def generate_html_report(input_path=None, output_path="report.html"):
         </div>
     </div>
 
+    <!-- ════════════════════════ PCA SCATTER ════════════════════════ -->
+    <div class="section">
+        <h2>4. פיזור נקודות דיגום לפי דמיון כימי (PCA)</h2>
+        <p class="section-desc">Principal Component Analysis — הקרנת פרופיל ההרכב הכימי של כל תחנה למישור דו-ממדי. נקודות קרובות = חותמת כימית דומה. גודל הנקודה פרופורציונלי לריכוז הכולל. תחנות ללא ריכוזים (&lt; LOD) אינן מוצגות.</p>
+        <div style="width:100%;height:500px;"><canvas id="pca-canvas"></canvas></div>
+    </div>
+
     <!-- ════════════════════════ PFOS/PFHxS RATIO ════════════════════════ -->
     <div class="section">
-        <h2>4. מדד פורנזי: יחס PFOS/PFHxS</h2>
+        <h2>5. מדד פורנזי: יחס PFOS/PFHxS</h2>
         <p class="section-desc">יחס מרכזי להבחנה בין מקורות ולהערכת מידת ה-Transport. יחס גבוה מעיד על קרבה למקור; ירידה ביחס משקפת ספיחה סלקטיבית של PFOS לאורך מסלול הזרימה.</p>
         <div class="table-wrap" id="ratio-container"></div>
     </div>
 
     <!-- ════════════════════════ HEATMAP ════════════════════════ -->
     <div class="section">
-        <h2>5. מטריצת Cosine Similarity — השוואת חותמות כימיות</h2>
+        <h2>6. מטריצת Cosine Similarity — השוואת חותמות כימיות</h2>
         <p class="section-desc">התחנות ממוינות לפי Hierarchical Clustering. צבע ירוק = דמיון גבוה, אדום = דמיון נמוך.</p>
         <div class="method-box-compact">
             <div class="method-text"><b>Cosine Similarity</b> — השוואת פרופילים כימיים כווקטורים, תוך נטרול השפעת גודל הריכוזים.
@@ -631,6 +667,18 @@ function updateMap() {{
             '<br>תרכובות: ' + s.n_compounds
         );
         markers.push(m);
+
+        // Permanent label: station name + total concentration
+        const concLabel = s.max_total > 0 ? (s.max_total >= 1 ? s.max_total.toFixed(1) : s.max_total.toFixed(3)) : '< LOD';
+        const label = L.marker([s.lat, s.lon], {{
+            icon: L.divIcon({{
+                className: 'map-label',
+                html: '<span>' + s.name + '<br><b>' + concLabel + '</b></span>',
+                iconSize: [120, 30],
+                iconAnchor: [-r - 2, 15]
+            }})
+        }}).addTo(map);
+        markers.push(label);
     }});
     if (markers.length > 0) {{
         const group = L.featureGroup(markers);
@@ -657,7 +705,7 @@ function updateAttenuationChart() {{
             }},
             scales: {{
                 y: {{ type: 'logarithmic', title: {{ display: true, text: '\\u03A3' + GROUP_NAME + ' (' + GROUP_UNIT + ')', font: {{ size: 13 }} }}, grid: {{ color: '#e0e0e0' }} }},
-                x: {{ ticks: {{ maxRotation: 50, minRotation: 35, font: {{ size: 9 }} }} }}
+                x: {{ ticks: {{ maxRotation: 55, minRotation: 35, font: {{ size: 12, weight: 'bold' }} }} }}
             }}
         }}
     }});
@@ -716,11 +764,93 @@ function updateFingerprintChart() {{
                 tooltip: {{ callbacks: {{ label: function(ctx) {{ return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%'; }} }} }}
             }},
             scales: {{
-                x: {{ stacked: true, ticks: {{ maxRotation: 50, minRotation: 35, font: {{ size: 9 }} }} }},
+                x: {{ stacked: true, ticks: {{ maxRotation: 55, minRotation: 35, font: {{ size: 12, weight: 'bold' }} }} }},
                 y: {{ stacked: true, max: 100, title: {{ display: true, text: 'הרכב יחסי (%)', font: {{ size: 13 }} }}, grid: {{ color: '#e0e0e0' }} }}
             }}
         }},
         plugins: [totalLabelsPlugin]
+    }});
+}}
+
+// ── PCA scatter plot ──
+let pcaChart = null;
+function updatePcaChart() {{
+    const pca = DATA.pca;
+    if (!pca || pca.stations.length < 2) {{
+        document.getElementById('pca-canvas').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:40px">אין מספיק תחנות עם ריכוזים לניתוח PCA</p>';
+        return;
+    }}
+    const ctx = document.getElementById('pca-canvas').getContext('2d');
+    if (pcaChart) pcaChart.destroy();
+
+    // Build datasets grouped by source_type
+    const stationInfo = {{}};
+    DATA.stations.forEach(s => {{ stationInfo[s.name] = s; }});
+    const sourceGroups = {{}};
+    pca.stations.forEach((stn, i) => {{
+        if (!selectedStations.has(stn)) return;
+        const info = stationInfo[stn];
+        const st = info ? info.source_type : 'אחר';
+        if (!sourceGroups[st]) sourceGroups[st] = [];
+        sourceGroups[st].push({{ x: pca.pc1[i], y: pca.pc2[i], name: stn, total: info ? info.max_total : 0 }});
+    }});
+
+    const datasets = Object.entries(sourceGroups).map(([st, pts]) => ({{
+        label: st,
+        data: pts.map(p => ({{ x: p.x, y: p.y }})),
+        backgroundColor: getSourceColor(st),
+        borderColor: '#fff',
+        borderWidth: 1.5,
+        pointRadius: pts.map(p => Math.max(5, Math.min(20, 5 + Math.log10(p.total + 1) * 5))),
+        pointHoverRadius: pts.map(p => Math.max(7, Math.min(22, 7 + Math.log10(p.total + 1) * 5))),
+        _stationNames: pts.map(p => p.name),
+        _totals: pts.map(p => p.total)
+    }}));
+
+    pcaChart = new Chart(ctx, {{
+        type: 'scatter',
+        data: {{ datasets: datasets }},
+        options: {{
+            responsive: true, maintainAspectRatio: false,
+            plugins: {{
+                legend: {{ position: 'top', labels: {{ font: {{ size: 12 }}, boxWidth: 14 }} }},
+                tooltip: {{
+                    callbacks: {{
+                        label: function(ctx) {{
+                            const ds = ctx.dataset;
+                            const name = ds._stationNames[ctx.dataIndex];
+                            const total = ds._totals[ctx.dataIndex];
+                            return name + ' (' + (total >= 1 ? total.toFixed(1) : total.toFixed(3)) + ' ' + GROUP_UNIT + ')';
+                        }}
+                    }}
+                }}
+            }},
+            scales: {{
+                x: {{ title: {{ display: true, text: 'PC1 (' + pca.var_explained[0] + '% שונות)', font: {{ size: 13 }} }}, grid: {{ color: '#eee' }} }},
+                y: {{ title: {{ display: true, text: 'PC2 (' + pca.var_explained[1] + '% שונות)', font: {{ size: 13 }} }}, grid: {{ color: '#eee' }} }}
+            }}
+        }},
+        plugins: [{{
+            // Draw station name labels on each point
+            id: 'pcaLabels',
+            afterDraw(chart) {{
+                const ctx2 = chart.ctx;
+                ctx2.save();
+                ctx2.font = '11px sans-serif';
+                ctx2.fillStyle = '#333';
+                ctx2.textAlign = 'right';
+                chart.data.datasets.forEach((ds, di) => {{
+                    const meta = chart.getDatasetMeta(di);
+                    meta.data.forEach((pt, pi) => {{
+                        const name = ds._stationNames[pi];
+                        // Short name (last part after " - ")
+                        const shortName = name.length > 20 ? name.split(' - ').pop() || name.slice(0, 18) + '...' : name;
+                        ctx2.fillText(shortName, pt.x - 8, pt.y - 8);
+                    }});
+                }});
+                ctx2.restore();
+            }}
+        }}]
     }});
 }}
 
@@ -791,6 +921,7 @@ function updateUI() {{
     updateMap();
     updateAttenuationChart();
     updateFingerprintChart();
+    updatePcaChart();
     renderRatioTable();
     updateHeatmap();
 }}
@@ -801,6 +932,7 @@ document.addEventListener('DOMContentLoaded', function() {{
     initMap();
     updateAttenuationChart();
     updateFingerprintChart();
+    updatePcaChart();
     renderRatioTable();
     updateHeatmap();
     renderFindings();
