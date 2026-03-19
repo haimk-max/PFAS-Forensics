@@ -25,7 +25,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 import numpy as np
 import pandas as pd
 from scipy.cluster.hierarchy import linkage, leaves_list
-from sklearn.manifold import MDS as _MDS
 
 from config import APP_NAME, APP_VERSION, PAGE_ICON
 from src.analytics import cosine_similarity_matrix, generate_findings_summary
@@ -76,6 +75,57 @@ SOURCE_COLORS = {
 }
 
 DEFAULT_COLOR = "#95a5a6"
+
+
+# =============================================================================
+# MDS via SMACOF algorithm (replaces sklearn.manifold.MDS)
+# =============================================================================
+def _mds_smacof(dist_matrix, n_components=2, n_init=4, max_iter=300, eps=1e-6, random_state=42):
+    """
+    Metric MDS using SMACOF (Scaling by MAjorizing a COmplicated Function).
+    Works on a precomputed distance matrix.
+
+    Returns:
+        (coords, stress) — coordinates array and final stress value
+    """
+    n = len(dist_matrix)
+    rng = np.random.RandomState(random_state)
+    best_coords = None
+    best_stress = np.inf
+
+    for init_run in range(n_init):
+        # Random initialization
+        X = rng.randn(n, n_components)
+
+        for iteration in range(max_iter):
+            # Compute current distances
+            diff = X[:, np.newaxis, :] - X[np.newaxis, :, :]
+            current_dist = np.sqrt((diff ** 2).sum(axis=2))
+            current_dist = np.maximum(current_dist, 1e-12)
+
+            # Stress (raw)
+            stress = np.sqrt(((dist_matrix - current_dist) ** 2).sum() / max(1, (dist_matrix ** 2).sum()))
+
+            # Guttman transform
+            B = np.zeros_like(dist_matrix)
+            mask = current_dist > 1e-12
+            B[mask] = -dist_matrix[mask] / current_dist[mask]
+            np.fill_diagonal(B, 0)
+            np.fill_diagonal(B, -B.sum(axis=1))
+
+            X_new = B @ X / n
+
+            # Check convergence
+            change = np.sqrt(((X_new - X) ** 2).sum())
+            X = X_new
+            if change < eps:
+                break
+
+        if stress < best_stress:
+            best_stress = stress
+            best_coords = X.copy()
+
+    return best_coords, best_stress
 
 
 # =============================================================================
@@ -205,31 +255,38 @@ def _prepare_report_data(df, group):
         "values": [[round(sim_matrix_filtered.loc[a, b], 1) for b in clustered_stations] for a in clustered_stations],
     }
 
-    # --- PCA: 2D projection for chemical similarity scatter ---
-    from sklearn.decomposition import PCA as _PCA
+    # --- PCA: 2D projection using numpy SVD (no sklearn needed) ---
     fp_vals = fingerprint_filtered.values
     pca_data = {"stations": [], "pc1": [], "pc2": [], "var_explained": [0, 0]}
 
     if len(fp_vals) >= 2:
-        pca_model = _PCA(n_components=min(2, len(fp_vals)))
-        coords = pca_model.fit_transform(fp_vals)
-        var_explained = (pca_model.explained_variance_ratio_ * 100).tolist()
+        # Center the data
+        mean_vec = fp_vals.mean(axis=0)
+        centered = fp_vals - mean_vec
+        # SVD
+        U, S, Vt = np.linalg.svd(centered, full_matrices=False)
+        # Project onto first 2 components
+        n_components = min(2, len(S))
+        coords = centered @ Vt[:n_components].T
+        # Explained variance ratio
+        var_all = (S ** 2) / (len(fp_vals) - 1)
+        total_var = var_all.sum()
+        var_explained = [(var_all[i] / total_var * 100) if total_var > 0 else 0 for i in range(n_components)]
         pca_data["var_explained"] = [round(v, 1) for v in var_explained]
 
         for i, stn in enumerate(fingerprint_filtered.index):
             pca_data["stations"].append(stn)
             pca_data["pc1"].append(round(float(coords[i, 0]), 3))
-            pca_data["pc2"].append(round(float(coords[i, 1]) if coords.shape[1] > 1 else 0, 3))
+            pca_data["pc2"].append(round(float(coords[i, 1]) if n_components > 1 else 0, 3))
 
-    # --- MDS: 2D projection based on cosine distance ---
+    # --- MDS: 2D projection based on cosine distance (SMACOF, no sklearn) ---
     mds_data = {"stations": [], "x": [], "y": [], "stress": 0}
     if len(non_zero_stations) >= 2:
         cos_dist = 1 - sim_matrix_filtered.values / 100.0
         np.fill_diagonal(cos_dist, 0)
         cos_dist = (cos_dist + cos_dist.T) / 2  # ensure symmetry
-        mds_model = _MDS(n_components=2, metric_mds=True, metric='precomputed', n_init=4, init='random', random_state=42, normalized_stress='auto')
-        mds_coords = mds_model.fit_transform(cos_dist)
-        mds_data["stress"] = round(float(mds_model.stress_), 4)
+        mds_coords, stress = _mds_smacof(cos_dist, n_components=2, n_init=4, random_state=42)
+        mds_data["stress"] = round(float(stress), 4)
         for i, stn in enumerate(sim_matrix_filtered.index):
             mds_data["stations"].append(stn)
             mds_data["x"].append(round(float(mds_coords[i, 0]), 4))
