@@ -1,0 +1,77 @@
+name: Manual Trigger - Fetch & Analyze Communications
+
+on:
+  workflow_dispatch:
+    inputs:
+      contact_id:
+        description: 'Contact ID to analyze (optional)'
+        required: false
+        default: ''
+      query:
+        description: 'Search query (optional)'
+        required: false
+        default: ''
+
+jobs:
+  fetch-and-analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Fetch WhatsApp & Gmail messages
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          WHATSAPP_SESSION_FILE: whatsapp_session.json
+        run: |
+          python -m src.main
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: communication-results
+          path: results.json
+          retention-days: 30
+
+      - name: Post results to GitHub Issues
+        if: success()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('results.json', 'utf8'));
+
+            const body = `## Communication Summary
+
+            **Timestamp:** ${results.timestamp}
+
+            ### WhatsApp
+            - Chats fetched: ${results.whatsapp.length}
+
+            ### Gmail
+            - Threads fetched: ${results.gmail.length}
+
+            See artifact for full details.
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
