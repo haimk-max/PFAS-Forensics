@@ -1,209 +1,295 @@
 """
 Claude API integration for conversation analysis
-Handles summarization, action item extraction, and sentiment analysis
+Uses claude-sonnet-4-6 with prompt caching and adaptive thinking
 """
 
-import os
 import json
 import logging
+import os
+import re
+import time
 from typing import List, Dict, Optional
-from anthropic import Anthropic
+
+import anthropic
 
 logger = logging.getLogger(__name__)
 
+# Stable system prompt — cached to avoid paying full price on every call
+_SYSTEM_PROMPT = """You are an expert communication analyst specializing in extracting
+actionable insights from conversations. You are precise, concise, and always respond
+in valid JSON when asked. You handle conversations from multiple platforms (WhatsApp,
+Gmail) and can identify patterns, action items, sentiment, and pending items accurately."""
+
+MODEL = "claude-sonnet-4-6"
+MAX_RETRIES = 3
+RETRY_BACKOFF = [2, 4, 8]
+
+
+def _retry(func, retries=MAX_RETRIES, backoff=RETRY_BACKOFF):
+    """Retry func with exponential backoff on rate-limit and server errors."""
+    last_exc = None
+    for attempt in range(retries):
+        try:
+            return func()
+        except anthropic.RateLimitError as e:
+            last_exc = e
+            retry_after = int(e.response.headers.get("retry-after", backoff[attempt]))
+            logger.warning(f"Rate limited. Retrying after {retry_after}s (attempt {attempt + 1})")
+            time.sleep(retry_after)
+        except anthropic.InternalServerError as e:
+            last_exc = e
+            wait = backoff[attempt] if attempt < len(backoff) else backoff[-1]
+            logger.warning(f"Server error {e.status_code}. Retrying in {wait}s (attempt {attempt + 1})")
+            time.sleep(wait)
+        except (anthropic.AuthenticationError, anthropic.PermissionDeniedError, anthropic.BadRequestError):
+            raise  # Non-retryable
+    raise last_exc
+
 
 class ConversationAnalyzer:
-    """Analyze conversations using Claude API"""
+    """Analyze conversations using Claude API with prompt caching."""
 
     def __init__(self):
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
-
-        self.client = Anthropic()
-        self.model = "claude-3-5-sonnet-20241022"
+        self.client = anthropic.Anthropic(api_key=api_key)
 
     def summarize(self, messages: List[Dict]) -> Optional[str]:
-        """Summarize a conversation using Claude"""
-        logger.info("Summarizing conversation...")
-
+        """Summarize a conversation. Uses streaming for long responses."""
         if not messages:
-            return "No messages to summarize"
+            return "No messages to summarize."
 
-        try:
-            # Format messages for Claude
-            conversation_text = self._format_messages(messages)
+        logger.info("Summarizing conversation...")
+        conversation_text = self._format_messages(messages)
 
-            message = self.client.messages.create(
-                model=self.model,
+        def _call():
+            with self.client.messages.stream(
+                model=MODEL,
                 max_tokens=1024,
-                system="You are a helpful assistant that summarizes conversations concisely and accurately.",
+                thinking={"type": "adaptive"},
+                system=[
+                    {
+                        "type": "text",
+                        "text": _SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 messages=[
                     {
                         "role": "user",
-                        "content": f"Please summarize this conversation:\n\n{conversation_text}",
+                        "content": (
+                            "Summarize the following conversation in 3–5 sentences. "
+                            "Focus on key topics discussed, decisions made, and overall tone.\n\n"
+                            f"{conversation_text}"
+                        ),
                     }
                 ],
+            ) as stream:
+                return stream.get_final_message()
+
+        try:
+            response = _retry(_call)
+            summary = next(
+                (b.text for b in response.content if b.type == "text"), ""
             )
-
-            summary = message.content[0].text
-            logger.info("✓ Conversation summarized")
+            logger.info(
+                "✓ Summarized — cache_read=%d, cache_write=%d",
+                response.usage.cache_read_input_tokens,
+                response.usage.cache_creation_input_tokens,
+            )
             return summary
-
         except Exception as e:
-            logger.error(f"Failed to summarize conversation: {e}")
+            logger.error(f"Failed to summarize: {e}")
             return None
 
     def extract_action_items(self, messages: List[Dict]) -> List[str]:
-        """Extract action items from a conversation"""
-        logger.info("Extracting action items...")
-
+        """Extract action items from a conversation."""
         if not messages:
             return []
 
-        try:
-            conversation_text = self._format_messages(messages)
+        logger.info("Extracting action items...")
+        conversation_text = self._format_messages(messages)
 
-            message = self.client.messages.create(
-                model=self.model,
-                max_tokens=1024,
-                system="You are a helpful assistant that extracts action items from conversations. Return only a JSON list of action items.",
+        def _call():
+            return self.client.messages.create(
+                model=MODEL,
+                max_tokens=512,
+                system=[
+                    {
+                        "type": "text",
+                        "text": _SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 messages=[
                     {
                         "role": "user",
-                        "content": f"Extract action items from this conversation and return as a JSON list:\n\n{conversation_text}\n\nReturn ONLY a valid JSON array of strings.",
+                        "content": (
+                            "Extract all action items, tasks, and commitments from the following "
+                            "conversation. Return ONLY a valid JSON array of strings, nothing else.\n\n"
+                            f"Conversation:\n{conversation_text}\n\n"
+                            'Example output: ["Call John by Friday", "Send the report"]'
+                        ),
                     }
                 ],
             )
 
-            try:
-                response_text = message.content[0].text
-                # Try to parse JSON from response
-                import re
-
-                json_match = re.search(r"\[.*\]", response_text, re.DOTALL)
-                if json_match:
-                    action_items = json.loads(json_match.group())
-                    logger.info(f"✓ Extracted {len(action_items)} action items")
-                    return action_items
-            except json.JSONDecodeError:
-                logger.warning("Could not parse action items as JSON")
-
-            return []
-
+        try:
+            response = _retry(_call)
+            text = next((b.text for b in response.content if b.type == "text"), "[]")
+            match = re.search(r"\[.*?\]", text, re.DOTALL)
+            if match:
+                items = json.loads(match.group())
+                logger.info(f"✓ Extracted {len(items)} action items")
+                return items
         except Exception as e:
             logger.error(f"Failed to extract action items: {e}")
-            return []
+
+        return []
 
     def detect_unanswered(self, messages: List[Dict]) -> List[str]:
-        """Detect messages that need a response"""
-        logger.info("Detecting unanswered messages...")
-
+        """Detect messages or questions that have not received a response."""
         if not messages:
             return []
 
-        try:
-            conversation_text = self._format_messages(messages)
+        logger.info("Detecting unanswered messages...")
+        conversation_text = self._format_messages(messages)
 
-            message = self.client.messages.create(
-                model=self.model,
-                max_tokens=1024,
-                system="You are a helpful assistant that identifies questions and messages requiring responses. Return only a JSON list.",
+        def _call():
+            return self.client.messages.create(
+                model=MODEL,
+                max_tokens=512,
+                system=[
+                    {
+                        "type": "text",
+                        "text": _SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 messages=[
                     {
                         "role": "user",
-                        "content": f"Identify messages in this conversation that require a response (questions, requests, etc). Return as a JSON array:\n\n{conversation_text}\n\nReturn ONLY a valid JSON array.",
+                        "content": (
+                            "Identify all unanswered questions, requests, or messages that require "
+                            "a response in the following conversation. "
+                            "Return ONLY a valid JSON array of strings, nothing else.\n\n"
+                            f"Conversation:\n{conversation_text}\n\n"
+                            'Example output: ["Did you receive the files?", "Can we meet Tuesday?"]'
+                        ),
                     }
                 ],
             )
 
-            try:
-                response_text = message.content[0].text
-                import re
-
-                json_match = re.search(r"\[.*\]", response_text, re.DOTALL)
-                if json_match:
-                    unanswered = json.loads(json_match.group())
-                    logger.info(f"✓ Found {len(unanswered)} unanswered messages")
-                    return unanswered
-            except json.JSONDecodeError:
-                logger.warning("Could not parse unanswered messages as JSON")
-
-            return []
-
+        try:
+            response = _retry(_call)
+            text = next((b.text for b in response.content if b.type == "text"), "[]")
+            match = re.search(r"\[.*?\]", text, re.DOTALL)
+            if match:
+                items = json.loads(match.group())
+                logger.info(f"✓ Found {len(items)} unanswered messages")
+                return items
         except Exception as e:
             logger.error(f"Failed to detect unanswered messages: {e}")
-            return []
 
-    def analyze_sentiment(self, messages: List[Dict]) -> Optional[str]:
-        """Analyze overall sentiment of a conversation"""
-        logger.info("Analyzing sentiment...")
+        return []
 
+    def analyze_sentiment(self, messages: List[Dict]) -> str:
+        """Return overall sentiment: 'positive', 'negative', or 'neutral'."""
         if not messages:
             return "neutral"
 
-        try:
-            conversation_text = self._format_messages(messages)
+        logger.info("Analyzing sentiment...")
+        conversation_text = self._format_messages(messages)
 
-            message = self.client.messages.create(
-                model=self.model,
-                max_tokens=100,
-                system="You are a sentiment analyst. Return only one word: positive, negative, or neutral.",
+        def _call():
+            return self.client.messages.create(
+                model=MODEL,
+                max_tokens=10,
+                system=[
+                    {
+                        "type": "text",
+                        "text": _SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 messages=[
                     {
                         "role": "user",
-                        "content": f"Analyze the overall sentiment of this conversation and respond with only ONE word (positive, negative, or neutral):\n\n{conversation_text}",
+                        "content": (
+                            "Analyze the overall sentiment of the conversation below. "
+                            "Reply with exactly ONE word: positive, negative, or neutral.\n\n"
+                            f"{conversation_text}"
+                        ),
                     }
                 ],
             )
 
-            sentiment = message.content[0].text.strip().lower()
-            logger.info(f"✓ Sentiment analyzed: {sentiment}")
+        try:
+            response = _retry(_call)
+            raw = next((b.text for b in response.content if b.type == "text"), "neutral")
+            sentiment = raw.strip().lower().split()[0]
+            if sentiment not in ("positive", "negative", "neutral"):
+                sentiment = "neutral"
+            logger.info(f"✓ Sentiment: {sentiment}")
             return sentiment
-
         except Exception as e:
             logger.error(f"Failed to analyze sentiment: {e}")
             return "unknown"
 
     def ask_question(self, messages: List[Dict], question: str) -> Optional[str]:
-        """Ask a question about a conversation"""
-        logger.info(f"Answering question: {question}")
-
+        """Answer an arbitrary question about the conversation."""
         if not messages:
-            return "No messages to analyze"
+            return "No messages to analyze."
 
-        try:
-            conversation_text = self._format_messages(messages)
+        logger.info(f"Answering: {question}")
+        conversation_text = self._format_messages(messages)
 
-            message = self.client.messages.create(
-                model=self.model,
+        def _call():
+            with self.client.messages.stream(
+                model=MODEL,
                 max_tokens=1024,
-                system="You are a helpful assistant answering questions about conversations.",
+                thinking={"type": "adaptive"},
+                system=[
+                    {
+                        "type": "text",
+                        "text": _SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 messages=[
                     {
                         "role": "user",
-                        "content": f"Here's a conversation:\n\n{conversation_text}\n\nQuestion: {question}",
+                        "content": (
+                            f"Conversation:\n{conversation_text}\n\n"
+                            f"Question: {question}"
+                        ),
                     }
                 ],
-            )
+            ) as stream:
+                return stream.get_final_message()
 
-            answer = message.content[0].text
+        try:
+            response = _retry(_call)
+            answer = next((b.text for b in response.content if b.type == "text"), "")
             logger.info("✓ Question answered")
             return answer
-
         except Exception as e:
             logger.error(f"Failed to answer question: {e}")
             return None
 
-    def _format_messages(self, messages: List[Dict]) -> str:
-        """Format messages for Claude API"""
-        formatted = []
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
+    def _format_messages(self, messages: List[Dict]) -> str:
+        """Format messages into a readable conversation transcript."""
+        lines = []
         for msg in messages:
             sender = msg.get("sender", "Unknown")
             body = msg.get("body", "")
-            timestamp = msg.get("timestamp", "")
-
-            formatted.append(f"[{timestamp}] {sender}: {body}")
-
-        return "\n".join(formatted)
+            timestamp = msg.get("timestamp", msg.get("date", ""))
+            platform = msg.get("platform", "")
+            prefix = f"[{platform}] " if platform else ""
+            lines.append(f"{prefix}[{timestamp}] {sender}: {body}")
+        return "\n".join(lines)

@@ -1,226 +1,322 @@
 """
 Gmail API fetcher using official Google API
-Handles OAuth authentication and message retrieval
+Handles OAuth authentication and message retrieval with retry logic
 """
 
-import os
-import json
+import base64
 import logging
-from typing import List, Dict, Optional
+import os
+import time
+from typing import Dict, List, Optional
+
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google.auth.oauthlib.flow import InstalledAppFlow
-from google.api_core import retry
-from google.api_core.gapic_v1 import client_info as grpc_client_info
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from .utils import save_session, load_session, get_timestamp
+from .utils import get_timestamp
 
 logger = logging.getLogger(__name__)
 
-# Gmail API scopes
+# Gmail API scopes (read-only)
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+
+MAX_RETRIES = 3
+RETRY_BACKOFF = [2, 4, 8]   # seconds
+
+
+def _retry(func, retries=MAX_RETRIES, backoff=RETRY_BACKOFF):
+    """Run func with exponential backoff on transient HttpError failures."""
+    for attempt in range(retries):
+        try:
+            return func()
+        except HttpError as e:
+            # 429 / 5xx are retryable; 4xx (except 429) are not
+            if e.resp.status in (429, 500, 502, 503, 504) and attempt < retries - 1:
+                wait = backoff[attempt] if attempt < len(backoff) else backoff[-1]
+                logger.warning(
+                    f"Gmail API error {e.resp.status} on attempt {attempt + 1}. "
+                    f"Retrying in {wait}s..."
+                )
+                time.sleep(wait)
+            else:
+                raise
+        except Exception as e:
+            if attempt == retries - 1:
+                raise
+            wait = backoff[attempt] if attempt < len(backoff) else backoff[-1]
+            logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {wait}s...")
+            time.sleep(wait)
 
 
 class GmailFetcher:
-    """Fetch data from Gmail using official API"""
+    """Fetch data from Gmail using official API with retry and pagination support."""
+
+    TOKEN_FILE = "gmail_token.json"
 
     def __init__(self):
         self.service = None
-        self.creds = None
+        self.creds: Optional[Credentials] = None
         self.authenticated = False
 
+    # ------------------------------------------------------------------
+    # Authentication
+    # ------------------------------------------------------------------
+
     def authenticate(self) -> bool:
-        """Authenticate with Gmail using OAuth 2.0"""
+        """Authenticate with Gmail.
+
+        Strategy (in order):
+        1. Load existing token from ``gmail_token.json``
+        2. Refresh if expired (using saved refresh_token)
+        3. Build credentials from env vars (CI / GitHub Actions path)
+        Returns True on success.
+        """
         logger.info("Starting Gmail authentication...")
 
         try:
-            # Check for saved token
-            if os.path.exists("gmail_token.json"):
-                self.creds = Credentials.from_authorized_user_file("gmail_token.json", SCOPES)
+            self.creds = self._load_token()
 
-            # If not valid, refresh or get new
-            if not self.creds or not self.creds.valid:
-                if self.creds and self.creds.expired and self.creds.refresh_token:
-                    logger.info("Refreshing Gmail token...")
-                    self.creds.refresh(Request())
-                else:
+            if self.creds and self.creds.valid:
+                logger.info("✓ Using valid saved Gmail token")
+            elif self.creds and self.creds.expired and self.creds.refresh_token:
+                logger.info("Refreshing expired Gmail token...")
+                self.creds.refresh(Request())
+                self._save_token()
+            else:
+                # Try building from environment variables (GitHub Actions)
+                self.creds = self._creds_from_env()
+                if not self.creds:
                     logger.error(
-                        "Gmail OAuth credentials not found. "
-                        "Set up credentials in Google Cloud Console."
+                        "Gmail credentials not available.\n"
+                        "Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN "
+                        "as environment variables (or place gmail_token.json in the project root)."
                     )
                     return False
+                # Immediately refresh to get a valid access token
+                self.creds.refresh(Request())
+                self._save_token()
 
-                # Save the refreshed token
-                with open("gmail_token.json", "w") as token:
-                    token.write(self.creds.to_json())
-
-            # Build Gmail service
             self.service = build("gmail", "v1", credentials=self.creds)
-            logger.info("✓ Gmail authentication successful!")
+            logger.info("✓ Gmail authenticated successfully!")
             self.authenticated = True
-
             return True
 
         except Exception as e:
             logger.error(f"Gmail authentication failed: {e}")
             return False
 
-    def fetch_threads(self, max_results: int = 10) -> List[Dict]:
-        """Fetch email threads from Gmail"""
-        logger.info(f"Fetching Gmail threads (max: {max_results})...")
+    # ------------------------------------------------------------------
+    # Public fetch methods
+    # ------------------------------------------------------------------
 
-        if not self.authenticated or not self.service:
-            logger.error("Not authenticated with Gmail")
-            return []
+    def fetch_threads(
+        self,
+        max_results: int = 10,
+        query: str = "is:unread",
+        label_ids: Optional[List[str]] = None,
+    ) -> List[Dict]:
+        """Return a list of thread summaries matching *query*.
 
-        threads = []
+        Args:
+            max_results: Maximum number of threads to return.
+            query:       Gmail search query (default: unread messages).
+            label_ids:   Optional list of label IDs to filter by.
+        """
+        logger.info(f"Fetching Gmail threads — query='{query}', max={max_results}")
+        self._require_auth()
 
-        try:
-            # Get list of threads
-            results = self.service.users().threads().list(
-                userId="me",
-                maxResults=max_results,
-                q="is:unread",  # Get unread emails
-            ).execute()
+        threads: List[Dict] = []
+        page_token: Optional[str] = None
 
-            thread_list = results.get("threads", [])
+        while len(threads) < max_results:
+            batch_size = min(max_results - len(threads), 100)
 
-            for thread_info in thread_list:
-                try:
-                    thread_id = thread_info.get("id")
+            def _list(pt=page_token, bs=batch_size):
+                params = dict(userId="me", maxResults=bs, q=query)
+                if label_ids:
+                    params["labelIds"] = label_ids
+                if pt:
+                    params["pageToken"] = pt
+                return self.service.users().threads().list(**params).execute()
 
-                    # Get thread details
-                    thread = self.service.users().threads().get(
-                        userId="me",
-                        id=thread_id,
-                        format="full",
-                    ).execute()
+            result = _retry(_list)
+            page_token = result.get("nextPageToken")
 
-                    # Extract sender and subject
-                    messages = thread.get("messages", [])
-                    if messages:
-                        last_message = messages[-1]
-                        headers = last_message.get("payload", {}).get("headers", [])
+            for thread_stub in result.get("threads", []):
+                thread_id = thread_stub["id"]
+                summary = self._fetch_thread_summary(thread_id)
+                if summary:
+                    threads.append(summary)
+                if len(threads) >= max_results:
+                    break
 
-                        subject = next(
-                            (h.get("value") for h in headers if h.get("name") == "Subject"),
-                            "No Subject"
-                        )
-                        sender = next(
-                            (h.get("value") for h in headers if h.get("name") == "From"),
-                            "Unknown"
-                        )
+            if not page_token:
+                break
 
-                        threads.append(
-                            {
-                                "id": thread_id,
-                                "subject": subject,
-                                "sender": sender,
-                                "message_count": len(messages),
-                                "platform": "gmail",
-                                "fetched_at": get_timestamp(),
-                            }
-                        )
-
-                except Exception as e:
-                    logger.warning(f"Failed to process thread {thread_info.get('id')}: {e}")
-                    continue
-
-            logger.info(f"✓ Fetched {len(threads)} Gmail threads")
-            return threads
-
-        except HttpError as error:
-            logger.error(f"An error occurred: {error}")
-            return threads
+        logger.info(f"✓ Fetched {len(threads)} Gmail threads")
+        return threads
 
     def fetch_messages(self, thread_id: str, limit: int = 50) -> List[Dict]:
-        """Fetch messages from a specific thread"""
+        """Return messages from a specific thread."""
         logger.info(f"Fetching messages from thread: {thread_id}")
+        self._require_auth()
 
-        if not self.authenticated or not self.service:
-            logger.error("Not authenticated with Gmail")
+        def _get():
+            return self.service.users().threads().get(
+                userId="me", id=thread_id, format="full"
+            ).execute()
+
+        try:
+            thread = _retry(_get)
+        except Exception as e:
+            logger.error(f"Failed to fetch thread {thread_id}: {e}")
             return []
 
         messages = []
+        for msg_info in thread.get("messages", [])[:limit]:
+            msg = self._parse_message(msg_info, thread_id)
+            if msg:
+                messages.append(msg)
+
+        logger.info(f"✓ Fetched {len(messages)} messages from thread {thread_id}")
+        return messages
+
+    def search_messages(self, contact: str, max_results: int = 20) -> List[Dict]:
+        """Search all threads involving a specific contact (name or email)."""
+        query = f"from:{contact} OR to:{contact}"
+        return self.fetch_threads(max_results=max_results, query=query)
+
+    def list_labels(self) -> List[Dict]:
+        """Return all Gmail labels for the authenticated user."""
+        self._require_auth()
+
+        def _get():
+            return self.service.users().labels().list(userId="me").execute()
 
         try:
-            # Get thread
-            thread = self.service.users().threads().get(
-                userId="me",
-                id=thread_id,
-                format="full",
+            result = _retry(_get)
+            labels = result.get("labels", [])
+            logger.info(f"✓ Found {len(labels)} Gmail labels")
+            return labels
+        except Exception as e:
+            logger.error(f"Failed to list labels: {e}")
+            return []
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _fetch_thread_summary(self, thread_id: str) -> Optional[Dict]:
+        """Fetch header-only summary for a single thread."""
+        def _get():
+            return self.service.users().threads().get(
+                userId="me", id=thread_id, format="metadata",
+                metadataHeaders=["Subject", "From", "Date"]
             ).execute()
 
-            # Extract messages
-            for message_info in thread.get("messages", [])[:limit]:
-                try:
-                    msg_id = message_info.get("id")
-                    headers = message_info.get("payload", {}).get("headers", [])
-
-                    sender = next(
-                        (h.get("value") for h in headers if h.get("name") == "From"),
-                        "Unknown"
-                    )
-                    subject = next(
-                        (h.get("value") for h in headers if h.get("name") == "Subject"),
-                        ""
-                    )
-                    date = next(
-                        (h.get("value") for h in headers if h.get("name") == "Date"),
-                        get_timestamp()
-                    )
-
-                    # Extract message body
-                    body = self._extract_message_body(message_info)
-
-                    messages.append(
-                        {
-                            "id": msg_id,
-                            "thread_id": thread_id,
-                            "sender": sender,
-                            "subject": subject,
-                            "body": body,
-                            "date": date,
-                            "platform": "gmail",
-                            "timestamp": get_timestamp(),
-                        }
-                    )
-
-                except Exception as e:
-                    logger.warning(f"Failed to extract message {message_info.get('id')}: {e}")
-                    continue
-
-            logger.info(f"✓ Fetched {len(messages)} messages from thread {thread_id}")
-            return messages
-
-        except HttpError as error:
-            logger.error(f"An error occurred: {error}")
-            return messages
-
-    def _extract_message_body(self, message: Dict) -> str:
-        """Extract the text body from a Gmail message"""
         try:
-            payload = message.get("payload", {})
-
-            # Check if message has parts (multipart)
-            if "parts" in payload:
-                for part in payload.get("parts", []):
-                    if part.get("mimeType") == "text/plain":
-                        data = part.get("body", {}).get("data", "")
-                        if data:
-                            import base64
-                            return base64.urlsafe_b64decode(data).decode("utf-8")
-            else:
-                # Simple message without parts
-                data = payload.get("body", {}).get("data", "")
-                if data:
-                    import base64
-                    return base64.urlsafe_b64decode(data).decode("utf-8")
-
-            return "(No text body)"
-
+            thread = _retry(_get)
         except Exception as e:
-            logger.debug(f"Failed to extract message body: {e}")
-            return "(Could not extract body)"
+            logger.warning(f"Skipping thread {thread_id}: {e}")
+            return None
+
+        messages = thread.get("messages", [])
+        if not messages:
+            return None
+
+        last = messages[-1]
+        headers = {
+            h["name"]: h["value"]
+            for h in last.get("payload", {}).get("headers", [])
+        }
+
+        return {
+            "id": thread_id,
+            "subject": headers.get("Subject", "(No Subject)"),
+            "sender": headers.get("From", "Unknown"),
+            "date": headers.get("Date", get_timestamp()),
+            "message_count": len(messages),
+            "platform": "gmail",
+            "fetched_at": get_timestamp(),
+        }
+
+    def _parse_message(self, msg_info: Dict, thread_id: str) -> Optional[Dict]:
+        """Extract structured data from a raw Gmail message object."""
+        try:
+            headers = {
+                h["name"]: h["value"]
+                for h in msg_info.get("payload", {}).get("headers", [])
+            }
+            body = self._extract_body(msg_info)
+            return {
+                "id": msg_info.get("id"),
+                "thread_id": thread_id,
+                "sender": headers.get("From", "Unknown"),
+                "subject": headers.get("Subject", ""),
+                "date": headers.get("Date", get_timestamp()),
+                "body": body,
+                "platform": "gmail",
+                "timestamp": get_timestamp(),
+            }
+        except Exception as e:
+            logger.debug(f"Could not parse message {msg_info.get('id')}: {e}")
+            return None
+
+    def _extract_body(self, message: Dict) -> str:
+        """Recursively extract the plain-text body from a message payload."""
+        def _decode(data: str) -> str:
+            return base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+
+        def _walk(payload: Dict) -> Optional[str]:
+            mime = payload.get("mimeType", "")
+            if mime == "text/plain":
+                data = payload.get("body", {}).get("data", "")
+                return _decode(data) if data else None
+            for part in payload.get("parts", []):
+                result = _walk(part)
+                if result:
+                    return result
+            return None
+
+        payload = message.get("payload", {})
+        text = _walk(payload)
+        return text if text else "(No text body)"
+
+    def _load_token(self) -> Optional[Credentials]:
+        if os.path.exists(self.TOKEN_FILE):
+            try:
+                return Credentials.from_authorized_user_file(self.TOKEN_FILE, SCOPES)
+            except Exception as e:
+                logger.debug(f"Could not load token file: {e}")
+        return None
+
+    def _save_token(self):
+        try:
+            with open(self.TOKEN_FILE, "w") as f:
+                f.write(self.creds.to_json())
+            logger.debug(f"Gmail token saved to {self.TOKEN_FILE}")
+        except Exception as e:
+            logger.warning(f"Could not save Gmail token: {e}")
+
+    def _creds_from_env(self) -> Optional[Credentials]:
+        """Build Credentials from environment variables (GitHub Actions / CI)."""
+        client_id = os.getenv("GMAIL_CLIENT_ID")
+        client_secret = os.getenv("GMAIL_CLIENT_SECRET")
+        refresh_token = os.getenv("GMAIL_REFRESH_TOKEN")
+
+        if not all([client_id, client_secret, refresh_token]):
+            return None
+
+        return Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=SCOPES,
+        )
+
+    def _require_auth(self):
+        if not self.authenticated or not self.service:
+            raise RuntimeError("GmailFetcher is not authenticated. Call authenticate() first.")
