@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>דו"ח ניטור מי תהום — אזור תעשייה רעננה (2024)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Segoe UI', 'Heebo', Arial, sans-serif;
+  background: #f5f7fa;
+  color: #1f2933;
+  line-height: 1.5;
+}
+header.report-header {
+  background: linear-gradient(135deg, #1a3a5c 0%, #2c5282 100%);
+  color: #fff;
+  padding: 28px 32px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+header.report-header h1 {
+  margin: 0 0 6px 0;
+  font-size: 28px;
+  font-weight: 600;
+}
+header.report-header .meta {
+  font-size: 14px;
+  opacity: 0.9;
+}
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px 48px 16px;
+}
+.card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  padding: 24px 28px;
+  margin: 18px 0;
+}
+.card h2 {
+  margin-top: 0;
+  color: #1a3a5c;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 10px;
+  font-size: 22px;
+}
+.card h3 {
+  color: #2c5282;
+  font-size: 17px;
+  margin-top: 20px;
+}
+table.summary {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 14px;
+}
+table.summary th, table.summary td {
+  padding: 10px 12px;
+  text-align: right;
+  border-bottom: 1px solid #e2e8f0;
+}
+table.summary th {
+  background: #edf2f7;
+  font-weight: 600;
+  color: #2d3748;
+}
+.idx-badge {
+  display: inline-block;
+  min-width: 28px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 600;
+  text-align: center;
+  font-size: 13px;
+}
+.idx-0, .idx-1, .idx-2 { background: #28a745; }
+.idx-3, .idx-4 { background: #ffc107; color: #333; }
+.idx-5, .idx-6 { background: #fd7e14; }
+.idx-7, .idx-8 { background: #dc3545; }
+.tier-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #2d3748;
+  font-weight: 600;
+  font-size: 12px;
+}
+.chart-controls {
+  margin: 14px 0 8px 0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.chart-controls label {
+  font-weight: 600;
+  color: #4a5568;
+}
+.chart-controls select {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 14px;
+  font-family: inherit;
+}
+.plot-area {
+  width: 100%;
+  height: 420px;
+  margin-top: 4px;
+}
+.map-area {
+  width: 100%;
+  height: 520px;
+  border-radius: 8px;
+  position: relative;
+}
+.map-legend {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background: rgba(255,255,255,0.95);
+  padding: 10px 14px;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  font-size: 12px;
+  z-index: 1000;
+}
+.map-legend .swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.note {
+  font-size: 12px;
+  color: #718096;
+  margin-top: 8px;
+  font-style: italic;
+}
+footer.report-footer {
+  text-align: center;
+  color: #718096;
+  font-size: 12px;
+  padding: 18px;
+}
+</style>
+</head>
+<body>
+<header class="report-header">
+  <h1>דו"ח ניטור מי תהום — אזור תעשייה רעננה (2024)</h1>
+  <div class="meta">דו"ח שנתי לרשות המים והגנת הסביבה · גרסה רזה (v1) · נוצר 27.04.2026 10:42</div>
+</header>
+<main>
+
+<section class="card">
+  <h2>סקירה אזורית — רעננה</h2>
+  <p>שנת דיווח: <strong>2024</strong> · קידוחי ניטור: <strong>6</strong>
+     · אינדקס מרבי באזור: <span class="idx-badge idx-7">7</span>
+     · כיוון זרימת מי תהום: <strong>270°</strong></p>
+
+  <div id="map-1b984d43" class="map-area"></div>
+  <p class="note">אינדקס זיהום: 0–2 רקע · 3–4 חריגה · 5–6 חמור · 7–8 קיצוני/קריטי. החץ הכחול מציין את כיוון זרימת מי תהום הכללי.</p>
+
+<script>
+(function() {
+  const center = [32.1945, 34.8695];
+  const markers = [{"id": "nat_raanana_1", "name": "נת רעננה 1", "lat": 32.195, "lon": 34.869, "index": 7, "family": "chlorinated_solvents", "color": "#dc3545"}, {"id": "nat_raanana_3", "name": "נת רעננה 3", "lat": 32.197, "lon": 34.871, "index": 7, "family": "chlorinated_solvents", "color": "#dc3545"}, {"id": "nd_paz_hanofar", "name": "נד פז הנופר", "lat": 32.193, "lon": 34.865, "index": 5, "family": "fuels", "color": "#fd7e14"}, {"id": "nd_turbines", "name": "נד תחנת טורבינות גז", "lat": 32.191, "lon": 34.868, "index": 5, "family": "pfas", "color": "#fd7e14"}, {"id": "p_raanana_25", "name": "פ רעננה 25", "lat": 32.198, "lon": 34.872, "index": 7, "family": "chlorinated_solvents", "color": "#dc3545"}, {"id": "p_raanana_18", "name": "פ רעננה 18", "lat": 32.196, "lon": 34.874, "index": 3, "family": "inorganic", "color": "#ffc107"}];
+  const flow = [{"from": [32.1945, 34.8695], "to": [32.1945, 34.865500000000004], "deg": 270}];
+  const facilities = [];
+  const map = L.map("map-1b984d43").setView(center, 15);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // Borehole markers
+  markers.forEach(m => {
+    if (m.lat == null || m.lon == null) return;
+    const circle = L.circleMarker([m.lat, m.lon], {
+      radius: 11,
+      fillColor: m.color,
+      color: "#222",
+      weight: 1.5,
+      fillOpacity: 0.85
+    }).addTo(map);
+    circle.bindPopup(
+      "<strong>" + m.name + "</strong><br>" +
+      "אינדקס מרבי: <b>" + m.index + "</b><br>" +
+      "קבוצה דומיננטית: " + m.family
+    );
+  });
+
+  // Flow direction arrows
+  flow.forEach(f => {
+    L.polyline([f.from, f.to], {
+      color: "#1565c0",
+      weight: 4,
+      opacity: 0.85
+    }).addTo(map);
+    // Arrow tip marker
+    L.circleMarker(f.to, {
+      radius: 6, fillColor: "#1565c0", color: "#0d47a1",
+      weight: 2, fillOpacity: 1
+    }).addTo(map).bindTooltip("כיוון זרימה: " + f.deg + "°", {permanent: false});
+  });
+
+  // Facility (attribution) markers
+  facilities.forEach(fc => {
+    L.circleMarker([fc.lat, fc.lon], {
+      radius: 8, fillColor: "#7b1fa2", color: "#4a148c",
+      weight: 1.5, fillOpacity: 0.8
+    }).addTo(map).bindPopup(
+      "<strong>" + fc.name + "</strong><br>" +
+      "סיווג: " + fc.phrase + "<br>" +
+      "דרג: " + fc.tier
+    );
+  });
+
+  // Legend
+  const legend = L.control({position: 'bottomleft'});
+  legend.onAdd = function() {
+    const div = L.DomUtil.create('div', 'map-legend');
+    div.innerHTML =
+      '<strong>אינדקס זיהום</strong><br>' +
+      '<span class="swatch" style="background:#28a745"></span> 0–2 רקע<br>' +
+      '<span class="swatch" style="background:#ffc107"></span> 3–4 חריגה<br>' +
+      '<span class="swatch" style="background:#fd7e14"></span> 5–6 חמור<br>' +
+      '<span class="swatch" style="background:#dc3545"></span> 7–8 קיצוני';
+    return div;
+  };
+  legend.addTo(map);
+})();
+</script>
+</section>
+
+
+<section class="card">
+  <h2>גרפים אינטראקטיביים — שינוי ריכוזים בזמן והשוואת קידוחים</h2>
+
+  <h3>א. ריכוזים בזמן — קידוח בודד, כל המזהמים</h3>
+  <div class="chart-controls">
+    <label for="wellSelA_c33c3e">בחר קידוח:</label>
+    <select id="wellSelA_c33c3e"><option value="nat_raanana_1">נת רעננה 1</option><option value="nat_raanana_3">נת רעננה 3</option><option value="nd_paz_hanofar">נד פז הנופר</option><option value="nd_turbines">נד תחנת טורבינות גז</option><option value="p_raanana_18">פ רעננה 18</option><option value="p_raanana_25">פ רעננה 25</option></select>
+  </div>
+  <div id="chartA_c33c3e" class="plot-area"></div>
+  <p class="note">קווים מקווקווים מציינים את תקן מי השתייה לכל מזהם.</p>
+
+  <h3>ב. ריכוזים בזמן — מזהם בודד, השוואה בין קידוחים</h3>
+  <div class="chart-controls">
+    <label for="compSelB_c33c3e">בחר מזהם (מקובץ לפי קבוצה):</label>
+    <select id="compSelB_c33c3e"><optgroup label="ממסים מוכלרים"><option value="PCE">PCE</option><option value="TCE">TCE</option><option value="cis-1,2-DCE">cis-1,2-DCE</option></optgroup><optgroup label="דלקים ומרכיביהם"><option value="Benzene">Benzene</option><option value="MTBE">MTBE</option><option value="Toluene">Toluene</option><option value="Xylene">Xylene</option></optgroup><optgroup label="יונים עיקריים / מליחות"><option value="Chlorides">Chlorides</option><option value="Nitrates">Nitrates</option><option value="Sulfate">Sulfate</option></optgroup><optgroup label="PFAS"><option value="PFAS_Total">PFAS_Total</option><option value="PFOA">PFOA</option><option value="PFOS">PFOS</option></optgroup></select>
+  </div>
+  <div id="chartB_c33c3e" class="plot-area"></div>
+
+  <h3>ג. גרף עמודות מוערם — התפלגות מזהמי הקבוצה בקידוחים השונים</h3>
+  <div class="chart-controls">
+    <label for="groupSelC_c33c3e">בחר קבוצת מזהמים:</label>
+    <select id="groupSelC_c33c3e"><option value="chlorinated_solvents">ממסים מוכלרים</option><option value="fuels">דלקים ומרכיביהם</option><option value="inorganic">יונים עיקריים / מליחות</option><option value="pfas">PFAS</option></select>
+  </div>
+  <div id="chartC_c33c3e" class="plot-area"></div>
+  <p class="note">כל עמודה מציגה את הריכוז המרבי שנמדד עבור כל מזהם בכל קידוח. הצורה דומה בין קידוחים = רמז להרכב מזהמים דומה.</p>
+
+<script>
+(function() {
+  const RAW = [{"date": "2022-01-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 185.0}, {"date": "2022-04-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 195.0}, {"date": "2022-07-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 205.0}, {"date": "2022-10-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 215.0}, {"date": "2023-01-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 203.5}, {"date": "2023-04-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 214.5}, {"date": "2023-07-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 225.5}, {"date": "2023-10-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 236.5}, {"date": "2024-01-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 223.85}, {"date": "2024-04-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 235.95}, {"date": "2024-07-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 248.05}, {"date": "2024-10-15", "borehole_id": "nat_raanana_1", "parameter": "TCE", "value": 260.15}, {"date": "2022-01-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 41.625}, {"date": "2022-04-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 43.875}, {"date": "2022-07-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 46.125}, {"date": "2022-10-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 48.375}, {"date": "2023-01-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 43.7063}, {"date": "2023-04-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 46.0688}, {"date": "2023-07-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 48.4312}, {"date": "2023-10-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 50.7937}, {"date": "2024-01-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 45.8916}, {"date": "2024-04-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 48.3722}, {"date": "2024-07-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 50.8528}, {"date": "2024-10-15", "borehole_id": "nat_raanana_1", "parameter": "PCE", "value": 53.3334}, {"date": "2022-01-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 11.1}, {"date": "2022-04-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 11.7}, {"date": "2022-07-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 12.3}, {"date": "2022-10-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 12.9}, {"date": "2023-01-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 12.765}, {"date": "2023-04-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 13.455}, {"date": "2023-07-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 14.145}, {"date": "2023-10-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 14.835}, {"date": "2024-01-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 14.6797}, {"date": "2024-04-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 15.4732}, {"date": "2024-07-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 16.2667}, {"date": "2024-10-15", "borehole_id": "nat_raanana_1", "parameter": "cis-1,2-DCE", "value": 17.0602}, {"date": "2022-01-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 351.5}, {"date": "2022-04-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 370.5}, {"date": "2022-07-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 389.5}, {"date": "2022-10-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 408.5}, {"date": "2023-01-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 358.53}, {"date": "2023-04-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 377.91}, {"date": "2023-07-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 397.29}, {"date": "2023-10-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 416.67}, {"date": "2024-01-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 365.7006}, {"date": "2024-04-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 385.4682}, {"date": "2024-07-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 405.2358}, {"date": "2024-10-15", "borehole_id": "nat_raanana_1", "parameter": "Chlorides", "value": 425.0034}, {"date": "2022-01-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 32.375}, {"date": "2022-04-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 34.125}, {"date": "2022-07-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 35.875}, {"date": "2022-10-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 37.625}, {"date": "2023-01-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 34.965}, {"date": "2023-04-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 36.855}, {"date": "2023-07-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 38.745}, {"date": "2023-10-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 40.635}, {"date": "2024-01-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 37.7622}, {"date": "2024-04-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 39.8034}, {"date": "2024-07-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 41.8446}, {"date": "2024-10-15", "borehole_id": "nat_raanana_3", "parameter": "TCE", "value": 43.8858}, {"date": "2022-01-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 16.65}, {"date": "2022-04-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 17.55}, {"date": "2022-07-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 18.45}, {"date": "2022-10-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 19.35}, {"date": "2023-01-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 17.1495}, {"date": "2023-04-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 18.0765}, {"date": "2023-07-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 19.0035}, {"date": "2023-10-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 19.9305}, {"date": "2024-01-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 17.664}, {"date": "2024-04-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 18.6188}, {"date": "2024-07-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 19.5736}, {"date": "2024-10-15", "borehole_id": "nat_raanana_3", "parameter": "PCE", "value": 20.5284}, {"date": "2022-01-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 268.25}, {"date": "2022-04-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 282.75}, {"date": "2022-07-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 297.25}, {"date": "2022-10-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 311.75}, {"date": "2023-01-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 270.9325}, {"date": "2023-04-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 285.5775}, {"date": "2023-07-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 300.2225}, {"date": "2023-10-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 314.8675}, {"date": "2024-01-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 273.6418}, {"date": "2024-04-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 288.4333}, {"date": "2024-07-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 303.2247}, {"date": "2024-10-15", "borehole_id": "nat_raanana_3", "parameter": "Chlorides", "value": 318.0162}, {"date": "2022-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 4.1625}, {"date": "2022-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 4.3875}, {"date": "2022-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 4.6125}, {"date": "2022-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 4.8375}, {"date": "2023-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 4.995}, {"date": "2023-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 5.265}, {"date": "2023-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 5.535}, {"date": "2023-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 5.805}, {"date": "2024-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 5.994}, {"date": "2024-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 6.318}, {"date": "2024-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 6.642}, {"date": "2024-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "Benzene", "value": 6.966}, {"date": "2022-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 203.5}, {"date": "2022-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 214.5}, {"date": "2022-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 225.5}, {"date": "2022-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 236.5}, {"date": "2023-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 223.85}, {"date": "2023-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 235.95}, {"date": "2023-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 248.05}, {"date": "2023-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 260.15}, {"date": "2024-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 246.235}, {"date": "2024-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 259.545}, {"date": "2024-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 272.855}, {"date": "2024-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "Toluene", "value": 286.165}, {"date": "2022-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 101.75}, {"date": "2022-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 107.25}, {"date": "2022-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 112.75}, {"date": "2022-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 118.25}, {"date": "2023-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 120.065}, {"date": "2023-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 126.555}, {"date": "2023-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 133.045}, {"date": "2023-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 139.535}, {"date": "2024-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 141.6767}, {"date": "2024-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 149.3349}, {"date": "2024-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 156.9931}, {"date": "2024-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "MTBE", "value": 164.6513}, {"date": "2022-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 83.25}, {"date": "2022-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 87.75}, {"date": "2022-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 92.25}, {"date": "2022-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 96.75}, {"date": "2023-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 87.4125}, {"date": "2023-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 92.1375}, {"date": "2023-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 96.8625}, {"date": "2023-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 101.5875}, {"date": "2024-01-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 91.7831}, {"date": "2024-04-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 96.7444}, {"date": "2024-07-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 101.7056}, {"date": "2024-10-15", "borehole_id": "nd_paz_hanofar", "parameter": "Xylene", "value": 106.6669}, {"date": "2022-01-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.1665}, {"date": "2022-04-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.1755}, {"date": "2022-07-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.1845}, {"date": "2022-10-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.1935}, {"date": "2023-01-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.1915}, {"date": "2023-04-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.2018}, {"date": "2023-07-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.2122}, {"date": "2023-10-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.2225}, {"date": "2024-01-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.2202}, {"date": "2024-04-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.2321}, {"date": "2024-07-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.244}, {"date": "2024-10-15", "borehole_id": "nd_turbines", "parameter": "PFOA", "value": 0.2559}, {"date": "2022-01-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.296}, {"date": "2022-04-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.312}, {"date": "2022-07-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.328}, {"date": "2022-10-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.344}, {"date": "2023-01-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.3315}, {"date": "2023-04-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.3494}, {"date": "2023-07-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.3674}, {"date": "2023-10-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.3853}, {"date": "2024-01-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.3713}, {"date": "2024-04-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.3914}, {"date": "2024-07-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.4114}, {"date": "2024-10-15", "borehole_id": "nd_turbines", "parameter": "PFOS", "value": 0.4315}, {"date": "2022-01-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 0.8788}, {"date": "2022-04-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 0.9262}, {"date": "2022-07-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 0.9737}, {"date": "2022-10-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 1.0212}, {"date": "2023-01-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 0.9666}, {"date": "2023-04-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 1.0189}, {"date": "2023-07-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 1.0711}, {"date": "2023-10-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 1.1234}, {"date": "2024-01-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 1.0633}, {"date": "2024-04-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 1.1208}, {"date": "2024-07-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 1.1782}, {"date": "2024-10-15", "borehole_id": "nd_turbines", "parameter": "PFAS_Total", "value": 1.2357}, {"date": "2022-01-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 1.665}, {"date": "2022-04-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 1.755}, {"date": "2022-07-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 1.845}, {"date": "2022-10-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 1.935}, {"date": "2023-01-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 1.7483}, {"date": "2023-04-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 1.8428}, {"date": "2023-07-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 1.9372}, {"date": "2023-10-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 2.0318}, {"date": "2024-01-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 1.8357}, {"date": "2024-04-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 1.9349}, {"date": "2024-07-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 2.0341}, {"date": "2024-10-15", "borehole_id": "p_raanana_25", "parameter": "TCE", "value": 2.1333}, {"date": "2022-01-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 166.5}, {"date": "2022-04-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 175.5}, {"date": "2022-07-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 184.5}, {"date": "2022-10-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 193.5}, {"date": "2023-01-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 168.165}, {"date": "2023-04-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 177.255}, {"date": "2023-07-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 186.345}, {"date": "2023-10-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 195.435}, {"date": "2024-01-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 169.8467}, {"date": "2024-04-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 179.0275}, {"date": "2024-07-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 188.2084}, {"date": "2024-10-15", "borehole_id": "p_raanana_25", "parameter": "Chlorides", "value": 197.3893}, {"date": "2022-01-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 25.9}, {"date": "2022-04-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 27.3}, {"date": "2022-07-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 28.7}, {"date": "2022-10-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 30.1}, {"date": "2023-01-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 25.9}, {"date": "2023-04-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 27.3}, {"date": "2023-07-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 28.7}, {"date": "2023-10-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 30.1}, {"date": "2024-01-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 25.9}, {"date": "2024-04-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 27.3}, {"date": "2024-07-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 28.7}, {"date": "2024-10-15", "borehole_id": "p_raanana_25", "parameter": "Nitrates", "value": 30.1}, {"date": "2022-01-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 240.5}, {"date": "2022-04-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 253.5}, {"date": "2022-07-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 266.5}, {"date": "2022-10-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 279.5}, {"date": "2023-01-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 250.12}, {"date": "2023-04-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 263.64}, {"date": "2023-07-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 277.16}, {"date": "2023-10-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 290.68}, {"date": "2024-01-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 260.1248}, {"date": "2024-04-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 274.1856}, {"date": "2024-07-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 288.2464}, {"date": "2024-10-15", "borehole_id": "p_raanana_18", "parameter": "Chlorides", "value": 302.3072}, {"date": "2022-01-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 32.375}, {"date": "2022-04-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 34.125}, {"date": "2022-07-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 35.875}, {"date": "2022-10-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 37.625}, {"date": "2023-01-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 33.0225}, {"date": "2023-04-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 34.8075}, {"date": "2023-07-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 36.5925}, {"date": "2023-10-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 38.3775}, {"date": "2024-01-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 33.683}, {"date": "2024-04-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 35.5037}, {"date": "2024-07-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 37.3243}, {"date": "2024-10-15", "borehole_id": "p_raanana_18", "parameter": "Nitrates", "value": 39.145}, {"date": "2022-01-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 129.5}, {"date": "2022-04-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 136.5}, {"date": "2022-07-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 143.5}, {"date": "2022-10-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 150.5}, {"date": "2023-01-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 130.795}, {"date": "2023-04-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 137.865}, {"date": "2023-07-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 144.935}, {"date": "2023-10-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 152.005}, {"date": "2024-01-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 132.1029}, {"date": "2024-04-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 139.2437}, {"date": "2024-07-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 146.3843}, {"date": "2024-10-15", "borehole_id": "p_raanana_18", "parameter": "Sulfate", "value": 153.525}];
+  const STANDARDS = {"Benzene": 1.0, "Chlorides": 250.0, "MTBE": 40.0, "Nitrates": 50.0, "PCE": 5.0, "PFAS_Total": 0.5, "PFOA": 0.07, "PFOS": 0.07, "Sulfate": 250.0, "TCE": 5.0, "Toluene": 1000.0, "Xylene": 10000.0, "cis-1,2-DCE": 70.0};
+  const FAMILIES = {"fuels": ["Benzene", "MTBE", "Toluene", "Xylene"], "inorganic": ["Chlorides", "Nitrates", "Sulfate"], "chlorinated_solvents": ["PCE", "TCE", "cis-1,2-DCE"], "pfas": ["PFAS_Total", "PFOA", "PFOS"]};
+  const FAMILY_HEBREW = {"fuels": "דלקים ומרכיביהם", "inorganic": "יונים עיקריים / מליחות", "chlorinated_solvents": "ממסים מוכלרים", "pfas": "PFAS"};
+  const WELL_HEBREW = {"nat_raanana_1": "נת רעננה 1", "nat_raanana_3": "נת רעננה 3", "nd_paz_hanofar": "נד פז הנופר", "nd_turbines": "נד תחנת טורבינות גז", "p_raanana_25": "פ רעננה 25", "p_raanana_18": "פ רעננה 18"};
+
+  const sortByDate = (a,b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : 0);
+  const RTL_LAYOUT = {
+    margin: {t: 30, r: 30, b: 60, l: 60},
+    legend: {orientation: 'h', y: -0.2},
+    xaxis: {title: 'תאריך', type: 'date'},
+    yaxis: {title: 'ריכוז'},
+    font: {family: 'Segoe UI, Heebo, Arial', size: 13}
+  };
+  const CONFIG = {responsive: true, displaylogo: false, locale: 'he'};
+
+  // ----- Chart A: single well, all compounds ------------------------
+  function plotA(well) {
+    const subset = RAW.filter(r => r.borehole_id === well).sort(sortByDate);
+    const byParam = {};
+    subset.forEach(r => {
+      (byParam[r.parameter] = byParam[r.parameter] || []).push(r);
+    });
+    const traces = Object.keys(byParam).sort().map(p => ({
+      x: byParam[p].map(r => r.date),
+      y: byParam[p].map(r => r.value),
+      mode: 'lines+markers',
+      name: p,
+      type: 'scatter'
+    }));
+    // Standard reference lines as horizontal shapes per visible compound
+    const shapes = [];
+    Object.keys(byParam).forEach(p => {
+      if (STANDARDS[p] != null) {
+        shapes.push({
+          type: 'line', xref: 'paper', x0: 0, x1: 1,
+          y0: STANDARDS[p], y1: STANDARDS[p],
+          line: {dash: 'dash', color: '#dc3545', width: 1}
+        });
+      }
+    });
+    const layout = Object.assign({}, RTL_LAYOUT, {
+      title: 'קידוח: ' + (WELL_HEBREW[well] || well),
+      shapes: shapes
+    });
+    Plotly.react('chartA_c33c3e', traces, layout, CONFIG);
+  }
+
+  // ----- Chart B: single compound, all wells ------------------------
+  function plotB(compound) {
+    const subset = RAW.filter(r => r.parameter === compound).sort(sortByDate);
+    const byWell = {};
+    subset.forEach(r => {
+      (byWell[r.borehole_id] = byWell[r.borehole_id] || []).push(r);
+    });
+    const traces = Object.keys(byWell).sort().map(w => ({
+      x: byWell[w].map(r => r.date),
+      y: byWell[w].map(r => r.value),
+      mode: 'lines+markers',
+      name: WELL_HEBREW[w] || w,
+      type: 'scatter'
+    }));
+    const shapes = [];
+    if (STANDARDS[compound] != null) {
+      shapes.push({
+        type: 'line', xref: 'paper', x0: 0, x1: 1,
+        y0: STANDARDS[compound], y1: STANDARDS[compound],
+        line: {dash: 'dash', color: '#dc3545', width: 2}
+      });
+    }
+    const layout = Object.assign({}, RTL_LAYOUT, {
+      title: 'מזהם: ' + compound + (STANDARDS[compound] != null ? ' (תקן: ' + STANDARDS[compound] + ')' : ''),
+      shapes: shapes
+    });
+    Plotly.react('chartB_c33c3e', traces, layout, CONFIG);
+  }
+
+  // ----- Chart C: stacked bar of group across wells -----------------
+  function plotC(family) {
+    const members = (FAMILIES[family] || []).slice().sort();
+    const wells = Array.from(new Set(RAW.map(r => r.borehole_id))).sort();
+    // For each member compound, max value per well
+    const traces = members.map(comp => {
+      const ys = wells.map(w => {
+        const vals = RAW.filter(r => r.borehole_id === w && r.parameter === comp)
+                        .map(r => r.value);
+        return vals.length ? Math.max.apply(null, vals) : 0;
+      });
+      return {
+        x: wells.map(w => WELL_HEBREW[w] || w),
+        y: ys,
+        name: comp,
+        type: 'bar'
+      };
+    });
+    const layout = Object.assign({}, RTL_LAYOUT, {
+      title: 'התפלגות ' + (FAMILY_HEBREW[family] || family) + ' בקידוחים',
+      barmode: 'stack',
+      xaxis: {title: 'קידוח'},
+      yaxis: {title: 'ריכוז מרבי'}
+    });
+    Plotly.react('chartC_c33c3e', traces, layout, CONFIG);
+  }
+
+  // Wire up dropdowns
+  const selA = document.getElementById('wellSelA_c33c3e');
+  const selB = document.getElementById('compSelB_c33c3e');
+  const selC = document.getElementById('groupSelC_c33c3e');
+  if (selA) { selA.addEventListener('change', e => plotA(e.target.value)); }
+  if (selB) { selB.addEventListener('change', e => plotB(e.target.value)); }
+  if (selC) { selC.addEventListener('change', e => plotC(e.target.value)); }
+
+  // Initial draw
+  if (selA && selA.value) plotA(selA.value);
+  if (selB && selB.value) plotB(selB.value);
+  if (selC && selC.value) plotC(selC.value);
+})();
+</script>
+</section>
+
+
+<section class="card">
+  <h2>סיכום רגולטורי — קבוצות מזהמים ומועמדים למקור</h2>
+
+  <h3>קבוצות מזהמים שנמדדו</h3>
+  <table class="summary">
+    <thead>
+      <tr>
+        <th>קבוצה</th>
+        <th>אינדקס</th>
+        <th>תיאור</th>
+        <th>מזהם דומיננטי</th>
+        <th>תיאור מגמה (כללי)</th>
+        <th>מס' קידוחים</th>
+      </tr>
+    </thead>
+    <tbody>
+              <tr>
+                <td>ממסים מוכלרים</td>
+                <td><span class="idx-badge idx-7">7</span></td>
+                <td>זיהום קיצוני</td>
+                <td>TCE</td>
+                <td>יציבות יחסית</td>
+                <td>3</td>
+              </tr>
+              <tr>
+                <td>דלקים ומרכיביהם</td>
+                <td><span class="idx-badge idx-5">5</span></td>
+                <td>זיהום חמור</td>
+                <td>Benzene</td>
+                <td>יציבות יחסית</td>
+                <td>1</td>
+              </tr>
+              <tr>
+                <td>PFAS</td>
+                <td><span class="idx-badge idx-5">5</span></td>
+                <td>זיהום חמור</td>
+                <td>PFOS</td>
+                <td>יציבות יחסית</td>
+                <td>1</td>
+              </tr>
+              <tr>
+                <td>יונים עיקריים / מליחות</td>
+                <td><span class="idx-badge idx-3">3</span></td>
+                <td>חריגה קלה</td>
+                <td>Chlorides</td>
+                <td>יציבות יחסית</td>
+                <td>4</td>
+              </tr></tbody>
+  </table>
+  <p class="note">תיאור המגמה בעמודה זו הינו תיאורי וכללי בלבד, אינו ניתוח סטטיסטי מובהק. ניתוח מגמות מובהק יבוצע בגרסה הבאה (Mann-Kendall + Sen's slope).</p>
+
+  <h3>מועמדים למקורות זיהום</h3>
+  <table class="summary">
+    <thead>
+      <tr>
+        <th>מתקן</th>
+        <th>ציון</th>
+        <th>סיווג זהיר</th>
+        <th>דרג ענפי</th>
+        <th>קבוצות תואמות</th>
+      </tr>
+    </thead>
+    <tbody>
+              <tr>
+                <td>מפעל אלקטרוניקה רעננה</td>
+                <td>80%</td>
+                <td>מועמד ליבה</td>
+                <td><span class="tier-badge">דרג 2</span></td>
+                <td>PCE, TCE</td>
+              </tr>
+              <tr>
+                <td>תחנת דלק פז הנופר</td>
+                <td>60%</td>
+                <td>מועמד משני</td>
+                <td><span class="tier-badge">דרג 3</span></td>
+                <td>Benzene, MTBE, Toluene</td>
+              </tr>
+              <tr>
+                <td>תחנת טורבינות גז</td>
+                <td>60%</td>
+                <td>מועמד משני</td>
+                <td><span class="tier-badge">דרג 3</span></td>
+                <td>PFOA, PFOS</td>
+              </tr>
+              <tr>
+                <td>מתקן ציפוי מתכת בא.ת.</td>
+                <td>40%</td>
+                <td>רקע מקומי</td>
+                <td><span class="tier-badge">דרג 2</span></td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>מוסך מרכזי רעננה</td>
+                <td>30%</td>
+                <td>רקע מקומי</td>
+                <td><span class="tier-badge">דרג 4</span></td>
+                <td>Toluene</td>
+              </tr></tbody>
+  </table>
+  <p class="note">הסיווג הזהיר נדרש משפטית בישראל: "מועמד ליבה" / "מועמד משני" / "רקע מקומי" — לעולם לא "המקור".</p>
+</section>
+
+</main>
+<footer class="report-footer">
+  מערכת ניטור אוטומטית לאזורי תעשייה · raanana · 2024
+</footer>
+</body>
+</html>
