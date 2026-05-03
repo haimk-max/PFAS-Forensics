@@ -29,6 +29,7 @@ from src.data_model import (
     get_station_summary,
     process_file,
 )
+from src.geo_utils import point_in_polygon, calc_distance
 
 # =============================================================================
 # Color palette (shared with generate_report.py)
@@ -104,11 +105,43 @@ def _get_source_color(source_type: str) -> str:
 # =============================================================================
 # Session State
 # =============================================================================
+def _stations_in_drawing(drawing: dict, max_event: pd.DataFrame) -> list[str]:
+    """Return station names that fall inside a drawn shape (polygon or circle)."""
+    geom = drawing.get("geometry", {})
+    geom_type = geom.get("type", "")
+    coords = geom.get("coordinates", [])
+    matched = []
+
+    if geom_type == "Polygon" and coords:
+        ring = coords[0]  # GeoJSON: [[lon, lat], ...]
+        polygon = [(pt[1], pt[0]) for pt in ring]  # convert to (lat, lon)
+        for _, row in max_event.iterrows():
+            lat, lon = row.get("lat"), row.get("lon")
+            if pd.notna(lat) and pd.notna(lon) and point_in_polygon(lat, lon, polygon):
+                matched.append(row["station_name"])
+
+    elif geom_type == "Point" and coords:
+        # Circle: center + radius in properties
+        center_lon, center_lat = coords[0], coords[1]
+        radius_m = drawing.get("properties", {}).get("radius", 0)
+        if radius_m <= 0:
+            radius_m = 5000  # default 5km
+        for _, row in max_event.iterrows():
+            lat, lon = row.get("lat"), row.get("lon")
+            if pd.notna(lat) and pd.notna(lon):
+                dist = calc_distance(center_lat, center_lon, lat, lon)
+                if dist <= radius_m:
+                    matched.append(row["station_name"])
+
+    return matched
+
+
 def init_session_state():
     defaults = {
         "df": None, "group": None, "group_name": None,
         "file_name": None, "file_loaded": False,
         "selected_stations": None,
+        "drawn_stations": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -225,9 +258,13 @@ with st.sidebar:
     )
     st.session_state.selected_stations = selected_stations if selected_stations else None
 
-# Apply filter
-if selected_stations:
-    df_filtered = df[df["station_name"].isin(selected_stations)].copy()
+# Apply filter (sidebar selection OR map drawing)
+effective_stations = selected_stations or []
+if st.session_state.drawn_stations:
+    effective_stations = st.session_state.drawn_stations
+
+if effective_stations:
+    df_filtered = df[df["station_name"].isin(effective_stations)].copy()
 else:
     df_filtered = df.copy()
 
@@ -287,9 +324,23 @@ tab_map, tab_atten, tab_finger, tab_sim, tab_findings, tab_data = st.tabs([
 with tab_map:
     try:
         import folium
+        from folium.plugins import Draw
         from streamlit_folium import st_folium
 
         m = folium.Map(location=DEFAULT_MAP_CENTER, zoom_start=DEFAULT_MAP_ZOOM)
+
+        Draw(
+            export=False,
+            position="topleft",
+            draw_options={
+                "polyline": False,
+                "polygon": {"allowIntersection": False, "shapeOptions": {"color": "#3388ff"}},
+                "circle": {"shapeOptions": {"color": "#3388ff"}},
+                "rectangle": {"shapeOptions": {"color": "#3388ff"}},
+                "marker": False,
+                "circlemarker": False,
+            },
+        ).add_to(m)
 
         # Add stations
         for _, row in max_event.iterrows():
@@ -301,7 +352,6 @@ with tab_map:
             color = _get_source_color(source_type)
             total = row["total_concentration"]
 
-            # Scale radius by concentration (log scale)
             radius = max(6, min(20, 6 + 4 * np.log10(max(total, 0.01) + 1)))
 
             popup_html = f"""
@@ -323,24 +373,44 @@ with tab_map:
                 tooltip=row["station_name"],
             ).add_to(m)
 
-        # Fit bounds
         lats = max_event["lat"].dropna()
         lons = max_event["lon"].dropna()
         if len(lats) > 0:
             m.fit_bounds([[lats.min(), lons.min()], [lats.max(), lons.max()]])
 
-        st_folium(m, width=None, height=500, use_container_width=True)
+        map_data = st_folium(
+            m, width=None, height=500, use_container_width=True,
+            returned_objects=["all_drawings", "last_active_drawing"],
+        )
 
-        # Legend
-        legend_items = []
-        for src, color in SOURCE_COLORS.items():
-            if src in df_filtered["source_type"].values:
-                legend_items.append(
-                    f'<span style="display:inline-block;width:12px;height:12px;'
-                    f'background:{color};border-radius:50%;margin-left:5px;"></span> {src}'
-                )
-        if legend_items:
-            st.markdown(" &nbsp;|&nbsp; ".join(legend_items), unsafe_allow_html=True)
+        # Process drawn shapes → select stations inside them
+        drawings = map_data.get("all_drawings") if map_data else None
+        if drawings:
+            drawn_names = []
+            for d in drawings:
+                drawn_names.extend(_stations_in_drawing(d, max_event))
+            if drawn_names:
+                unique_drawn = sorted(set(drawn_names))
+                st.session_state.drawn_stations = unique_drawn
+                st.success(f"נבחרו {len(unique_drawn)} תחנות דרך ציור על המפה")
+        elif map_data and map_data.get("all_drawings") == []:
+            st.session_state.drawn_stations = None
+
+        col_legend, col_clear = st.columns([4, 1])
+        with col_clear:
+            if st.session_state.drawn_stations and st.button("נקה בחירה מהמפה"):
+                st.session_state.drawn_stations = None
+                st.rerun()
+        with col_legend:
+            legend_items = []
+            for src, color in SOURCE_COLORS.items():
+                if src in df_filtered["source_type"].values:
+                    legend_items.append(
+                        f'<span style="display:inline-block;width:12px;height:12px;'
+                        f'background:{color};border-radius:50%;margin-left:5px;"></span> {src}'
+                    )
+            if legend_items:
+                st.markdown(" &nbsp;|&nbsp; ".join(legend_items), unsafe_allow_html=True)
 
     except ImportError:
         st.warning("חסרות חבילות folium / streamlit-folium. התקן: pip install folium streamlit-folium")
