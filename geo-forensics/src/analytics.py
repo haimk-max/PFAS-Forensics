@@ -118,9 +118,7 @@ def generate_findings_summary(
             pair_strs = [f"\"{a}\" ↔ \"{b}\" ({v:.0f}%)" for a, b, v in high_sim_pairs[:5]]
             findings.append(
                 f"<b>קורלציה חזקה ({len(high_sim_pairs)} זוגות ≥95%):</b> "
-                f"המטריצה מעידה על קורלציה איתנה בין מקורות תחנה לבין רוב "
-                f"הנקודות במורד נחל דליה וכולל מאגרי מעין צבי. "
-                f"דוגמאות: {', '.join(pair_strs)}."
+                f"{', '.join(pair_strs)}."
             )
 
         # 4. Find zero-data stations and outliers separately

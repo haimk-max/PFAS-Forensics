@@ -240,8 +240,16 @@ def _itm_to_wgs84_math(x: float, y: float) -> tuple[float, float]:
     x_adj = x - false_easting
     y_adj = y - false_northing
 
-    # Footpoint latitude
-    M = y_adj / k0
+    # Meridional arc length at origin latitude (M0)
+    M0 = a * (
+        (1 - e2 / 4 - 3 * e2**2 / 64 - 5 * e2**3 / 256) * lat0
+        - (3 * e2 / 8 + 3 * e2**2 / 32 + 45 * e2**3 / 1024) * math.sin(2 * lat0)
+        + (15 * e2**2 / 256 + 45 * e2**3 / 1024) * math.sin(4 * lat0)
+        - (35 * e2**3 / 3072) * math.sin(6 * lat0)
+    )
+
+    # Footpoint latitude — M must be absolute (from equator)
+    M = y_adj / k0 + M0
     mu = M / (a * (1 - e2 / 4 - 3 * e2**2 / 64 - 5 * e2**3 / 256))
     e1 = (1 - math.sqrt(1 - e2)) / (1 + math.sqrt(1 - e2))
     phi1 = mu + (3 * e1 / 2 - 27 * e1**3 / 32) * math.sin(2 * mu)
@@ -277,6 +285,7 @@ def _wgs84_to_itm_math(lat: float, lon: float) -> tuple[float, float]:
     e_prime2 = e2 / (1 - e2)
 
     lon0 = math.radians(35.2045169444444)
+    lat0 = math.radians(31.7343936111111)
     k0 = 1.0000067
     false_easting = 219529.584
     false_northing = 626907.39
@@ -297,12 +306,20 @@ def _wgs84_to_itm_math(lat: float, lon: float) -> tuple[float, float]:
         - (35 * e2**3 / 3072) * math.sin(6 * phi)
     )
 
+    # M0: meridional arc at origin latitude — subtract to get relative northing
+    M0 = a * (
+        (1 - e2 / 4 - 3 * e2**2 / 64 - 5 * e2**3 / 256) * lat0
+        - (3 * e2 / 8 + 3 * e2**2 / 32 + 45 * e2**3 / 1024) * math.sin(2 * lat0)
+        + (15 * e2**2 / 256 + 45 * e2**3 / 1024) * math.sin(4 * lat0)
+        - (35 * e2**3 / 3072) * math.sin(6 * lat0)
+    )
+
     x = false_easting + k0 * N * (
         A + (1 - T + C) * A**3 / 6
         + (5 - 18 * T + T**2 + 72 * C - 58 * e_prime2) * A**5 / 120
     )
     y = false_northing + k0 * (
-        M + N * math.tan(phi) * (
+        (M - M0) + N * math.tan(phi) * (
             A**2 / 2 + (5 - T + 9 * C + 4 * C**2) * A**4 / 24
             + (61 - 58 * T + T**2 + 600 * C - 330 * e_prime2) * A**6 / 720
         )
