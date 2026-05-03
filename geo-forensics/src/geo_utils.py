@@ -1,20 +1,4 @@
-"""
-geo_utils.py - המרת קואורדינטות ופונקציות גיאוגרפיות
-=====================================================
-המודול הזה ממיר קואורדינטות בין מערכת ITM (Israel Transverse Mercator)
-שבה רשות המים עובדת, למערכת WGS84 (lat/lon) שמפות אינטרנט משתמשות בה.
-
-מושגים:
-- ITM = מערכת קואורדינטות ישראלית (X = מזרחה, Y = צפונה), מטרים
-- WGS84 = מערכת עולמית (latitude, longitude), מעלות
-- EPSG:2039 = קוד ITM הרשמי
-- EPSG:4326 = קוד WGS84 הרשמי
-
-Backend:
-- אם arcpy זמין (ArcGIS Pro) — משתמש ב-arcpy לדיוק מקסימלי
-- אם pyproj זמין — משתמש ב-pyproj
-- אחרת — נוסחת קירוב מתמטית (דיוק ~1 מטר בישראל)
-"""
+"""geo_utils.py - המרת ITM↔WGS84 (arcpy→pyproj→math fallback)."""
 
 import math
 
@@ -50,23 +34,6 @@ elif _BACKEND == "arcpy":
 
 
 def itm_to_wgs84(x: float, y: float) -> tuple[float, float]:
-    """
-    ממיר נקודה אחת מ-ITM ל-WGS84.
-
-    Args:
-        x: קואורדינטת X (מזרחה) ב-ITM
-        y: קואורדינטת Y (צפונה) ב-ITM
-
-    Returns:
-        (lat, lon) - קו רוחב וקו אורך ב-WGS84
-
-    Raises:
-        ValueError: אם הקואורדינטות מחוץ לטווח הסביר של ישראל
-
-    דוגמה:
-        lat, lon = itm_to_wgs84(200000, 600000)
-        # -> (32.07..., 34.77...)  # בערך תל אביב
-    """
     _validate_itm(x, y)
 
     if _BACKEND == "arcpy":
@@ -81,16 +48,6 @@ def itm_to_wgs84(x: float, y: float) -> tuple[float, float]:
 
 
 def wgs84_to_itm(lat: float, lon: float) -> tuple[float, float]:
-    """
-    ממיר נקודה אחת מ-WGS84 ל-ITM.
-
-    Args:
-        lat: קו רוחב
-        lon: קו אורך
-
-    Returns:
-        (x, y) - קואורדינטות ITM
-    """
     if _BACKEND == "arcpy":
         point = arcpy.PointGeometry(arcpy.Point(lon, lat), _sr_wgs84)
         projected = point.projectAs(_sr_itm)
@@ -103,21 +60,6 @@ def wgs84_to_itm(lat: float, lon: float) -> tuple[float, float]:
 
 
 def batch_convert(df: pd.DataFrame, x_col: str = "x_itm", y_col: str = "y_itm") -> pd.DataFrame:
-    """
-    ממיר עמודות ITM שלמות ל-WGS84, מוסיף עמודות lat ו-lon ל-DataFrame.
-
-    Args:
-        df: טבלת נתונים עם עמודות x_itm ו-y_itm
-        x_col: שם עמודת X
-        y_col: שם עמודת Y
-
-    Returns:
-        אותו DataFrame עם עמודות lat ו-lon חדשות
-
-    דוגמה:
-        df = batch_convert(df)
-        # df כעת מכיל עמודות "lat" ו-"lon"
-    """
     df = df.copy()
 
     # Filter valid rows
@@ -165,20 +107,7 @@ def batch_convert(df: pd.DataFrame, x_col: str = "x_itm", y_col: str = "y_itm") 
 
 
 def calc_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """
-    מחשב מרחק בין שתי נקודות בנוסחת Haversine.
-
-    Args:
-        lat1, lon1: נקודה ראשונה (WGS84)
-        lat2, lon2: נקודה שנייה (WGS84)
-
-    Returns:
-        מרחק במטרים
-
-    דוגמה:
-        d = calc_distance(32.07, 34.77, 32.08, 34.78)
-        # -> ~1400 מטר (בערך)
-    """
+    """Haversine distance in meters."""
     R = 6_371_000  # Earth radius in meters
 
     lat1_r, lat2_r = math.radians(lat1), math.radians(lat2)
@@ -192,16 +121,7 @@ def calc_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def point_in_polygon(lat: float, lon: float, polygon: list[tuple[float, float]]) -> bool:
-    """
-    בודק אם נקודה נמצאת בתוך פוליגון (Ray casting algorithm).
-
-    Args:
-        lat, lon: הנקודה לבדיקה
-        polygon: רשימת קודקודים [(lat, lon), ...] - הפוליגון חייב להיות סגור
-
-    Returns:
-        True אם הנקודה בתוך הפוליגון
-    """
+    """Ray casting algorithm. polygon = [(lat, lon), ...]."""
     n = len(polygon)
     inside = False
 

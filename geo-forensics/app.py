@@ -1,10 +1,6 @@
-"""
-app.py - דשבורד GeoForensics אינטראקטיבי
-==========================================
-דשבורד מקומי לניתוח גיאו-פורנזי של מזהמי PFAS.
-הרצה: streamlit run app.py
-"""
+"""דשבורד GeoForensics — streamlit run app.py."""
 
+import html
 import os
 import sys
 
@@ -17,39 +13,20 @@ import streamlit as st
 sys.path.insert(0, os.path.dirname(__file__))
 
 from config import (
-    APP_DESCRIPTION, APP_NAME, APP_VERSION, DATA_DIR,
-    DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, PAGE_ICON, SUPPORTED_EXTENSIONS,
+    APP_DESCRIPTION, APP_NAME, APP_VERSION, COMPOUND_COLORS, DATA_DIR,
+    DEFAULT_COLOR, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, PAGE_ICON,
+    SOURCE_COLORS, SUPPORTED_EXTENSIONS,
 )
 from src.analytics import cosine_similarity_matrix, generate_findings_summary
-from src.contaminant_groups import get_group, list_groups
-from src.data_loader import clean_data, load_file, normalize_columns, validate_schema
+from src.contaminant_groups import list_groups
 from src.data_model import (
     build_fingerprint_matrix,
     calc_total_concentration,
     get_station_summary,
     process_file,
 )
-from src.geo_utils import point_in_polygon, calc_distance
+from src.geo_utils import calc_distance, point_in_polygon
 
-# =============================================================================
-# Color palette (shared with generate_report.py)
-# =============================================================================
-COMPOUND_COLORS = {
-    "PFOS": "#e74c3c", "PFOA": "#e91e9e", "PFHxS": "#3498db",
-    "PFNA": "#2ecc71", "PFDA": "#f39c12", "PFUnDA": "#9b59b6",
-    "PFUnA": "#9b59b6", "PFBS": "#1abc9c", "GenX": "#e67e22",
-    "PFPeS": "#8e44ad", "PFHpA": "#d35400", "6:2FT": "#7f8c8d",
-    "PFHpS": "#c0392b", "PFPeA": "#16a085", "PFHxA": "#2980b9",
-    "PFDoA": "#c0392b", "PFBA": "#27ae60", "ADONA": "#f1c40f",
-}
-
-SOURCE_COLORS = {
-    "קידוח ניטור": "#3498db", "קידוח הפקה": "#2ecc71",
-    "קידוח": "#2980b9", 'מט"ש': "#e74c3c", "מעיין": "#9b59b6",
-    "מים עיליים": "#f39c12", "נקודה מזוהה בנחל": "#e67e22",
-    "תחנה הידרומטרית": "#1abc9c", "מאגר": "#8e44ad",
-}
-DEFAULT_COLOR = "#95a5a6"
 
 # =============================================================================
 # Page Config
@@ -211,7 +188,7 @@ if load_clicked and chosen_file is not None:
             st.session_state.file_loaded = True
             st.session_state.selected_stations = None
             st.rerun()
-        except Exception as e:
+        except (ValueError, KeyError, FileNotFoundError, pd.errors.EmptyDataError) as e:
             st.error(f"שגיאה בטעינת הקובץ:\n{e}")
 
 elif load_clicked and chosen_file is None:
@@ -494,7 +471,7 @@ with tab_sim:
             order = leaves_list(Z)
             ordered_labels = [sim_matrix.index[i] for i in order]
             sim_ordered = sim_matrix.loc[ordered_labels, ordered_labels]
-        except Exception:
+        except (ValueError, np.linalg.LinAlgError):
             sim_ordered = sim_matrix
             ordered_labels = sim_matrix.index.tolist()
 

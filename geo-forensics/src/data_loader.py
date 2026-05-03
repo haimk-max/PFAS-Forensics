@@ -1,15 +1,4 @@
-"""
-data_loader.py - טעינת קבצי נתונים (Excel / CSV)
-==================================================
-המודול הזה אחראי על:
-1. קריאת קבצי Excel ו-CSV
-2. זיהוי קידוד עברית (UTF-8 או CP1255)
-3. מיפוי שמות עמודות מעברית לאנגלית (לשימוש פנימי)
-4. ולידציה שכל העמודות הנדרשות קיימות
-
-המשתמש מעלה קובץ Excel כמו שהוא מקבל אותו מרשות המים,
-והמודול דואג להתאים אותו למבנה הפנימי של המערכת.
-"""
+"""data_loader.py - טעינת קבצי Excel/CSV ומיפוי עמודות עברית→אנגלית."""
 
 import io
 
@@ -86,18 +75,6 @@ REQUIRED_COLUMNS = ["station_name", "x_itm", "y_itm", "sample_date", "compound",
 
 
 def load_file(file) -> pd.DataFrame:
-    """
-    טוען קובץ Excel או CSV ומחזיר DataFrame.
-
-    Args:
-        file: קובץ שהועלה (UploadedFile מ-Streamlit, או נתיב לקובץ)
-
-    Returns:
-        pd.DataFrame עם הנתונים הגולמיים
-
-    Raises:
-        ValueError: אם סוג הקובץ לא נתמך
-    """
     # Determine file name
     if hasattr(file, "name"):
         filename = file.name.lower()
@@ -115,18 +92,6 @@ def load_file(file) -> pd.DataFrame:
 
 
 def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    ממפה שמות עמודות מעברית לשמות פנימיים באנגלית.
-
-    Args:
-        df: DataFrame עם שמות עמודות מקוריים (בעברית או באנגלית)
-
-    Returns:
-        DataFrame עם שמות עמודות פנימיים
-
-    דוגמה:
-        df עם עמודה "שם תחנה" -> df עם עמודה "station_name"
-    """
     df = df.copy()
 
     new_columns = {}
@@ -141,40 +106,12 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def validate_schema(df: pd.DataFrame) -> tuple[bool, list[str]]:
-    """
-    בודק שכל העמודות הנדרשות קיימות ב-DataFrame.
-
-    Args:
-        df: DataFrame לבדיקה (אחרי normalize_columns)
-
-    Returns:
-        (is_valid, missing_columns)
-        - is_valid: True אם הכל תקין
-        - missing_columns: רשימת עמודות חסרות (ריקה אם הכל תקין)
-
-    דוגמה:
-        ok, missing = validate_schema(df)
-        if not ok:
-            print(f"חסרות עמודות: {missing}")
-    """
     existing = set(df.columns)
     missing = [col for col in REQUIRED_COLUMNS if col not in existing]
     return len(missing) == 0, missing
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    ניקוי בסיסי של הנתונים:
-    - המרת תאריכים
-    - המרת ריכוזים למספרים (כולל טיפול ב"<LOD")
-    - הסרת שורות ריקות
-
-    Args:
-        df: DataFrame עם שמות עמודות פנימיים
-
-    Returns:
-        DataFrame נקי
-    """
     df = df.copy()
 
     # Drop fully empty rows
@@ -221,13 +158,6 @@ def _load_csv(file) -> pd.DataFrame:
 
 
 def _parse_concentration(value) -> float | None:
-    """
-    ממיר ערך ריכוז למספר.
-    מטפל במקרים כמו:
-    - "<0.01" (מתחת לסף זיהוי) -> 0.0 (נחשב כאפס)
-    - "N.D." / "ND" (לא זוהה) -> 0.0
-    - מספר רגיל -> float
-    """
     if pd.isna(value):
         return None
 

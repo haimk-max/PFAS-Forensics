@@ -3,6 +3,9 @@ data/uploads/*.xlsx
 data/uploads/*.csv
 data/uploads/*.xls
 
+# Large data files (>1MB)
+data/sample/העברת ידע למשרד הבריאות*
+
 # Python
 __pycache__/
 *.pyc

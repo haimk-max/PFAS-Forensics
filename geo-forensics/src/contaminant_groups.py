@@ -1,34 +1,15 @@
-"""
-contaminant_groups.py - הגדרת קבוצות מזהמים
-============================================
-כל קבוצת מזהמים (PFAS, דלקים, מתכות וכו') מוגדרת כאן.
-המערכת גנרית - אפשר להוסיף קבוצות חדשות בקלות.
+"""contaminant_groups.py - הגדרת קבוצות מזהמים."""
 
-מושגים:
-- compound = תרכובת בודדת (למשל PFOS)
-- group = קבוצה של תרכובות קשורות (למשל PFAS)
-- threshold = ערך סף רגולטורי (ריכוז מקסימלי מותר)
-"""
-
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
 class ContaminantGroup:
-    """
-    הגדרת קבוצת מזהמים.
-
-    דוגמה:
-        pfas = get_group("PFAS")
-        pfas.compounds  # -> ["PFOS", "PFOA", ...]
-        pfas.thresholds["PFOS"]  # -> 0.1 (µg/L)
-    """
-
-    name: str  # שם הקבוצה להצגה
-    compounds: list[str]  # רשימת תרכובות
-    thresholds: dict[str, float]  # ערכי סף רגולטוריים (תרכובת -> ריכוז מקסימלי)
-    unit: str  # יחידת מדידה (µg/L, mg/L, etc.)
-    description: str = ""  # תיאור הקבוצה
+    name: str
+    compounds: list[str]
+    thresholds: dict[str, float]
+    unit: str
+    description: str = ""
 
 
 # =============================================================================
@@ -127,18 +108,6 @@ _BUILTIN_GROUPS: dict[str, ContaminantGroup] = {
 
 
 def get_group(name: str) -> ContaminantGroup:
-    """
-    מחזיר קבוצת מזהמים לפי שם.
-
-    Args:
-        name: שם הקבוצה (למשל "PFAS", "BTEX")
-
-    Returns:
-        ContaminantGroup object
-
-    Raises:
-        KeyError: אם הקבוצה לא קיימת
-    """
     if name not in _BUILTIN_GROUPS:
         available = ", ".join(_BUILTIN_GROUPS.keys())
         raise KeyError(f"קבוצה '{name}' לא נמצאה. קבוצות זמינות: {available}")
@@ -146,23 +115,10 @@ def get_group(name: str) -> ContaminantGroup:
 
 
 def list_groups() -> list[str]:
-    """מחזיר רשימת שמות כל הקבוצות הזמינות."""
     return list(_BUILTIN_GROUPS.keys())
 
 
 def detect_group(compound_names: list[str]) -> str | None:
-    """
-    מזהה אוטומטית את קבוצת המזהמים לפי שמות התרכובות בנתונים.
-
-    Args:
-        compound_names: רשימת שמות תרכובות מהנתונים
-
-    Returns:
-        שם הקבוצה שזוהתה, או None אם לא זוהתה קבוצה
-
-    דוגמה:
-        detect_group(["PFOS", "PFOA", "PFHxS"])  # -> "PFAS"
-    """
     compound_set = {c.upper().strip() for c in compound_names}
 
     best_match = None

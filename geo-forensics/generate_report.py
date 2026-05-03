@@ -1,20 +1,4 @@
-"""
-generate_report.py - יצירת דוח HTML סטטי מקצועי
-=================================================
-מייצר קובץ HTML עצמאי הכולל:
-1. פאנל בחירת תחנות אינטראקטיבי
-2. מפה אינטראקטיבית (Leaflet) עם כל נקודות הדיגום
-3. גרף ריכוז כולל (ΣPFAS Attenuation) - ציר לוגריתמי
-4. גרף הרכב כימי יחסי (Chromatographic Shift) - stacked bar 100%
-5. מטריצת Cosine Similarity - heatmap צבעוני
-6. סיכום ממצאים אוטומטי
-
-כל הנתונים מוטמעים כ-JSON בתוך ה-HTML, וכל הגרפים נבנים
-דינמית ב-JavaScript כך שבחירת תחנות מעדכנת את כל התצוגה.
-
-שימוש:
-    python generate_report.py [input.xlsx] [-o output.html]
-"""
+"""generate_report.py - יצירת דוח HTML סטטי מ-Excel."""
 
 import json
 import os
@@ -26,7 +10,10 @@ import numpy as np
 import pandas as pd
 from scipy.cluster.hierarchy import linkage, leaves_list
 
-from config import APP_NAME, APP_VERSION, PAGE_ICON
+from config import (
+    APP_NAME, APP_VERSION, COMPOUND_COLORS, DEFAULT_COLOR, PAGE_ICON,
+    SOURCE_COLORS,
+)
 from src.analytics import cosine_similarity_matrix, generate_findings_summary
 from src.data_model import (
     build_fingerprint_matrix,
@@ -34,47 +21,6 @@ from src.data_model import (
     get_station_summary,
     process_file,
 )
-
-
-# =============================================================================
-# Color palette
-# =============================================================================
-COMPOUND_COLORS = {
-    "PFOS": "#e74c3c",
-    "PFOA": "#e91e9e",
-    "PFHxS": "#3498db",
-    "PFNA": "#2ecc71",
-    "PFDA": "#f39c12",
-    "PFUnDA": "#9b59b6",
-    "PFUnA": "#9b59b6",
-    "PFBS": "#1abc9c",
-    "GenX": "#e67e22",
-    "PFPeS": "#8e44ad",
-    "PFHpA": "#d35400",
-    "6:2FT": "#7f8c8d",
-    "PFHpS": "#c0392b",
-    "PFPeA": "#16a085",
-    "PFHxA": "#2980b9",
-    "PFDoA": "#c0392b",
-    "PFBA": "#27ae60",
-    "ADONA": "#f1c40f",
-    "PFESA": "#8e44ad",
-    "PFTDA": "#d35400",
-}
-
-SOURCE_COLORS = {
-    "קידוח ניטור": "#3498db",
-    "קידוח הפקה": "#2ecc71",
-    "קידוח": "#2980b9",
-    "מט\"ש": "#e74c3c",
-    "מעיין": "#9b59b6",
-    "מים עיליים": "#f39c12",
-    "נקודה מזוהה בנחל": "#e67e22",
-    "תחנה הידרומטרית": "#1abc9c",
-    "מאגר": "#8e44ad",
-}
-
-DEFAULT_COLOR = "#95a5a6"
 
 
 # =============================================================================

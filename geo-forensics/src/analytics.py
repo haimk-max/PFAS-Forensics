@@ -1,10 +1,6 @@
-"""
-analytics.py - ניתוח סטטיסטי וכימי
-====================================
-מודול לחישוב:
-1. Cosine Similarity בין תחנות
-2. סיכום ממצאים אוטומטי
-"""
+"""analytics.py - Cosine Similarity וסיכום ממצאים אוטומטי."""
+
+import html
 
 import numpy as np
 import pandas as pd
@@ -44,28 +40,6 @@ def cosine_similarity_matrix(df: pd.DataFrame, group: ContaminantGroup) -> pd.Da
     return pd.DataFrame(sim, index=fingerprint.index, columns=fingerprint.index)
 
 
-def rank_stations_by_similarity(
-    sim_matrix: pd.DataFrame, reference_station: str, top_n: int = 5
-) -> pd.DataFrame:
-    """
-    מדרג תחנות לפי דמיון לתחנת ייחוס.
-
-    Args:
-        sim_matrix: מטריצת Cosine Similarity
-        reference_station: שם תחנת הייחוס
-        top_n: כמה תחנות דומות להציג
-
-    Returns:
-        DataFrame עם תחנות מדורגות לפי דמיון
-    """
-    if reference_station not in sim_matrix.index:
-        raise KeyError(f"תחנה '{reference_station}' לא נמצאה במטריצה")
-
-    scores = sim_matrix[reference_station].drop(reference_station).sort_values(ascending=False)
-    result = scores.head(top_n).reset_index()
-    result.columns = ["station_name", "similarity_pct"]
-    return result
-
 
 def generate_findings_summary(
     df: pd.DataFrame,
@@ -84,11 +58,13 @@ def generate_findings_summary(
     totals = calc_total_concentration(df, group)
 
     # 1. Find station with highest concentration
+    esc = html.escape
+
     if not totals.empty:
         max_row = totals.loc[totals["total_concentration"].idxmax()]
         findings.append(
-            f"<b>ריכוז הגבוה ביותר:</b> תחנה \"{max_row['station_name']}\" "
-            f"({max_row['source_type']}) עם ריכוז כולל של "
+            f"<b>ריכוז הגבוה ביותר:</b> תחנה \"{esc(max_row['station_name'])}\" "
+            f"({esc(str(max_row['source_type']))}) עם ריכוז כולל של "
             f"{max_row['total_concentration']:.2f} {group.unit}."
         )
 
@@ -115,7 +91,7 @@ def generate_findings_summary(
                     )
 
         if high_sim_pairs:
-            pair_strs = [f"\"{a}\" ↔ \"{b}\" ({v:.0f}%)" for a, b, v in high_sim_pairs[:5]]
+            pair_strs = [f"\"{esc(a)}\" ↔ \"{esc(b)}\" ({v:.0f}%)" for a, b, v in high_sim_pairs[:5]]
             findings.append(
                 f"<b>קורלציה חזקה ({len(high_sim_pairs)} זוגות ≥95%):</b> "
                 f"{', '.join(pair_strs)}."
@@ -135,7 +111,7 @@ def generate_findings_summary(
                     low_sim_stations.append((sim_matrix.index[i], row_mean))
 
         if zero_stations:
-            zero_strs = [f"\"{s}\"" for s in zero_stations]
+            zero_strs = [f"\"{esc(s)}\"" for s in zero_stations]
             findings.append(
                 f"<b>תחנות ללא ריכוזים משמעותיים ({'< LOD'}):</b> "
                 f"{', '.join(zero_strs)} — "
@@ -143,7 +119,7 @@ def generate_findings_summary(
             )
 
         if low_sim_stations:
-            outlier_strs = [f"\"{s}\" (ממוצע דמיון {v:.0f}%)" for s, v in low_sim_stations]
+            outlier_strs = [f"\"{esc(s)}\" (ממוצע דמיון {v:.0f}%)" for s, v in low_sim_stations]
             findings.append(
                 f"<b>חריגים בהרכב הכימי:</b> "
                 f"התחנות הבאות מציגות פרופיל שונה מרוב האחרות: "
@@ -177,12 +153,12 @@ def generate_findings_summary(
             cluster_descs = []
             for cl_id, members in sorted(clusters_dict.items(), key=lambda x: -len(x[1])):
                 if len(members) >= 2:
-                    member_str = ", ".join(f"\"{m}\"" for m in members[:4])
+                    member_str = ", ".join(f"\"{esc(m)}\"" for m in members[:4])
                     if len(members) > 4:
                         member_str += f" ועוד {len(members) - 4}"
                     cluster_descs.append(f"אשכול ({len(members)} תחנות): {member_str}")
                 else:
-                    cluster_descs.append(f"בודדת: \"{members[0]}\"")
+                    cluster_descs.append(f"בודדת: \"{esc(members[0])}\"")
 
             findings.append(
                 f"<b>ניתוח PCA — {n_clusters} אשכולות זוהו:</b> "
