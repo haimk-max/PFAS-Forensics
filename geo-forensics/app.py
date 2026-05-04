@@ -9,7 +9,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-# Ensure project root is in path
 sys.path.insert(0, os.path.dirname(__file__))
 
 from config import (
@@ -38,7 +37,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# RTL support
 st.markdown("""
 <style>
 .stApp { direction: rtl; }
@@ -53,6 +51,10 @@ section[data-testid="stSidebar"] .stMultiSelect label { text-align: right; }
     background: #f8f9fa; border-right: 4px solid #3498db;
     padding: 10px 15px; margin: 8px 0; border-radius: 4px;
     direction: rtl; text-align: right;
+}
+.section-header {
+    color: #1a8c5e; border-bottom: 2px solid #1a8c5e;
+    padding-bottom: 8px; margin-top: 1.5rem;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -79,30 +81,25 @@ def _get_source_color(source_type: str) -> str:
     return SOURCE_COLORS.get(source_type, DEFAULT_COLOR)
 
 
-# =============================================================================
-# Session State
-# =============================================================================
 def _stations_in_drawing(drawing: dict, max_event: pd.DataFrame) -> list[str]:
-    """Return station names that fall inside a drawn shape (polygon or circle)."""
     geom = drawing.get("geometry", {})
     geom_type = geom.get("type", "")
     coords = geom.get("coordinates", [])
     matched = []
 
     if geom_type == "Polygon" and coords:
-        ring = coords[0]  # GeoJSON: [[lon, lat], ...]
-        polygon = [(pt[1], pt[0]) for pt in ring]  # convert to (lat, lon)
+        ring = coords[0]
+        polygon = [(pt[1], pt[0]) for pt in ring]
         for _, row in max_event.iterrows():
             lat, lon = row.get("lat"), row.get("lon")
             if pd.notna(lat) and pd.notna(lon) and point_in_polygon(lat, lon, polygon):
                 matched.append(row["station_name"])
 
     elif geom_type == "Point" and coords:
-        # Circle: center + radius in properties
         center_lon, center_lat = coords[0], coords[1]
         radius_m = drawing.get("properties", {}).get("radius", 0)
         if radius_m <= 0:
-            radius_m = 5000  # default 5km
+            radius_m = 5000
         for _, row in max_event.iterrows():
             lat, lon = row.get("lat"), row.get("lon")
             if pd.notna(lat) and pd.notna(lon):
@@ -113,11 +110,13 @@ def _stations_in_drawing(drawing: dict, max_event: pd.DataFrame) -> list[str]:
     return matched
 
 
+# =============================================================================
+# Session State
+# =============================================================================
 def init_session_state():
     defaults = {
         "df": None, "group": None, "group_name": None,
         "file_name": None, "file_loaded": False,
-        "selected_stations": None,
         "drawn_stations": None,
     }
     for key, value in defaults.items():
@@ -129,14 +128,13 @@ init_session_state()
 
 
 # =============================================================================
-# Sidebar
+# Sidebar — File loading
 # =============================================================================
 with st.sidebar:
     st.title(f"{PAGE_ICON} {APP_NAME}")
     st.caption(f"v{APP_VERSION} | {APP_DESCRIPTION}")
     st.divider()
 
-    # 1. Contaminant group
     st.subheader("1. קבוצת מזהמים")
     groups = list_groups()
     if "PFAS" in groups:
@@ -146,7 +144,6 @@ with st.sidebar:
 
     st.divider()
 
-    # 2. Data source
     st.subheader("2. מקור נתונים")
     data_files = _list_data_files()
     source_mode = st.radio(
@@ -186,7 +183,9 @@ if load_clicked and chosen_file is not None:
                 else os.path.basename(str(chosen_file))
             )
             st.session_state.file_loaded = True
-            st.session_state.selected_stations = None
+            st.session_state.drawn_stations = None
+            if "stations_ms" in st.session_state:
+                del st.session_state["stations_ms"]
             st.rerun()
         except (ValueError, KeyError, FileNotFoundError, pd.errors.EmptyDataError) as e:
             st.error(f"שגיאה בטעינת הקובץ:\n{e}")
@@ -216,26 +215,83 @@ if not st.session_state.file_loaded:
 
 
 # =============================================================================
-# Data loaded — prepare analytics
+# Data loaded — prepare ALL-stations data (for map)
 # =============================================================================
 df = st.session_state.df
 group = st.session_state.group
 file_name = st.session_state.file_name
 
-# Station filter in sidebar
+totals_all = calc_total_concentration(df, group)
+max_event_all = (
+    totals_all
+    .loc[totals_all.groupby("station_name")["total_concentration"].idxmax()]
+    .sort_values("total_concentration", ascending=False)
+)
+
+
+# =============================================================================
+# Sidebar — Station selection (source-type filter + select all/clear)
+# =============================================================================
 with st.sidebar:
     st.divider()
-    st.subheader("3. סינון תחנות")
-    all_stations = sorted(df["station_name"].unique())
-    selected_stations = st.multiselect(
-        "בחר תחנות (ריק = הכל)",
-        options=all_stations,
-        default=st.session_state.selected_stations or [],
-        help="השאר ריק כדי להציג את כל התחנות",
-    )
-    st.session_state.selected_stations = selected_stations if selected_stations else None
+    st.subheader("3. בחירת נקודות דיגום")
 
-# Apply filter (sidebar selection OR map drawing)
+    # Source type filter
+    all_source_types = sorted(df["source_type"].dropna().unique())
+    if all_source_types:
+        selected_source_types = st.multiselect(
+            "סנן לפי סוג מקור",
+            options=all_source_types,
+            default=all_source_types,
+        )
+        if selected_source_types:
+            available_stations = sorted(
+                df[df["source_type"].isin(selected_source_types)]["station_name"].unique()
+            )
+        else:
+            available_stations = sorted(df["station_name"].unique())
+    else:
+        available_stations = sorted(df["station_name"].unique())
+        selected_source_types = []
+
+    # Select All / Clear All
+    col_all, col_clear = st.columns(2)
+    with col_all:
+        if st.button("בחר הכל", use_container_width=True):
+            st.session_state["stations_ms"] = list(available_stations)
+            st.session_state.drawn_stations = None
+            st.rerun()
+    with col_clear:
+        if st.button("נקה הכל", use_container_width=True):
+            st.session_state["stations_ms"] = []
+            st.session_state.drawn_stations = None
+            st.rerun()
+
+    # Remove stale stations from widget state
+    if "stations_ms" in st.session_state:
+        valid = [s for s in st.session_state["stations_ms"] if s in available_stations]
+        if len(valid) != len(st.session_state["stations_ms"]):
+            st.session_state["stations_ms"] = valid
+
+    selected_stations = st.multiselect(
+        f"תחנות ({len(available_stations)} זמינות)",
+        options=available_stations,
+        key="stations_ms",
+        help="סנן לפי סוג מקור למעלה, או צייר אזור על המפה",
+    )
+
+    # Counter
+    total_stations = df["station_name"].nunique()
+    n_selected = len(st.session_state.drawn_stations) if st.session_state.drawn_stations else len(selected_stations)
+    if n_selected > 0:
+        st.caption(f"**{n_selected} מתוך {total_stations}** תחנות נבחרו")
+    else:
+        st.caption(f"כל {total_stations} התחנות מוצגות")
+
+
+# =============================================================================
+# Apply filter — selected stations only for analytics
+# =============================================================================
 effective_stations = selected_stations or []
 if st.session_state.drawn_stations:
     effective_stations = st.session_state.drawn_stations
@@ -245,29 +301,23 @@ if effective_stations:
 else:
     df_filtered = df.copy()
 
-# Compute analytics
-totals = calc_total_concentration(df_filtered, group)
-totals_sorted = totals.sort_values("total_concentration", ascending=False)
-
-# Max event per station (for display)
-max_event = (
-    totals_sorted
-    .loc[totals_sorted.groupby("station_name")["total_concentration"].idxmax()]
+# Analytics — computed from SELECTED stations only
+totals_filtered = calc_total_concentration(df_filtered, group)
+max_event_filtered = (
+    totals_filtered
+    .loc[totals_filtered.groupby("station_name")["total_concentration"].idxmax()]
     .sort_values("total_concentration", ascending=False)
 )
-
 fingerprint = build_fingerprint_matrix(df_filtered, group)
 sim_matrix = cosine_similarity_matrix(df_filtered, group)
-
-# Station summary
 station_summary = get_station_summary(df_filtered)
+
 
 # =============================================================================
 # Header
 # =============================================================================
 st.title(f"ניתוח {group.name} — {file_name}")
 
-# Summary metrics
 n_stations = df_filtered["station_name"].nunique()
 dates = df_filtered["sample_date"].dropna()
 date_min = dates.min() if len(dates) > 0 else None
@@ -288,242 +338,260 @@ with col4:
 
 st.divider()
 
-# =============================================================================
-# Tab layout
-# =============================================================================
-tab_map, tab_atten, tab_finger, tab_sim, tab_findings, tab_data = st.tabs([
-    "מפה", "ריכוז כולל", "הרכב כימי", "Cosine Similarity", "ממצאים", "נתונים"
-])
 
 # =============================================================================
-# TAB 1: Map
+# 1. Map — ALL stations shown, selected highlighted
 # =============================================================================
-with tab_map:
-    try:
-        import folium
-        from folium.plugins import Draw
-        from streamlit_folium import st_folium
+st.markdown('<h2 class="section-header">1. מפת נקודות דיגום</h2>', unsafe_allow_html=True)
 
-        m = folium.Map(location=DEFAULT_MAP_CENTER, zoom_start=DEFAULT_MAP_ZOOM)
+try:
+    import folium
+    from folium.plugins import Draw
+    from streamlit_folium import st_folium
 
-        Draw(
-            export=False,
-            position="topleft",
-            draw_options={
-                "polyline": False,
-                "polygon": {"allowIntersection": False, "shapeOptions": {"color": "#3388ff"}},
-                "circle": {"shapeOptions": {"color": "#3388ff"}},
-                "rectangle": {"shapeOptions": {"color": "#3388ff"}},
-                "marker": False,
-                "circlemarker": False,
-            },
+    m = folium.Map(location=DEFAULT_MAP_CENTER, zoom_start=DEFAULT_MAP_ZOOM)
+
+    Draw(
+        export=False,
+        position="topleft",
+        draw_options={
+            "polyline": False,
+            "polygon": {"allowIntersection": False, "shapeOptions": {"color": "#3388ff"}},
+            "circle": {"shapeOptions": {"color": "#3388ff"}},
+            "rectangle": {"shapeOptions": {"color": "#3388ff"}},
+            "marker": False,
+            "circlemarker": False,
+        },
+    ).add_to(m)
+
+    selected_set = set(effective_stations) if effective_stations else set()
+    has_selection = len(selected_set) > 0
+
+    for _, row in max_event_all.iterrows():
+        lat, lon = row.get("lat"), row.get("lon")
+        if pd.isna(lat) or pd.isna(lon):
+            continue
+
+        station_name = row["station_name"]
+        source_type = row.get("source_type", "")
+        total = row["total_concentration"]
+        is_selected = station_name in selected_set or not has_selection
+
+        if is_selected:
+            color = _get_source_color(source_type)
+            opacity = 0.8
+            radius = max(6, min(20, 6 + 4 * np.log10(max(total, 0.01) + 1)))
+        else:
+            color = "#cccccc"
+            opacity = 0.35
+            radius = 5
+
+        popup_html = f"""
+        <div style="direction:rtl; text-align:right; min-width:200px;">
+            <b>{station_name}</b><br>
+            סוג: {source_type}<br>
+            Σ{group.name}: {total:.3f} {group.unit}<br>
+            תאריך: {row['sample_date']:%d/%m/%Y}
+        </div>
+        """
+        folium.CircleMarker(
+            location=[lat, lon],
+            radius=radius,
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=opacity,
+            popup=folium.Popup(popup_html, max_width=300),
+            tooltip=station_name,
         ).add_to(m)
 
-        # Add stations
-        for _, row in max_event.iterrows():
-            lat, lon = row.get("lat"), row.get("lon")
-            if pd.isna(lat) or pd.isna(lon):
-                continue
+    lats = max_event_all["lat"].dropna()
+    lons = max_event_all["lon"].dropna()
+    if len(lats) > 0:
+        m.fit_bounds([[lats.min(), lons.min()], [lats.max(), lons.max()]])
 
-            source_type = row.get("source_type", "")
-            color = _get_source_color(source_type)
-            total = row["total_concentration"]
+    map_data = st_folium(
+        m, width=None, height=500, use_container_width=True,
+        returned_objects=["all_drawings", "last_active_drawing"],
+    )
 
-            radius = max(6, min(20, 6 + 4 * np.log10(max(total, 0.01) + 1)))
+    # Process drawn shapes → select stations inside
+    drawings = map_data.get("all_drawings") if map_data else None
+    if drawings:
+        drawn_names = []
+        for d in drawings:
+            drawn_names.extend(_stations_in_drawing(d, max_event_all))
+        if drawn_names:
+            unique_drawn = sorted(set(drawn_names))
+            st.session_state.drawn_stations = unique_drawn
+            st.success(f"נבחרו {len(unique_drawn)} תחנות דרך ציור על המפה")
+    elif map_data and map_data.get("all_drawings") == []:
+        st.session_state.drawn_stations = None
 
-            popup_html = f"""
-            <div style="direction:rtl; text-align:right; min-width:200px;">
-                <b>{row['station_name']}</b><br>
-                סוג: {source_type}<br>
-                Σ{group.name}: {total:.3f} {group.unit}<br>
-                תאריך: {row['sample_date']:%d/%m/%Y}
-            </div>
-            """
-            folium.CircleMarker(
-                location=[lat, lon],
-                radius=radius,
-                color=color,
-                fill=True,
-                fill_color=color,
-                fill_opacity=0.7,
-                popup=folium.Popup(popup_html, max_width=300),
-                tooltip=row["station_name"],
-            ).add_to(m)
-
-        lats = max_event["lat"].dropna()
-        lons = max_event["lon"].dropna()
-        if len(lats) > 0:
-            m.fit_bounds([[lats.min(), lons.min()], [lats.max(), lons.max()]])
-
-        map_data = st_folium(
-            m, width=None, height=500, use_container_width=True,
-            returned_objects=["all_drawings", "last_active_drawing"],
-        )
-
-        # Process drawn shapes → select stations inside them
-        drawings = map_data.get("all_drawings") if map_data else None
-        if drawings:
-            drawn_names = []
-            for d in drawings:
-                drawn_names.extend(_stations_in_drawing(d, max_event))
-            if drawn_names:
-                unique_drawn = sorted(set(drawn_names))
-                st.session_state.drawn_stations = unique_drawn
-                st.success(f"נבחרו {len(unique_drawn)} תחנות דרך ציור על המפה")
-        elif map_data and map_data.get("all_drawings") == []:
+    col_legend, col_clear = st.columns([4, 1])
+    with col_clear:
+        if st.session_state.drawn_stations and st.button("נקה בחירה מהמפה"):
             st.session_state.drawn_stations = None
+            st.rerun()
+    with col_legend:
+        legend_items = []
+        for src, clr in SOURCE_COLORS.items():
+            if src in df["source_type"].values:
+                legend_items.append(
+                    f'<span style="display:inline-block;width:12px;height:12px;'
+                    f'background:{clr};border-radius:50%;margin-left:5px;"></span> {src}'
+                )
+        if legend_items:
+            st.markdown(" &nbsp;|&nbsp; ".join(legend_items), unsafe_allow_html=True)
 
-        col_legend, col_clear = st.columns([4, 1])
-        with col_clear:
-            if st.session_state.drawn_stations and st.button("נקה בחירה מהמפה"):
-                st.session_state.drawn_stations = None
-                st.rerun()
-        with col_legend:
-            legend_items = []
-            for src, color in SOURCE_COLORS.items():
-                if src in df_filtered["source_type"].values:
-                    legend_items.append(
-                        f'<span style="display:inline-block;width:12px;height:12px;'
-                        f'background:{color};border-radius:50%;margin-left:5px;"></span> {src}'
-                    )
-            if legend_items:
-                st.markdown(" &nbsp;|&nbsp; ".join(legend_items), unsafe_allow_html=True)
+except ImportError:
+    st.warning("חסרות חבילות folium / streamlit-folium. התקן: pip install folium streamlit-folium")
 
-    except ImportError:
-        st.warning("חסרות חבילות folium / streamlit-folium. התקן: pip install folium streamlit-folium")
+st.divider()
+
 
 # =============================================================================
-# TAB 2: Attenuation (Total Concentration)
+# 2. Total Concentration (Attenuation)
 # =============================================================================
-with tab_atten:
-    if not max_event.empty:
-        fig_atten = go.Figure()
-        colors = [_get_source_color(s) for s in max_event["source_type"]]
-        fig_atten.add_trace(go.Bar(
-            x=max_event["station_name"],
-            y=max_event["total_concentration"],
-            marker_color=colors,
-            text=[f"{v:.3f}" for v in max_event["total_concentration"]],
-            textposition="outside",
-            hovertemplate="<b>%{x}</b><br>Σ" + group.name + ": %{y:.3f} " + group.unit + "<extra></extra>",
+st.markdown(f'<h2 class="section-header">2. ריכוז כולל — Σ{group.name} Attenuation</h2>', unsafe_allow_html=True)
+st.caption("ציר לוגריתמי. עמודה אחת לכל תחנה (אירוע מירבי). בחינת דעיכת מסת המזהם לאורך מסלולי הסעה.")
+
+if not max_event_filtered.empty:
+    fig_atten = go.Figure()
+    colors = [_get_source_color(s) for s in max_event_filtered["source_type"]]
+    fig_atten.add_trace(go.Bar(
+        x=max_event_filtered["station_name"],
+        y=max_event_filtered["total_concentration"],
+        marker_color=colors,
+        text=[f"{v:.3f}" for v in max_event_filtered["total_concentration"]],
+        textposition="outside",
+        hovertemplate="<b>%{x}</b><br>Σ" + group.name + ": %{y:.3f} " + group.unit + "<extra></extra>",
+    ))
+    fig_atten.update_layout(
+        xaxis_title="תחנה",
+        yaxis_title=f"ריכוז ({group.unit})",
+        yaxis_type="log",
+        height=500,
+        template="plotly_white",
+        font=dict(size=13),
+    )
+    st.plotly_chart(fig_atten, use_container_width=True)
+else:
+    st.info("אין נתוני ריכוז להצגה. בחר תחנות בסרגל הצד או צייר אזור על המפה.")
+
+st.divider()
+
+
+# =============================================================================
+# 3. Fingerprint (Chemical Composition)
+# =============================================================================
+st.markdown('<h2 class="section-header">3. הרכב כימי יחסי — Chromatographic Shift</h2>', unsafe_allow_html=True)
+st.caption("מנורמל ל-100%. מעל כל עמודה מוצג הריכוז הסכומי (µg/L). התרכובות ממוינות לפי שיעורן בתחנה המרוכזת ביותר.")
+
+if not fingerprint.empty:
+    fig_fp = go.Figure()
+    compounds = fingerprint.columns.tolist()
+    stations = fingerprint.index.tolist()
+
+    for compound in compounds:
+        fig_fp.add_trace(go.Bar(
+            name=compound,
+            x=stations,
+            y=fingerprint[compound],
+            marker_color=_get_color(compound),
+            hovertemplate=f"<b>{compound}</b><br>" + "%{x}: %{y:.1f}%<extra></extra>",
         ))
-        fig_atten.update_layout(
-            title=f"ריכוז כולל Σ{group.name} לפי תחנה (סדר יורד)",
-            xaxis_title="תחנה",
-            yaxis_title=f"ריכוז ({group.unit})",
-            yaxis_type="log",
-            height=500,
-            template="plotly_white",
-            font=dict(size=13),
-        )
-        st.plotly_chart(fig_atten, use_container_width=True)
-    else:
-        st.info("אין נתוני ריכוז להצגה.")
+
+    fig_fp.update_layout(
+        barmode="stack",
+        xaxis_title="תחנה",
+        yaxis_title="אחוז (%)",
+        yaxis=dict(range=[0, 100]),
+        height=500,
+        template="plotly_white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        font=dict(size=13),
+    )
+    st.plotly_chart(fig_fp, use_container_width=True)
+else:
+    st.info("אין מספיק נתונים לבניית fingerprint. בחר תחנות בסרגל הצד או צייר אזור על המפה.")
+
+st.divider()
+
 
 # =============================================================================
-# TAB 3: Fingerprint (Chemical Composition)
+# 4. Cosine Similarity Heatmap
 # =============================================================================
-with tab_finger:
-    if not fingerprint.empty:
-        fig_fp = go.Figure()
-        compounds = fingerprint.columns.tolist()
-        stations = fingerprint.index.tolist()
+st.markdown('<h2 class="section-header">4. Cosine Similarity — מטריצת דמיון</h2>', unsafe_allow_html=True)
+st.caption("התחנות ממוינות לפי Hierarchical Clustering. צבע ירוק = דמיון גבוה, אדום = דמיון נמוך.")
 
-        for compound in compounds:
-            fig_fp.add_trace(go.Bar(
-                name=compound,
-                x=stations,
-                y=fingerprint[compound],
-                marker_color=_get_color(compound),
-                hovertemplate=f"<b>{compound}</b><br>" + "%{x}: %{y:.1f}%<extra></extra>",
-            ))
+if not sim_matrix.empty and len(sim_matrix) >= 2:
+    try:
+        from scipy.cluster.hierarchy import linkage, leaves_list
+        from scipy.spatial.distance import squareform
 
-        fig_fp.update_layout(
-            title="הרכב כימי יחסי (Fingerprint) — אירוע מקסימלי לכל תחנה",
-            barmode="stack",
-            xaxis_title="תחנה",
-            yaxis_title="אחוז (%)",
-            yaxis=dict(range=[0, 100]),
-            height=500,
-            template="plotly_white",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            font=dict(size=13),
-        )
-        st.plotly_chart(fig_fp, use_container_width=True)
-    else:
-        st.info("אין מספיק נתונים לבניית fingerprint.")
+        dist = 1 - sim_matrix.values / 100
+        np.fill_diagonal(dist, 0)
+        dist = (dist + dist.T) / 2
+        condensed = squareform(dist, checks=False)
+        Z = linkage(condensed, method="average")
+        order = leaves_list(Z)
+        ordered_labels = [sim_matrix.index[i] for i in order]
+        sim_ordered = sim_matrix.loc[ordered_labels, ordered_labels]
+    except (ValueError, np.linalg.LinAlgError):
+        sim_ordered = sim_matrix
+        ordered_labels = sim_matrix.index.tolist()
 
-# =============================================================================
-# TAB 4: Cosine Similarity Heatmap
-# =============================================================================
-with tab_sim:
-    if not sim_matrix.empty and len(sim_matrix) >= 2:
-        # Reorder by hierarchical clustering
-        try:
-            from scipy.cluster.hierarchy import linkage, leaves_list
-            from scipy.spatial.distance import squareform
+    fig_sim = go.Figure(data=go.Heatmap(
+        z=sim_ordered.values,
+        x=ordered_labels,
+        y=ordered_labels,
+        colorscale="RdYlGn",
+        zmin=0, zmax=100,
+        text=sim_ordered.values.round(0).astype(int),
+        texttemplate="%{text}%",
+        textfont=dict(size=10),
+        hovertemplate="<b>%{x}</b> ↔ <b>%{y}</b><br>דמיון: %{z:.1f}%<extra></extra>",
+        colorbar=dict(title="% דמיון"),
+    ))
+    fig_sim.update_layout(
+        height=max(500, len(ordered_labels) * 35 + 150),
+        template="plotly_white",
+        font=dict(size=12),
+        xaxis=dict(side="bottom"),
+    )
+    st.plotly_chart(fig_sim, use_container_width=True)
+else:
+    st.info("נדרשות לפחות 2 תחנות לחישוב Cosine Similarity.")
 
-            dist = 1 - sim_matrix.values / 100
-            np.fill_diagonal(dist, 0)
-            dist = (dist + dist.T) / 2
-            condensed = squareform(dist, checks=False)
-            Z = linkage(condensed, method="average")
-            order = leaves_list(Z)
-            ordered_labels = [sim_matrix.index[i] for i in order]
-            sim_ordered = sim_matrix.loc[ordered_labels, ordered_labels]
-        except (ValueError, np.linalg.LinAlgError):
-            sim_ordered = sim_matrix
-            ordered_labels = sim_matrix.index.tolist()
+st.divider()
 
-        fig_sim = go.Figure(data=go.Heatmap(
-            z=sim_ordered.values,
-            x=ordered_labels,
-            y=ordered_labels,
-            colorscale="RdYlGn",
-            zmin=0, zmax=100,
-            text=sim_ordered.values.round(0).astype(int),
-            texttemplate="%{text}%",
-            textfont=dict(size=10),
-            hovertemplate="<b>%{x}</b> ↔ <b>%{y}</b><br>דמיון: %{z:.1f}%<extra></extra>",
-            colorbar=dict(title="% דמיון"),
-        ))
-        fig_sim.update_layout(
-            title="מטריצת Cosine Similarity בין תחנות",
-            height=max(500, len(ordered_labels) * 35 + 150),
-            template="plotly_white",
-            font=dict(size=12),
-            xaxis=dict(side="bottom"),
-        )
-        st.plotly_chart(fig_sim, use_container_width=True)
-    else:
-        st.info("נדרשות לפחות 2 תחנות לחישוב Cosine Similarity.")
 
 # =============================================================================
-# TAB 5: Findings
+# 5. Findings
 # =============================================================================
-with tab_findings:
-    st.subheader("סיכום ממצאים")
-    findings = generate_findings_summary(df_filtered, group, sim_matrix)
-    if findings:
-        for f in findings:
-            st.markdown(f'<div class="finding-card">{f}</div>', unsafe_allow_html=True)
-    else:
-        st.info("אין מספיק נתונים ליצירת ממצאים.")
+st.markdown('<h2 class="section-header">5. סיכום ממצאים</h2>', unsafe_allow_html=True)
+
+findings = generate_findings_summary(df_filtered, group, sim_matrix)
+if findings:
+    for f in findings:
+        st.markdown(f'<div class="finding-card">{f}</div>', unsafe_allow_html=True)
+else:
+    st.info("אין מספיק נתונים ליצירת ממצאים.")
+
+st.divider()
+
 
 # =============================================================================
-# TAB 6: Data Table
+# 6. Raw Data (collapsible)
 # =============================================================================
-with tab_data:
-    st.subheader("נתונים גולמיים")
+with st.expander("נתונים גולמיים", expanded=False):
+    st.subheader("סיכום תחנות")
+    st.dataframe(station_summary, use_container_width=True, hide_index=True)
 
-    # Station summary
-    with st.expander("סיכום תחנות", expanded=False):
-        st.dataframe(station_summary, use_container_width=True, hide_index=True)
-
-    # Full data
+    st.subheader("טבלת נתונים")
     st.dataframe(df_filtered, use_container_width=True, hide_index=True)
 
-    # CSV export
     csv = df_filtered.to_csv(index=False).encode("utf-8-sig")
     st.download_button(
         "הורד CSV",
@@ -531,6 +599,7 @@ with tab_data:
         file_name=f"{group.name}_data.csv",
         mime="text/csv",
     )
+
 
 # =============================================================================
 # Footer
