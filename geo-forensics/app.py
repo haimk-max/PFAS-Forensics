@@ -323,6 +323,18 @@ if st.session_state.group_name == "PFAS":
 sim_matrix = cosine_similarity_matrix(df_filtered, group)
 station_summary = get_station_summary(df_filtered)
 
+# Stations with zero total concentration (below LOD / no signal)
+# Excluded from sections 2, 5, 6 — kept in sections 3, 4, 7
+_nz_mask = max_event_filtered["total_concentration"] > 0
+max_event_nonzero = max_event_filtered[_nz_mask]
+zero_stn_names = set(max_event_filtered.loc[~_nz_mask, "station_name"])
+fingerprint_nonzero = fingerprint.loc[~fingerprint.index.isin(zero_stn_names)]
+if zero_stn_names:
+    _nz_keep = [s for s in sim_matrix.index if s not in zero_stn_names]
+    sim_matrix_nonzero = sim_matrix.loc[_nz_keep, _nz_keep]
+else:
+    sim_matrix_nonzero = sim_matrix
+
 
 # =============================================================================
 # Header
@@ -387,15 +399,23 @@ try:
         source_type = row.get("source_type", "")
         total = row["total_concentration"]
         is_selected = station_name in selected_set or not has_selection
+        is_zero = total == 0
 
-        if is_selected:
+        if is_selected and not is_zero:
             color = _get_source_color(source_type)
             opacity = 0.8
             radius = max(6, min(20, 6 + 4 * np.log10(max(total, 0.01) + 1)))
+            tooltip = folium.Tooltip(station_name, permanent=True, sticky=False)
+        elif is_zero:
+            color = "#e0e0e0"
+            opacity = 0.25
+            radius = 4
+            tooltip = folium.Tooltip(station_name, permanent=False, sticky=False)
         else:
             color = "#cccccc"
             opacity = 0.35
             radius = 5
+            tooltip = folium.Tooltip(station_name, permanent=False, sticky=False)
 
         popup_html = f"""
         <div style="direction:rtl; text-align:right; min-width:200px;">
@@ -413,7 +433,7 @@ try:
             fill_color=color,
             fill_opacity=opacity,
             popup=folium.Popup(popup_html, max_width=300),
-            tooltip=station_name,
+            tooltip=tooltip,
         ).add_to(m)
 
     lats = max_event_all["lat"].dropna()
@@ -421,12 +441,47 @@ try:
     if len(lats) > 0:
         m.fit_bounds([[lats.min(), lons.min()], [lats.max(), lons.max()]])
 
+    # Zoom-aware labels with greedy anti-overlap
+    from branca.element import Element as _Elem
+    _mid = m._id
+    m.get_root().html.add_child(_Elem(f"""<script>
+(function(){{
+    var _t=0;
+    function _init(){{
+        var _m=window['map_{_mid}'];
+        if(!_m){{if(++_t<40)setTimeout(_init,150);return;}}
+        function _upd(){{
+            var z=_m.getZoom();
+            var c=document.getElementById('map_{_mid}');
+            if(!c)return;
+            var tt=Array.from(c.querySelectorAll('.leaflet-tooltip-permanent'));
+            if(z<10){{tt.forEach(function(t){{t.style.opacity='0';}});return;}}
+            tt.forEach(function(t){{t.style.opacity='1';}});
+            var placed=[];
+            var cr=c.getBoundingClientRect();
+            tt.forEach(function(t){{
+                var r=t.getBoundingClientRect();
+                var b={{l:r.left-cr.left,r:r.right-cr.left,t:r.top-cr.top,b:r.bottom-cr.top}};
+                var ov=placed.some(function(p){{
+                    return b.l<p.r+3&&b.r>p.l-3&&b.t<p.b+3&&b.b>p.t-3;
+                }});
+                t.style.opacity=ov?'0':'1';
+                if(!ov)placed.push(b);
+            }});
+        }}
+        _m.on('zoomend moveend',_upd);
+        setTimeout(_upd,600);
+    }}
+    _init();
+}})();
+</script>"""))
+
     map_data = st_folium(
         m, width=None, height=500, use_container_width=True,
         returned_objects=["all_drawings", "last_active_drawing"],
     )
 
-    # Process drawn shapes → select stations inside
+    # Process drawn shapes → select stations inside; rerun immediately when selection changes
     drawings = map_data.get("all_drawings") if map_data else None
     if drawings:
         drawn_names = []
@@ -434,10 +489,15 @@ try:
             drawn_names.extend(_stations_in_drawing(d, max_event_all))
         if drawn_names:
             unique_drawn = sorted(set(drawn_names))
-            st.session_state.drawn_stations = unique_drawn
-            st.success(f"נבחרו {len(unique_drawn)} תחנות דרך ציור על המפה")
+            if unique_drawn != (st.session_state.drawn_stations or []):
+                st.session_state.drawn_stations = unique_drawn
+                st.rerun()
+            else:
+                st.success(f"נבחרו {len(unique_drawn)} תחנות דרך ציור על המפה")
     elif map_data and map_data.get("all_drawings") == []:
-        st.session_state.drawn_stations = None
+        if st.session_state.drawn_stations is not None:
+            st.session_state.drawn_stations = None
+            st.rerun()
 
     col_legend, col_clear = st.columns([4, 1])
     with col_clear:
@@ -474,14 +534,14 @@ with st.expander("על האנליזה — ריכוז סכומי", expanded=False
 <b>חולשות:</b> לא מבחין בין תרכובות — תחנה עם תרכובת דומיננטית אחת ותחנה עם פיזור שווה יכולות להראות ריכוז זהה; ריכוזים מתחת ל-LOD נחשבים כאפס.
 </div>""", unsafe_allow_html=True)
 
-if not max_event_filtered.empty:
+if not max_event_nonzero.empty:
     fig_atten = go.Figure()
-    colors = [_get_source_color(s) for s in max_event_filtered["source_type"]]
+    colors = [_get_source_color(s) for s in max_event_nonzero["source_type"]]
     fig_atten.add_trace(go.Bar(
-        x=max_event_filtered["station_name"],
-        y=max_event_filtered["total_concentration"],
+        x=max_event_nonzero["station_name"],
+        y=max_event_nonzero["total_concentration"],
         marker_color=colors,
-        text=[f"{v:.3f}" for v in max_event_filtered["total_concentration"]],
+        text=[f"{v:.3f}" for v in max_event_nonzero["total_concentration"]],
         textposition="outside",
         hovertemplate="<b>%{x}</b><br>Σ" + group.name + ": %{y:.3f} " + group.unit + "<extra></extra>",
     ))
@@ -624,19 +684,19 @@ with st.expander("על האנליזה — Principal Component Analysis", expande
 </div>""", unsafe_allow_html=True)
 
 pca_data = None
-if not fingerprint.empty and len(fingerprint) >= 2:
+if not fingerprint_nonzero.empty and len(fingerprint_nonzero) >= 2:
     from sklearn.decomposition import PCA
 
-    fp_values = fingerprint.values
+    fp_values = fingerprint_nonzero.values
     n_components = min(2, fp_values.shape[0], fp_values.shape[1])
     pca = PCA(n_components=n_components)
     coords_pca = pca.fit_transform(fp_values)
     var_explained = (pca.explained_variance_ratio_ * 100).tolist()
 
     pca_data = {
-        "stations": fingerprint.index.tolist(),
+        "stations": fingerprint_nonzero.index.tolist(),
         "pc1": coords_pca[:, 0].tolist(),
-        "pc2": coords_pca[:, 1].tolist() if n_components == 2 else [0.0] * len(fingerprint),
+        "pc2": coords_pca[:, 1].tolist() if n_components == 2 else [0.0] * len(fingerprint_nonzero),
         "var_explained": var_explained,
     }
 
@@ -695,17 +755,17 @@ with st.expander("על האנליזה — Multidimensional Scaling", expanded=Fa
 <b>חולשות:</b> הפתרון לא יחיד — סיבובים והיפוכים שרירותיים; עלול להיתקע במינימום מקומי; אין loadings — לא ניתן לדעת אילו תרכובות גורמות להפרדה.
 </div>""", unsafe_allow_html=True)
 
-if not sim_matrix.empty and len(sim_matrix) >= 2:
+if not sim_matrix_nonzero.empty and len(sim_matrix_nonzero) >= 2:
     from sklearn.manifold import MDS
 
-    dist_mds = 1 - sim_matrix.values / 100
+    dist_mds = 1 - sim_matrix_nonzero.values / 100
     np.fill_diagonal(dist_mds, 0)
     dist_mds = (dist_mds + dist_mds.T) / 2
 
     mds = MDS(n_components=2, metric="precomputed", random_state=42, normalized_stress="auto", n_init=4)
     coords_mds = mds.fit_transform(dist_mds)
 
-    mds_stations = sim_matrix.index.tolist()
+    mds_stations = sim_matrix_nonzero.index.tolist()
     source_types_mds = []
     for stn in mds_stations:
         st_rows = df_filtered[df_filtered["station_name"] == stn]["source_type"].dropna()
