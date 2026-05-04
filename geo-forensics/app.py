@@ -608,9 +608,30 @@ try:
     if len(lats) > 0:
         m.fit_bounds([[lats.min(), lons.min()], [lats.max(), lons.max()]])
 
-    # Zoom-aware labels with greedy anti-overlap
+    # Zoom-aware labels with greedy anti-overlap + transparent tooltip styling
     from branca.element import Element as _Elem
     _mid = m._id
+    m.get_root().header.add_child(_Elem(f"""<style>
+#map_{_mid} .leaflet-tooltip-permanent {{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 2px !important;
+    font-size: 11px;
+    font-weight: 600;
+    color: #1a2332;
+    text-shadow:
+        1px  1px 2px rgba(255,255,255,0.95),
+       -1px -1px 2px rgba(255,255,255,0.95),
+        1px -1px 2px rgba(255,255,255,0.95),
+       -1px  1px 2px rgba(255,255,255,0.95);
+    pointer-events: none;
+    white-space: nowrap;
+}}
+#map_{_mid} .leaflet-tooltip-permanent::before {{
+    display: none !important;
+}}
+</style>"""))
     m.get_root().html.add_child(_Elem(f"""<script>
 (function(){{
     var _t=0;
@@ -622,7 +643,7 @@ try:
             var c=document.getElementById('map_{_mid}');
             if(!c)return;
             var tt=Array.from(c.querySelectorAll('.leaflet-tooltip-permanent'));
-            if(z<10){{tt.forEach(function(t){{t.style.opacity='0';}});return;}}
+            if(z<11){{tt.forEach(function(t){{t.style.opacity='0';}});return;}}
             tt.forEach(function(t){{t.style.opacity='1';}});
             var placed=[];
             var cr=c.getBoundingClientRect();
@@ -630,7 +651,7 @@ try:
                 var r=t.getBoundingClientRect();
                 var b={{l:r.left-cr.left,r:r.right-cr.left,t:r.top-cr.top,b:r.bottom-cr.top}};
                 var ov=placed.some(function(p){{
-                    return b.l<p.r+3&&b.r>p.l-3&&b.t<p.b+3&&b.b>p.t-3;
+                    return b.l<p.r+2&&b.r>p.l-2&&b.t<p.b+2&&b.b>p.t-2;
                 }});
                 t.style.opacity=ov?'0':'1';
                 if(!ov)placed.push(b);
@@ -839,22 +860,22 @@ st.markdown("""<div class="similarity-legend">
 <span class="sim-pill"><span class="sim-dot" style="background:#2e7d32;"></span> 90-100% דמיון גבוה מאוד</span>
 </div>""", unsafe_allow_html=True)
 
-if not sim_matrix.empty and len(sim_matrix) >= 2:
+if not sim_matrix_nonzero.empty and len(sim_matrix_nonzero) >= 2:
     try:
         from scipy.cluster.hierarchy import linkage, leaves_list
         from scipy.spatial.distance import squareform
 
-        dist = 1 - sim_matrix.values / 100
+        dist = 1 - sim_matrix_nonzero.values / 100
         np.fill_diagonal(dist, 0)
         dist = (dist + dist.T) / 2
         condensed = squareform(dist, checks=False)
         Z = linkage(condensed, method="average")
         order = leaves_list(Z)
-        ordered_labels = [sim_matrix.index[i] for i in order]
-        sim_ordered = sim_matrix.loc[ordered_labels, ordered_labels]
+        ordered_labels = [sim_matrix_nonzero.index[i] for i in order]
+        sim_ordered = sim_matrix_nonzero.loc[ordered_labels, ordered_labels]
     except (ValueError, np.linalg.LinAlgError):
-        sim_ordered = sim_matrix
-        ordered_labels = sim_matrix.index.tolist()
+        sim_ordered = sim_matrix_nonzero
+        ordered_labels = sim_matrix_nonzero.index.tolist()
 
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     fig_sim = go.Figure(data=go.Heatmap(
@@ -880,14 +901,14 @@ if not sim_matrix.empty and len(sim_matrix) >= 2:
 
     # Top-pairs table (pairs with similarity >= 70%)
     _pairs_s4 = []
-    for _i in range(len(sim_matrix)):
-        for _j in range(_i + 1, len(sim_matrix)):
-            _v = sim_matrix.iloc[_i, _j]
+    for _i in range(len(sim_matrix_nonzero)):
+        for _j in range(_i + 1, len(sim_matrix_nonzero)):
+            _v = sim_matrix_nonzero.iloc[_i, _j]
             if _v >= 70:
                 _note = "דמיון גבוה מאוד" if _v >= 90 else "דמיון גבוה"
                 _pairs_s4.append({
-                    "תחנה א׳": sim_matrix.index[_i],
-                    "תחנה ב׳": sim_matrix.columns[_j],
+                    "תחנה א׳": sim_matrix_nonzero.index[_i],
+                    "תחנה ב׳": sim_matrix_nonzero.columns[_j],
                     "דמיון (%)": round(_v, 1),
                     "הערה": _note,
                 })
@@ -906,7 +927,7 @@ if not sim_matrix.empty and len(sim_matrix) >= 2:
         unsafe_allow_html=True,
     )
 else:
-    st.info("נדרשות לפחות 2 תחנות לחישוב Cosine Similarity.")
+    st.info("נדרשות לפחות 2 תחנות עם ריכוז מזוהה לחישוב מטריצת דמיון.")
 
 st.divider()
 
