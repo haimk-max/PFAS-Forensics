@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from config import (
     APP_DESCRIPTION, APP_NAME, APP_VERSION, COMPOUND_COLORS, DATA_DIR,
     DEFAULT_COLOR, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, PAGE_ICON,
-    SOURCE_COLORS, SUPPORTED_EXTENSIONS,
+    PFAS_COMPOUND_ORDER, SOURCE_COLORS, SUPPORTED_EXTENSIONS,
 )
 from src.analytics import cosine_similarity_matrix, generate_findings_summary
 from src.contaminant_groups import list_groups
@@ -316,6 +316,10 @@ max_event_filtered = (
     .sort_values("total_concentration", ascending=False)
 )
 fingerprint = build_fingerprint_matrix(df_filtered, group)
+if st.session_state.group_name == "PFAS":
+    ordered = [c for c in PFAS_COMPOUND_ORDER if c in fingerprint.columns]
+    remaining = [c for c in fingerprint.columns if c not in ordered]
+    fingerprint = fingerprint[ordered + remaining]
 sim_matrix = cosine_similarity_matrix(df_filtered, group)
 station_summary = get_station_summary(df_filtered)
 

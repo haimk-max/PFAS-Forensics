@@ -12,7 +12,7 @@ from scipy.cluster.hierarchy import linkage, leaves_list
 
 from config import (
     APP_NAME, APP_VERSION, COMPOUND_COLORS, DEFAULT_COLOR, PAGE_ICON,
-    SOURCE_COLORS,
+    PFAS_COMPOUND_ORDER, SOURCE_COLORS,
 )
 from src.analytics import cosine_similarity_matrix, generate_findings_summary
 from src.data_model import (
@@ -132,13 +132,18 @@ def _prepare_report_data(df, group):
                 "date": str(r["sample_date"])[:10],
             })
 
-    # --- Sort compounds by proportion in the highest-concentration station ---
-    top_station = max_event_per_station["total_concentration"].idxmax()
-    if top_station in fingerprint.index:
-        top_profile = fingerprint.loc[top_station]
-        sorted_compounds = top_profile.sort_values(ascending=False).index.tolist()
+    # --- Reorder compounds: S/A order for PFAS, top-station proportion for others ---
+    if group.name == "PFAS":
+        ordered = [c for c in PFAS_COMPOUND_ORDER if c in fingerprint.columns]
+        remaining = [c for c in fingerprint.columns if c not in ordered]
+        sorted_compounds = ordered + remaining
     else:
-        sorted_compounds = fingerprint.columns.tolist()
+        top_station = max_event_per_station["total_concentration"].idxmax()
+        if top_station in fingerprint.index:
+            top_profile = fingerprint.loc[top_station]
+            sorted_compounds = top_profile.sort_values(ascending=False).index.tolist()
+        else:
+            sorted_compounds = fingerprint.columns.tolist()
 
     # Reorder fingerprint columns
     fingerprint = fingerprint[sorted_compounds]

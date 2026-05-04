@@ -47,14 +47,24 @@ SIDEBAR_WIDTH = 350
 PAGE_ICON = "🔬"
 
 # --- Color Palettes ---
+PFAS_S_COMPOUNDS = ["PFOS", "PFBS", "PFHxS", "6:2FT", "PFPeS", "PFHpS"]
+PFAS_A_COMPOUNDS = [
+    "PFOA", "PFHxA", "PFHpA", "PFNA", "PFDA", "PFDoA",
+    "PFBA", "PFPeA", "PFESA", "ADONA", "PFTDA", "PFUnA",
+    "PFUnDA", "GenX",
+]
+PFAS_COMPOUND_ORDER = PFAS_S_COMPOUNDS + PFAS_A_COMPOUNDS
+
 COMPOUND_COLORS = {
-    "PFOS": "#e74c3c", "PFOA": "#e91e9e", "PFHxS": "#3498db",
-    "PFNA": "#2ecc71", "PFDA": "#f39c12", "PFUnDA": "#9b59b6",
-    "PFUnA": "#9b59b6", "PFBS": "#1abc9c", "GenX": "#e67e22",
-    "PFPeS": "#8e44ad", "PFHpA": "#d35400", "6:2FT": "#7f8c8d",
-    "PFHpS": "#c0392b", "PFPeA": "#16a085", "PFHxA": "#2980b9",
-    "PFDoA": "#c0392b", "PFBA": "#27ae60", "ADONA": "#f1c40f",
-    "PFESA": "#8e44ad", "PFTDA": "#d35400",
+    # S group — Blue palette (dark → light)
+    "PFOS": "#0D47A1", "PFBS": "#1565C0", "PFHxS": "#1976D2",
+    "6:2FT": "#42A5F5", "PFPeS": "#90CAF9", "PFHpS": "#BBDEFB",
+    # A group — Orange/warm palette (dark → light)
+    "PFOA": "#BF360C", "PFHxA": "#D84315", "PFHpA": "#E64A19",
+    "PFNA": "#F4511E", "PFDA": "#FF7043", "PFDoA": "#FF8A65",
+    "PFBA": "#FFAB76", "PFPeA": "#FFA726", "PFESA": "#FFB74D",
+    "ADONA": "#FFCC80", "PFTDA": "#FFE0B2", "PFUnA": "#FFF3E0",
+    "PFUnDA": "#FFE8CC", "GenX": "#FFD6A5",
 }
 
 SOURCE_COLORS = {
