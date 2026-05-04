@@ -56,6 +56,13 @@ section[data-testid="stSidebar"] .stMultiSelect label { text-align: right; }
     color: #1a8c5e; border-bottom: 2px solid #1a8c5e;
     padding-bottom: 8px; margin-top: 1.5rem;
 }
+.method-box {
+    background: #f0f4f8; border: 1px solid #d0d7de; border-radius: 6px;
+    padding: 12px 16px; margin: 6px 0 12px 0; direction: rtl; text-align: right;
+    font-size: 0.92em; line-height: 1.7;
+}
+.method-box b { color: #1a5276; }
+.method-box code { background: #e8ecf0; padding: 1px 5px; border-radius: 3px; direction: ltr; unicode-bidi: embed; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -455,6 +462,13 @@ st.divider()
 # =============================================================================
 st.markdown(f'<h2 class="section-header">2. ריכוז כולל — Σ{group.name} Attenuation</h2>', unsafe_allow_html=True)
 st.caption("ציר לוגריתמי. עמודה אחת לכל תחנה (אירוע מירבי). בחינת דעיכת מסת המזהם לאורך מסלולי הסעה.")
+with st.expander("על האנליזה — ריכוז סכומי", expanded=False):
+    st.markdown("""<div class="method-box">
+<b>עיקרון:</b> סיכום ריכוזי כל התרכובות בכל תחנה (אירוע הדיגום המירבי), להשוואת עומס הזיהום הכולל בין נקודות.<br>
+<b>נוסחה:</b> <code>Σ = Σᵢ Cᵢ</code> — סכום ריכוזי כל התרכובות i בתחנה נתונה.<br>
+<b>חוזקות:</b> פשוט ואינטואיטיבי; מאפשר מיון מהיר לפי חומרת הזיהום; חשיפת דפוס דעיכה (Attenuation) לאורך מסלול הסעה.<br>
+<b>חולשות:</b> לא מבחין בין תרכובות — תחנה עם תרכובת דומיננטית אחת ותחנה עם פיזור שווה יכולות להראות ריכוז זהה; ריכוזים מתחת ל-LOD נחשבים כאפס.
+</div>""", unsafe_allow_html=True)
 
 if not max_event_filtered.empty:
     fig_atten = go.Figure()
@@ -487,6 +501,13 @@ st.divider()
 # =============================================================================
 st.markdown('<h2 class="section-header">3. הרכב כימי יחסי — Chromatographic Shift</h2>', unsafe_allow_html=True)
 st.caption("מנורמל ל-100%. מעל כל עמודה מוצג הריכוז הסכומי (µg/L). התרכובות ממוינות לפי שיעורן בתחנה המרוכזת ביותר.")
+with st.expander("על האנליזה — טביעת אצבע כימית", expanded=False):
+    st.markdown("""<div class="method-box">
+<b>עיקרון:</b> נרמול ההרכב הכימי של כל תחנה ל-100%, כך שניתן להשוות בין פרופילים ללא תלות בריכוז המוחלט. שינוי בהרכב היחסי (Chromatographic Shift) מעיד על תהליכי ריטרדציה, ספיחה סלקטיבית או מקורות שונים.<br>
+<b>נוסחה:</b> <code>%ᵢ = (Cᵢ / Σ) × 100</code> — אחוז התרכובת i מסך הריכוזים.<br>
+<b>חוזקות:</b> מאפשר השוואת מקורות ללא תלות בריכוז; חושף שינויי הרכב לאורך מסלול הסעה; כלי מרכזי בזיהוי פורנזי של מקורות.<br>
+<b>חולשות:</b> מאבד מידע על גודל מוחלט (תחנה מאוד מזוהמת ומעט מזוהמת יכולות להיראות זהות); תרכובות מתחת ל-LOD נחשבות כאפס ועלולות להטות את ההרכב.
+</div>""", unsafe_allow_html=True)
 
 if not fingerprint.empty:
     fig_fp = go.Figure()
@@ -502,6 +523,16 @@ if not fingerprint.empty:
             hovertemplate=f"<b>{compound}</b><br>" + "%{x}: %{y:.1f}%<extra></extra>",
         ))
 
+    total_lookup = max_event_filtered.set_index("station_name")["total_concentration"]
+    annotations_fp = []
+    for stn in stations:
+        total_val = total_lookup.get(stn, 0)
+        annotations_fp.append(dict(
+            x=stn, y=100, text=f"{total_val:.3f}",
+            showarrow=False, yshift=12,
+            font=dict(size=10, color="#555"),
+        ))
+
     fig_fp.update_layout(
         barmode="stack",
         xaxis_title="תחנה",
@@ -511,6 +542,7 @@ if not fingerprint.empty:
         template="plotly_white",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         font=dict(size=13),
+        annotations=annotations_fp,
     )
     st.plotly_chart(fig_fp, use_container_width=True)
 else:
@@ -524,6 +556,13 @@ st.divider()
 # =============================================================================
 st.markdown('<h2 class="section-header">4. Cosine Similarity — מטריצת דמיון</h2>', unsafe_allow_html=True)
 st.caption("התחנות ממוינות לפי Hierarchical Clustering. צבע ירוק = דמיון גבוה, אדום = דמיון נמוך.")
+with st.expander("על האנליזה — Cosine Similarity", expanded=False):
+    st.markdown("""<div class="method-box">
+<b>עיקרון:</b> מדידת הזווית בין וקטורי ההרכב הכימי של שתי תחנות. ככל שהזווית קטנה יותר — ההרכב דומה יותר, ללא תלות בריכוז המוחלט.<br>
+<b>נוסחה:</b> <code>cos(θ) = (A · B) / (‖A‖ × ‖B‖)</code> — מכפלה סקלרית מנורמלת; ערך 100% = הרכב זהה, 0% = שונה לחלוטין.<br>
+<b>חוזקות:</b> אינווריאנטי לקנה מידה (scale-invariant) — משווה צורה ולא גודל; מתאים לזיהוי מקורות משותפים גם בריכוזים שונים מאוד.<br>
+<b>חולשות:</b> דמיון גבוה אינו מוכיח מקור משותף — תהליכים שונים יכולים לייצר הרכב דומה; רגיש לתרכובות בעלות ריכוז אפסי (LOD) שעלולות ליצור "רעש".
+</div>""", unsafe_allow_html=True)
 
 if not sim_matrix.empty and len(sim_matrix) >= 2:
     try:
@@ -572,6 +611,13 @@ st.divider()
 # =============================================================================
 st.markdown('<h2 class="section-header">5. PCA — ניתוח רכיבים ראשיים</h2>', unsafe_allow_html=True)
 st.caption("הפחתת ממדים של ההרכב הכימי לשני רכיבים ראשיים. תחנות קרובות בגרף דומות בהרכבן הכימי.")
+with st.expander("על האנליזה — Principal Component Analysis", expanded=False):
+    st.markdown("""<div class="method-box">
+<b>עיקרון:</b> הפחתת ממדים ליניארית — מוצאים את הצירים (רכיבים ראשיים) שלאורכם השונות במידע מקסימלית. הנתונים מוקרנים על שני הרכיבים הראשיים, כך שתחנות עם הרכב כימי דומה מופיעות קרובות בגרף.<br>
+<b>נוסחה:</b> <code>X = T·Pᵀ + E</code> — X = מטריצת הנתונים, T = ציונים (scores), P = משקולות (loadings), E = שארית. הרכיבים הם הוקטורים העצמיים של מטריצת הקווריאנס.<br>
+<b>חוזקות:</b> מזהה את מנועי השונות העיקריים; מפחית מידע רב-ממדי לגרף 2D קריא; אחוז השונות המוסבר מציין עד כמה הגרף מייצג את המציאות.<br>
+<b>חולשות:</b> מניח קשרים ליניאריים בלבד; רגיש לקנה מידה של המשתנים; כשרכיבים מסבירים אחוז נמוך — הגרף מטעה; קשה לפרש loadings מעורבי סימן.
+</div>""", unsafe_allow_html=True)
 
 pca_data = None
 if not fingerprint.empty and len(fingerprint) >= 2:
@@ -637,6 +683,13 @@ st.divider()
 # =============================================================================
 st.markdown('<h2 class="section-header">6. MDS — מיפוי מרחק כימי</h2>', unsafe_allow_html=True)
 st.caption("Multidimensional Scaling על מרחק קוסינוס. מרחק בגרף משקף שונוּת בהרכב הכימי בין התחנות.")
+with st.expander("על האנליזה — Multidimensional Scaling", expanded=False):
+    st.markdown("""<div class="method-box">
+<b>עיקרון:</b> מיפוי התחנות במרחב דו-ממדי כך שהמרחקים בגרף ישקפו בצורה הטובה ביותר את המרחקים הכימיים המקוריים (מרחק קוסינוס). תחנות קרובות בגרף = הרכב כימי דומה.<br>
+<b>נוסחה:</b> <code>min Σᵢⱼ (dᵢⱼ − δᵢⱼ)²</code> — מינימיזציה של ה-Stress: הפרש בין המרחקים במיפוי (d) למרחקים המקוריים (δ).<br>
+<b>חוזקות:</b> עובד עם כל מטריקת מרחק (לא רק אוקלידית); לא מניח ליניאריות; משלים את ה-PCA בכך שהוא שומר על מרחקים זוגיים ולא על שונות.<br>
+<b>חולשות:</b> הפתרון לא יחיד — סיבובים והיפוכים שרירותיים; עלול להיתקע במינימום מקומי; אין loadings — לא ניתן לדעת אילו תרכובות גורמות להפרדה.
+</div>""", unsafe_allow_html=True)
 
 if not sim_matrix.empty and len(sim_matrix) >= 2:
     from sklearn.manifold import MDS
