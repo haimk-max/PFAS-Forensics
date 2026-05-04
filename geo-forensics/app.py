@@ -39,7 +39,8 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-.stApp { direction: rtl; }
+/* --- Base RTL + font --- */
+.stApp { direction: rtl; font-family: 'Assistant', 'Noto Sans Hebrew', 'Arial', system-ui, sans-serif; }
 .stMarkdown, .stText { text-align: right; }
 .stDataFrame { direction: ltr; }
 input[type="number"] { direction: ltr; text-align: left; }
@@ -47,15 +48,79 @@ section[data-testid="stSidebar"] { direction: rtl; }
 section[data-testid="stSidebar"] .stSelectbox label,
 section[data-testid="stSidebar"] .stFileUploader label,
 section[data-testid="stSidebar"] .stMultiSelect label { text-align: right; }
+
+/* --- KPI card --- */
+.kpi-card {
+    background: #f8fafb; border: 1px solid #e0e6ed; border-radius: 8px;
+    padding: 14px 16px; text-align: center; direction: rtl;
+}
+.kpi-card .kpi-label { font-size: 0.82em; color: #6c757d; margin-bottom: 4px; }
+.kpi-card .kpi-value { font-size: 1.35em; font-weight: 700; color: #1a2332; }
+
+/* --- Insight card --- */
+.insight-card {
+    background: #f0f7f4; border: 1px solid #b6d7c4; border-radius: 8px;
+    padding: 12px 14px; text-align: center; direction: rtl; min-height: 90px;
+    display: flex; flex-direction: column; justify-content: center;
+}
+.insight-card .insight-label { font-size: 0.78em; color: #5a6d63; margin-bottom: 4px; }
+.insight-card .insight-value { font-size: 1.15em; font-weight: 700; color: #1a5c3a; }
+
+/* --- Chart card --- */
+.chart-card {
+    background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border-radius: 10px; padding: 20px; margin: 12px 0;
+}
+
+/* --- Caveat note --- */
+.caveat-note {
+    background: #fefcf3; border: 1px solid #e8e0c8; border-radius: 6px;
+    padding: 10px 14px; margin: 10px 0; direction: rtl; text-align: right;
+    font-size: 0.88em; color: #6d5f3a; line-height: 1.6; font-style: italic;
+}
+.caveat-note::before { content: "ℹ "; font-style: normal; }
+
+/* --- Similarity legend pills --- */
+.similarity-legend { display: flex; gap: 10px; flex-wrap: wrap; direction: rtl; margin: 8px 0 14px 0; }
+.sim-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 12px; font-size: 0.82em;
+    border: 1px solid #ddd; background: #fafafa;
+}
+.sim-pill .sim-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+
+/* --- Success banner --- */
+.success-banner {
+    background: #edf7ed; border: 1px solid #c3e6c3; border-radius: 6px;
+    padding: 8px 12px; direction: rtl; text-align: right;
+    color: #2e6b2e; font-size: 0.9em; margin: 6px 0;
+}
+
+/* --- Header description --- */
+.header-desc { color: #5a6d78; font-size: 0.95em; margin-top: -6px; margin-bottom: 10px; direction: rtl; }
+
+/* --- Section header (keep existing + enhance) --- */
+.section-header {
+    color: #1a8c5e; border-bottom: 2px solid #1a8c5e;
+    padding-bottom: 8px; margin-top: 1.5rem;
+}
+.section-desc { color: #5a6d78; font-size: 0.92em; direction: rtl; margin-bottom: 10px; }
+
+/* --- Insight banner (above chart) --- */
+.insight-banner {
+    background: #eef6ff; border: 1px solid #c4daf0; border-radius: 6px;
+    padding: 10px 14px; direction: rtl; text-align: right;
+    font-size: 0.92em; color: #2a5078; margin-bottom: 10px;
+}
+
+/* --- Finding card (unchanged) --- */
 .finding-card {
     background: #f8f9fa; border-right: 4px solid #3498db;
     padding: 10px 15px; margin: 8px 0; border-radius: 4px;
     direction: rtl; text-align: right;
 }
-.section-header {
-    color: #1a8c5e; border-bottom: 2px solid #1a8c5e;
-    padding-bottom: 8px; margin-top: 1.5rem;
-}
+
+/* --- Method box (unchanged) --- */
 .method-box {
     background: #f0f4f8; border: 1px solid #d0d7de; border-radius: 6px;
     padding: 12px 16px; margin: 6px 0 12px 0; direction: rtl; text-align: right;
@@ -63,6 +128,13 @@ section[data-testid="stSidebar"] .stMultiSelect label { text-align: right; }
 }
 .method-box b { color: #1a5276; }
 .method-box code { background: #e8ecf0; padding: 1px 5px; border-radius: 3px; direction: ltr; unicode-bidi: embed; }
+
+/* --- Multiselect tag overrides (softer chips) --- */
+[data-baseweb="tag"] {
+    background-color: #e8f0fe !important; border-radius: 12px !important;
+    font-size: 0.85em !important;
+}
+[data-baseweb="tag"] span { color: #1a3a5c !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -86,6 +158,20 @@ def _get_color(compound: str) -> str:
 
 def _get_source_color(source_type: str) -> str:
     return SOURCE_COLORS.get(source_type, DEFAULT_COLOR)
+
+
+def _short_name(name: str, max_len: int = 18) -> str:
+    return name[:max_len] + "…" if len(name) > max_len else name
+
+
+def _fmt_total(v: float) -> str:
+    if v >= 1000:
+        return f"{v:.0f}"
+    if v >= 100:
+        return f"{v:.1f}"
+    if v >= 10:
+        return f"{v:.2f}"
+    return f"{v:.3f}"
 
 
 def _stations_in_drawing(drawing: dict, max_event: pd.DataFrame) -> list[str]:
@@ -240,6 +326,8 @@ max_event_all = (
 # Sidebar — Station selection (source-type filter + select all/clear)
 # =============================================================================
 with st.sidebar:
+    if st.session_state.file_loaded:
+        st.markdown('<div class="success-banner">✓ הנתונים נטענו בהצלחה</div>', unsafe_allow_html=True)
     st.divider()
     st.subheader("3. בחירת נקודות דיגום")
 
@@ -339,25 +427,102 @@ else:
 # =============================================================================
 # Header
 # =============================================================================
-st.title(f"ניתוח {group.name} — {file_name}")
+st.title(f"ניתוח {group.name}")
+st.caption(f"מקור נתונים: {file_name}")
+st.markdown(
+    '<div class="header-desc">מיפוי נקודות דיגום, בחירת תחנות והשוואת חתימות '
+    f'{group.name} יחסיות בין מקורות, נחלים וקידוחים.</div>',
+    unsafe_allow_html=True,
+)
 
 n_stations = df_filtered["station_name"].nunique()
+n_compounds = df_filtered["compound"].nunique() if "compound" in df_filtered.columns else 0
 dates = df_filtered["sample_date"].dropna()
 date_min = dates.min() if len(dates) > 0 else None
 date_max = dates.max() if len(dates) > 0 else None
 
+_date_valid = (
+    date_min is not None
+    and date_max is not None
+    and date_min.year >= 1980
+)
+_date_str = f"{date_min:%d/%m/%Y} — {date_max:%d/%m/%Y}" if _date_valid else "לא זוהה בקובץ"
+
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.metric("תחנות", n_stations)
+    st.markdown(f'<div class="kpi-card"><div class="kpi-label">תחנות</div><div class="kpi-value">{n_stations}</div></div>', unsafe_allow_html=True)
 with col2:
-    st.metric("שורות נתונים", f"{len(df_filtered):,}")
+    st.markdown(f'<div class="kpi-card"><div class="kpi-label">שורות נתונים</div><div class="kpi-value">{len(df_filtered):,}</div></div>', unsafe_allow_html=True)
 with col3:
-    st.metric("תרכובות", df_filtered["compound"].nunique() if "compound" in df_filtered.columns else "—")
+    st.markdown(f'<div class="kpi-card"><div class="kpi-label">תרכובות</div><div class="kpi-value">{n_compounds or "—"}</div></div>', unsafe_allow_html=True)
 with col4:
-    if date_min is not None and date_max is not None:
-        st.metric("טווח תאריכים", f"{date_min:%d/%m/%Y} — {date_max:%d/%m/%Y}")
-    else:
-        st.metric("טווח תאריכים", "—")
+    st.markdown(f'<div class="kpi-card"><div class="kpi-label">טווח תאריכים</div><div class="kpi-value" style="font-size:0.95em">{_date_str}</div></div>', unsafe_allow_html=True)
+
+# --- Quick Insights Row ---
+_enough_for_insights = len(max_event_nonzero) >= 1
+if _enough_for_insights:
+    st.markdown('<h3 style="margin-top:1.2rem; margin-bottom:0.5rem;">תובנות מרכזיות</h3>', unsafe_allow_html=True)
+    ic1, ic2, ic3, ic4, ic5 = st.columns(5)
+
+    _top_stn = max_event_nonzero.iloc[0]["station_name"] if not max_event_nonzero.empty else "—"
+    _top_val = max_event_nonzero.iloc[0]["total_concentration"] if not max_event_nonzero.empty else 0
+    with ic1:
+        st.markdown(
+            f'<div class="insight-card"><div class="insight-label">תחנה עם Σ{group.name} מקסימלי</div>'
+            f'<div class="insight-value">{html.escape(str(_top_stn))}<br>{_top_val:.2f} {group.unit}</div></div>',
+            unsafe_allow_html=True,
+        )
+
+    _n_detected = len(max_event_nonzero)
+    _n_total_stn = len(max_event_filtered)
+    with ic2:
+        st.markdown(
+            f'<div class="insight-card"><div class="insight-label">תחנות עם {group.name} מזוהה</div>'
+            f'<div class="insight-value">{_n_detected} מתוך {_n_total_stn}</div></div>',
+            unsafe_allow_html=True,
+        )
+
+    _dominant = "—"
+    _dominant_pct = 0.0
+    if not fingerprint_nonzero.empty:
+        _mean_fp = fingerprint_nonzero.mean()
+        _dominant = _mean_fp.idxmax()
+        _dominant_pct = _mean_fp.max()
+    with ic3:
+        st.markdown(
+            f'<div class="insight-card"><div class="insight-label">תרכובת דומיננטית</div>'
+            f'<div class="insight-value">{html.escape(str(_dominant))}<br>{_dominant_pct:.1f}%</div></div>',
+            unsafe_allow_html=True,
+        )
+
+    _top_pair = "—"
+    _top_pair_val = 0.0
+    _n_high_pairs = 0
+    if not sim_matrix_nonzero.empty and len(sim_matrix_nonzero) >= 2:
+        _sim_vals = sim_matrix_nonzero.values
+        _sim_idx = sim_matrix_nonzero.index.tolist()
+        _best_v = -1
+        for _i in range(len(_sim_vals)):
+            for _j in range(_i + 1, len(_sim_vals)):
+                _v = _sim_vals[_i, _j]
+                if _v >= 90:
+                    _n_high_pairs += 1
+                if _v > _best_v:
+                    _best_v = _v
+                    _top_pair = f"{_sim_idx[_i]} ↔ {_sim_idx[_j]}"
+                    _top_pair_val = _v
+    with ic4:
+        st.markdown(
+            f'<div class="insight-card"><div class="insight-label">זוג דומה ביותר</div>'
+            f'<div class="insight-value">{html.escape(_top_pair)}<br>{_top_pair_val:.0f}%</div></div>',
+            unsafe_allow_html=True,
+        )
+    with ic5:
+        st.markdown(
+            f'<div class="insight-card"><div class="insight-label">זוגות עם דמיון ≥90%</div>'
+            f'<div class="insight-value">{_n_high_pairs}</div></div>',
+            unsafe_allow_html=True,
+        )
 
 st.divider()
 
@@ -365,8 +530,10 @@ st.divider()
 # =============================================================================
 # 1. Map — ALL stations shown, selected highlighted
 # =============================================================================
-st.markdown('<h2 class="section-header">1. מפת נקודות דיגום</h2>', unsafe_allow_html=True)
+st.markdown('<h2 class="section-header">1. מפת נקודות הדיגום</h2>', unsafe_allow_html=True)
+st.markdown(f'<div class="section-desc">בחרו תחנות מהמפה או מהרשימה כדי להשוות בין חתימות {group.name} בתחנות הדיגום.</div>', unsafe_allow_html=True)
 
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 try:
     import folium
     from folium.plugins import Draw
@@ -518,14 +685,16 @@ try:
 except ImportError:
     st.warning("חסרות חבילות folium / streamlit-folium. התקן: pip install folium streamlit-folium")
 
+st.markdown('</div>', unsafe_allow_html=True)  # close chart-card
+
 st.divider()
 
 
 # =============================================================================
 # 2. Total Concentration (Attenuation)
 # =============================================================================
-st.markdown(f'<h2 class="section-header">2. ריכוז כולל — Σ{group.name} Attenuation</h2>', unsafe_allow_html=True)
-st.caption("ציר לוגריתמי. עמודה אחת לכל תחנה (אירוע מירבי). בחינת דעיכת מסת המזהם לאורך מסלולי הסעה.")
+st.markdown(f'<h2 class="section-header">2. ריכוז סכומי של תרכובות {group.name} בנקודות הדיגום</h2>', unsafe_allow_html=True)
+st.markdown(f'<div class="section-desc">סכום ריכוזי תרכובות {group.name} בכל נקודת דיגום, מסודר מהגבוה לנמוך. ציר Y מוצג בסקאלה לוגריתמית.</div>', unsafe_allow_html=True)
 with st.expander("על האנליזה — ריכוז סכומי", expanded=False):
     st.markdown("""<div class="method-box">
 <b>עיקרון:</b> סיכום ריכוזי כל התרכובות בכל תחנה (אירוע הדיגום המירבי), להשוואת עומס הזיהום הכולל בין נקודות.<br>
@@ -535,15 +704,26 @@ with st.expander("על האנליזה — ריכוז סכומי", expanded=False
 </div>""", unsafe_allow_html=True)
 
 if not max_event_nonzero.empty:
+    _top_stn_s2 = html.escape(str(max_event_nonzero.iloc[0]["station_name"]))
+    _top_val_s2 = max_event_nonzero.iloc[0]["total_concentration"]
+    st.markdown(
+        f'<div class="insight-banner">נקודת הדיגום בעלת הריכוז הסכומי הגבוה ביותר היא '
+        f'<b>{_top_stn_s2}</b>, עם Σ{group.name} של <b>{_top_val_s2:.2f} {group.unit}</b>.</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     fig_atten = go.Figure()
+    _names_s2 = max_event_nonzero["station_name"].tolist()
+    _short_names_s2 = [_short_name(n) for n in _names_s2]
     colors = [_get_source_color(s) for s in max_event_nonzero["source_type"]]
     fig_atten.add_trace(go.Bar(
-        x=max_event_nonzero["station_name"],
+        x=_short_names_s2,
         y=max_event_nonzero["total_concentration"],
         marker_color=colors,
-        text=[f"{v:.3f}" for v in max_event_nonzero["total_concentration"]],
+        text=[_fmt_total(v) for v in max_event_nonzero["total_concentration"]],
         textposition="outside",
-        hovertemplate="<b>%{x}</b><br>Σ" + group.name + ": %{y:.3f} " + group.unit + "<extra></extra>",
+        customdata=_names_s2,
+        hovertemplate="<b>%{customdata}</b><br>Σ" + group.name + ": %{y:.3f} " + group.unit + "<extra></extra>",
     ))
     fig_atten.update_layout(
         xaxis_title="תחנה",
@@ -554,6 +734,12 @@ if not max_event_nonzero.empty:
         font=dict(size=13),
     )
     st.plotly_chart(fig_atten, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="caveat-note">הריכוז הסכומי משקף את עומס הזיהום הנקודתי. '
+        'אינו מעיד בהכרח על מקור משותף או על דעיכה לאורך מסלול זרימה.</div>',
+        unsafe_allow_html=True,
+    )
 else:
     st.info("אין נתוני ריכוז להצגה. בחר תחנות בסרגל הצד או צייר אזור על המפה.")
 
@@ -563,8 +749,12 @@ st.divider()
 # =============================================================================
 # 3. Fingerprint (Chemical Composition)
 # =============================================================================
-st.markdown('<h2 class="section-header">3. הרכב כימי יחסי — Chromatographic Shift</h2>', unsafe_allow_html=True)
-st.caption("מנורמל ל-100%. מעל כל עמודה מוצג הריכוז הסכומי (µg/L). התרכובות ממוינות לפי שיעורן בתחנה המרוכזת ביותר.")
+st.markdown(f'<h2 class="section-header">3. שינוי בהרכב היחסי של תרכובות {group.name}</h2>', unsafe_allow_html=True)
+st.markdown(
+    f'<div class="section-desc">כל עמודה מייצגת נקודת דיגום. מקטעי העמודה מייצגים את התרומה היחסית של כל תרכובת {group.name} '
+    'לסך הריכוז הסכומי באותה נקודה.</div>',
+    unsafe_allow_html=True,
+)
 with st.expander("על האנליזה — טביעת אצבע כימית", expanded=False):
     st.markdown("""<div class="method-box">
 <b>עיקרון:</b> נרמול ההרכב הכימי של כל תחנה ל-100%, כך שניתן להשוות בין פרופילים ללא תלות בריכוז המוחלט. שינוי בהרכב היחסי (Chromatographic Shift) מעיד על תהליכי ריטרדציה, ספיחה סלקטיבית או מקורות שונים.<br>
@@ -574,25 +764,28 @@ with st.expander("על האנליזה — טביעת אצבע כימית", expan
 </div>""", unsafe_allow_html=True)
 
 if not fingerprint.empty:
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     fig_fp = go.Figure()
     compounds = fingerprint.columns.tolist()
     stations = fingerprint.index.tolist()
+    _short_stations_fp = [_short_name(s) for s in stations]
 
     for compound in compounds:
         fig_fp.add_trace(go.Bar(
             name=compound,
-            x=stations,
+            x=_short_stations_fp,
             y=fingerprint[compound],
             marker_color=_get_color(compound),
-            hovertemplate=f"<b>{compound}</b><br>" + "%{x}: %{y:.1f}%<extra></extra>",
+            customdata=[compound] * len(stations),
+            hovertemplate="<b>" + compound + "</b><br>%{x}: %{y:.1f}%<extra></extra>",
         ))
 
     total_lookup = max_event_filtered.set_index("station_name")["total_concentration"]
     annotations_fp = []
-    for stn in stations:
+    for idx, stn in enumerate(stations):
         total_val = total_lookup.get(stn, 0)
         annotations_fp.append(dict(
-            x=stn, y=100, text=f"{total_val:.3f}",
+            x=_short_stations_fp[idx], y=100, text=_fmt_total(total_val),
             showarrow=False, yshift=12,
             font=dict(size=10, color="#555"),
         ))
@@ -609,6 +802,12 @@ if not fingerprint.empty:
         annotations=annotations_fp,
     )
     st.plotly_chart(fig_fp, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="caveat-note">הרכב יחסי תלוי בקיום מספיק תרכובות מעל סף הזיהוי. '
+        'תחנות עם ערכים נמוכים יציגו הרכב רגיש לרעש מדידה.</div>',
+        unsafe_allow_html=True,
+    )
 else:
     st.info("אין מספיק נתונים לבניית fingerprint. בחר תחנות בסרגל הצד או צייר אזור על המפה.")
 
@@ -618,14 +817,26 @@ st.divider()
 # =============================================================================
 # 4. Cosine Similarity Heatmap
 # =============================================================================
-st.markdown('<h2 class="section-header">4. Cosine Similarity — מטריצת דמיון</h2>', unsafe_allow_html=True)
-st.caption("התחנות ממוינות לפי Hierarchical Clustering. צבע ירוק = דמיון גבוה, אדום = דמיון נמוך.")
+st.markdown(f'<h2 class="section-header">4. דמיון בין חתימות {group.name} בנקודות הדיגום</h2>', unsafe_allow_html=True)
+st.markdown(
+    f'<div class="section-desc">כל תא במטריצה מציג את מידת הדמיון בין שתי נקודות דיגום, '
+    f'על בסיס ההרכב היחסי של תרכובות {group.name}.</div>',
+    unsafe_allow_html=True,
+)
 with st.expander("על האנליזה — Cosine Similarity", expanded=False):
     st.markdown("""<div class="method-box">
 <b>עיקרון:</b> מדידת הזווית בין וקטורי ההרכב הכימי של שתי תחנות. ככל שהזווית קטנה יותר — ההרכב דומה יותר, ללא תלות בריכוז המוחלט.<br>
 <b>נוסחה:</b> <code>cos(θ) = (A · B) / (‖A‖ × ‖B‖)</code> — מכפלה סקלרית מנורמלת; ערך 100% = הרכב זהה, 0% = שונה לחלוטין.<br>
 <b>חוזקות:</b> אינווריאנטי לקנה מידה (scale-invariant) — משווה צורה ולא גודל; מתאים לזיהוי מקורות משותפים גם בריכוזים שונים מאוד.<br>
 <b>חולשות:</b> דמיון גבוה אינו מוכיח מקור משותף — תהליכים שונים יכולים לייצר הרכב דומה; רגיש לתרכובות בעלות ריכוז אפסי (LOD) שעלולות ליצור "רעש".
+</div>""", unsafe_allow_html=True)
+
+# Textual color legend
+st.markdown("""<div class="similarity-legend">
+<span class="sim-pill"><span class="sim-dot" style="background:#d32f2f;"></span> 0-30% דמיון נמוך</span>
+<span class="sim-pill"><span class="sim-dot" style="background:#fbc02d;"></span> 30-70% דמיון בינוני</span>
+<span class="sim-pill"><span class="sim-dot" style="background:#81c784;"></span> 70-90% דמיון גבוה</span>
+<span class="sim-pill"><span class="sim-dot" style="background:#2e7d32;"></span> 90-100% דמיון גבוה מאוד</span>
 </div>""", unsafe_allow_html=True)
 
 if not sim_matrix.empty and len(sim_matrix) >= 2:
@@ -645,6 +856,7 @@ if not sim_matrix.empty and len(sim_matrix) >= 2:
         sim_ordered = sim_matrix
         ordered_labels = sim_matrix.index.tolist()
 
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     fig_sim = go.Figure(data=go.Heatmap(
         z=sim_ordered.values,
         x=ordered_labels,
@@ -664,6 +876,35 @@ if not sim_matrix.empty and len(sim_matrix) >= 2:
         xaxis=dict(side="bottom"),
     )
     st.plotly_chart(fig_sim, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Top-pairs table (pairs with similarity >= 70%)
+    _pairs_s4 = []
+    for _i in range(len(sim_matrix)):
+        for _j in range(_i + 1, len(sim_matrix)):
+            _v = sim_matrix.iloc[_i, _j]
+            if _v >= 70:
+                _note = "דמיון גבוה מאוד" if _v >= 90 else "דמיון גבוה"
+                _pairs_s4.append({
+                    "תחנה א׳": sim_matrix.index[_i],
+                    "תחנה ב׳": sim_matrix.columns[_j],
+                    "דמיון (%)": round(_v, 1),
+                    "הערה": _note,
+                })
+    _pairs_s4.sort(key=lambda x: -x["דמיון (%)"])
+    if _pairs_s4:
+        st.markdown("**זוגות תחנות עם דמיון גבוה (≥70%):**")
+        st.dataframe(
+            pd.DataFrame(_pairs_s4[:10]),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    st.markdown(
+        '<div class="caveat-note">דמיון בהרכב ' + group.name + ' אינו מוכיח מקור משותף בפני עצמו. '
+        'יש לפרש את הממצאים יחד עם מידע הידרולוגי, מיקום מרחבי, כיווני זרימה, מועדי דיגום ואיכות הנתונים.</div>',
+        unsafe_allow_html=True,
+    )
 else:
     st.info("נדרשות לפחות 2 תחנות לחישוב Cosine Similarity.")
 
@@ -736,6 +977,11 @@ if not fingerprint_nonzero.empty and len(fingerprint_nonzero) >= 2:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     st.plotly_chart(fig_pca, use_container_width=True)
+    st.markdown(
+        '<div class="caveat-note">הקרבה בגרף PCA משקפת דמיון בהרכב היחסי. '
+        'אחוז שונות נמוך (פחות מ-60%) מצביע שהגרף מייצג את המציאות בצורה חלקית בלבד.</div>',
+        unsafe_allow_html=True,
+    )
 else:
     st.info("נדרשות לפחות 2 תחנות עם נתוני ריכוז לביצוע PCA.")
 
@@ -800,6 +1046,11 @@ if not sim_matrix_nonzero.empty and len(sim_matrix_nonzero) >= 2:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     st.plotly_chart(fig_mds, use_container_width=True)
+    st.markdown(
+        '<div class="caveat-note">מיקומי הצירים שרירותיים — רק המרחקים בין נקודות הם משמעותיים. '
+        'סיבוב והיפוך אינם משנים את הפירוש.</div>',
+        unsafe_allow_html=True,
+    )
 else:
     st.info("נדרשות לפחות 2 תחנות לביצוע MDS.")
 
@@ -809,7 +1060,7 @@ st.divider()
 # =============================================================================
 # 7. Findings
 # =============================================================================
-st.markdown('<h2 class="section-header">7. סיכום ממצאים</h2>', unsafe_allow_html=True)
+st.markdown('<h2 class="section-header">7. סיכום ממצאים והערות זהירות</h2>', unsafe_allow_html=True)
 
 findings = generate_findings_summary(df_filtered, group, sim_matrix, pca_data=pca_data)
 if findings:
@@ -817,6 +1068,12 @@ if findings:
         st.markdown(f'<div class="finding-card">{f}</div>', unsafe_allow_html=True)
 else:
     st.info("אין מספיק נתונים ליצירת ממצאים.")
+
+st.markdown(
+    '<div class="caveat-note" style="border-color:#d4a84a; background:#fef9ec;">⚠ כלי זה תומך בניתוח מקצועי '
+    'אך אינו מחליף שיקול דעת מומחה. ממצאים מחייבים אימות עם מידע הידרולוגי, גיאוגרפי וכימי משלים.</div>',
+    unsafe_allow_html=True,
+)
 
 st.divider()
 
