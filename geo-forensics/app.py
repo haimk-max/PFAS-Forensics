@@ -568,11 +568,133 @@ st.divider()
 
 
 # =============================================================================
-# 5. Findings
+# 5. PCA — Principal Component Analysis
 # =============================================================================
-st.markdown('<h2 class="section-header">5. סיכום ממצאים</h2>', unsafe_allow_html=True)
+st.markdown('<h2 class="section-header">5. PCA — ניתוח רכיבים ראשיים</h2>', unsafe_allow_html=True)
+st.caption("הפחתת ממדים של ההרכב הכימי לשני רכיבים ראשיים. תחנות קרובות בגרף דומות בהרכבן הכימי.")
 
-findings = generate_findings_summary(df_filtered, group, sim_matrix)
+pca_data = None
+if not fingerprint.empty and len(fingerprint) >= 2:
+    from sklearn.decomposition import PCA
+
+    fp_values = fingerprint.values
+    n_components = min(2, fp_values.shape[0], fp_values.shape[1])
+    pca = PCA(n_components=n_components)
+    coords_pca = pca.fit_transform(fp_values)
+    var_explained = (pca.explained_variance_ratio_ * 100).tolist()
+
+    pca_data = {
+        "stations": fingerprint.index.tolist(),
+        "pc1": coords_pca[:, 0].tolist(),
+        "pc2": coords_pca[:, 1].tolist() if n_components == 2 else [0.0] * len(fingerprint),
+        "var_explained": var_explained,
+    }
+
+    source_types_pca = []
+    for stn in pca_data["stations"]:
+        st_rows = df_filtered[df_filtered["station_name"] == stn]["source_type"].dropna()
+        source_types_pca.append(st_rows.iloc[0] if len(st_rows) > 0 else "")
+
+    fig_pca = go.Figure()
+    seen_sources = set()
+    for i, stn in enumerate(pca_data["stations"]):
+        src = source_types_pca[i]
+        color = _get_source_color(src)
+        show_legend = src not in seen_sources
+        seen_sources.add(src)
+        fig_pca.add_trace(go.Scatter(
+            x=[pca_data["pc1"][i]],
+            y=[pca_data["pc2"][i]],
+            mode="markers+text",
+            marker=dict(size=12, color=color, line=dict(width=1, color="white")),
+            text=[stn],
+            textposition="top center",
+            name=src,
+            legendgroup=src,
+            showlegend=show_legend,
+            hovertemplate=f"<b>{stn}</b><br>סוג: {src}<extra></extra>",
+        ))
+
+    label_x = f"PC1 ({var_explained[0]:.1f}%)"
+    label_y = f"PC2 ({var_explained[1]:.1f}%)" if len(var_explained) > 1 else "PC2"
+    fig_pca.update_layout(
+        xaxis_title=label_x,
+        yaxis_title=label_y,
+        height=550,
+        template="plotly_white",
+        font=dict(size=13),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    st.plotly_chart(fig_pca, use_container_width=True)
+else:
+    st.info("נדרשות לפחות 2 תחנות עם נתוני ריכוז לביצוע PCA.")
+
+st.divider()
+
+
+# =============================================================================
+# 6. MDS — Multidimensional Scaling
+# =============================================================================
+st.markdown('<h2 class="section-header">6. MDS — מיפוי מרחק כימי</h2>', unsafe_allow_html=True)
+st.caption("Multidimensional Scaling על מרחק קוסינוס. מרחק בגרף משקף שונוּת בהרכב הכימי בין התחנות.")
+
+if not sim_matrix.empty and len(sim_matrix) >= 2:
+    from sklearn.manifold import MDS
+
+    dist_mds = 1 - sim_matrix.values / 100
+    np.fill_diagonal(dist_mds, 0)
+    dist_mds = (dist_mds + dist_mds.T) / 2
+
+    mds = MDS(n_components=2, metric="precomputed", random_state=42, normalized_stress="auto", n_init=4)
+    coords_mds = mds.fit_transform(dist_mds)
+
+    mds_stations = sim_matrix.index.tolist()
+    source_types_mds = []
+    for stn in mds_stations:
+        st_rows = df_filtered[df_filtered["station_name"] == stn]["source_type"].dropna()
+        source_types_mds.append(st_rows.iloc[0] if len(st_rows) > 0 else "")
+
+    fig_mds = go.Figure()
+    seen_sources_mds = set()
+    for i, stn in enumerate(mds_stations):
+        src = source_types_mds[i]
+        color = _get_source_color(src)
+        show_legend = src not in seen_sources_mds
+        seen_sources_mds.add(src)
+        fig_mds.add_trace(go.Scatter(
+            x=[coords_mds[i, 0]],
+            y=[coords_mds[i, 1]],
+            mode="markers+text",
+            marker=dict(size=12, color=color, line=dict(width=1, color="white")),
+            text=[stn],
+            textposition="top center",
+            name=src,
+            legendgroup=src,
+            showlegend=show_legend,
+            hovertemplate=f"<b>{stn}</b><br>סוג: {src}<extra></extra>",
+        ))
+
+    fig_mds.update_layout(
+        xaxis_title="MDS ציר 1",
+        yaxis_title="MDS ציר 2",
+        height=550,
+        template="plotly_white",
+        font=dict(size=13),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    st.plotly_chart(fig_mds, use_container_width=True)
+else:
+    st.info("נדרשות לפחות 2 תחנות לביצוע MDS.")
+
+st.divider()
+
+
+# =============================================================================
+# 7. Findings
+# =============================================================================
+st.markdown('<h2 class="section-header">7. סיכום ממצאים</h2>', unsafe_allow_html=True)
+
+findings = generate_findings_summary(df_filtered, group, sim_matrix, pca_data=pca_data)
 if findings:
     for f in findings:
         st.markdown(f'<div class="finding-card">{f}</div>', unsafe_allow_html=True)
@@ -583,7 +705,7 @@ st.divider()
 
 
 # =============================================================================
-# 6. Raw Data (collapsible)
+# 8. Raw Data (collapsible)
 # =============================================================================
 with st.expander("נתונים גולמיים", expanded=False):
     st.subheader("סיכום תחנות")
