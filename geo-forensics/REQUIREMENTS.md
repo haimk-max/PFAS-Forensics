@@ -44,10 +44,11 @@
 - [x] All stations shown (selected highlighted, unselected faded)
 - [x] Drawing tools: polygon, circle, rectangle — select stations inside
 - [x] Drawing triggers immediate rerun (analytics update without page reload)
-- [x] Labels: appear ONLY at zoom >= 11
-- [x] Labels: NO background box (transparent, no border, no shadow)
+- [x] Labels: `folium.DivIcon` (NOT `Tooltip(permanent=True)` — Leaflet forces white bg)
+- [x] Labels: appear ONLY at zoom >= 11 (JS hides `.stn-lbl-icon` below zoom 11)
+- [x] Labels: NO background box (inline styles: `background:transparent; border:none`)
 - [x] Labels: white text-shadow halo for readability
-- [x] Labels: greedy anti-overlap (hide if colliding with placed labels)
+- [x] Labels: greedy anti-overlap (JS collision detection, hide overlapping)
 - [x] Labels: pointer-events: none
 - [x] Circle marker size: proportional to log(total_concentration)
 - [x] Color by source_type (SOURCE_COLORS in config.py)
@@ -138,8 +139,13 @@
 # Zero filtering: section 4 must NOT use bare sim_matrix
 grep -n "sim_matrix\." app.py | grep -v "sim_matrix_nonzero" | grep -v "sim_matrix ="
 
-# Map labels: must have transparent background
-grep -n "background.*transparent" app.py
+# Map labels: must use DivIcon (NOT Tooltip permanent)
+grep -n "DivIcon\|stn-lbl-icon" app.py
+# Verify no permanent=True tooltips remain:
+grep -n "permanent=True" app.py  # should return 0 results
+
+# Font: must NOT use st.html for link tags
+grep -n "st\.html" app.py  # should return 0 results
 
 # S/A ordering: fingerprint columns reordered for PFAS
 grep -n "PFAS_COMPOUND_ORDER" app.py
@@ -150,8 +156,9 @@ grep -n "PFAS_COMPOUND_ORDER" app.py
 ## 11. כללי מימוש UI (מתודולוגיה — Streamlit)
 
 ### טעינת פונטים
-- [x] לא להשתמש ב-`@import url(...)` בתוך `<style>` — לא אמין ב-Streamlit
-- [x] להשתמש ב-`st.html()` עם `<link rel="stylesheet">` לטעינת Google Fonts
+- [x] לא להשתמש ב-`st.html()` לטעינת `<link>` — DOMPurify מסיר tags אלו
+- [x] להשתמש ב-`st.markdown('<link ...>', unsafe_allow_html=True)` להזרקת `<link>` ישירות לעמוד
+- [x] להוסיף `@import url(...)` בתוך `<style>` ב-`st.markdown` כגיבוי
 - [x] להגדיר `font = "sans serif"` ב-`.streamlit/config.toml`
 
 ### כרטיסים (Cards)
@@ -159,11 +166,16 @@ grep -n "PFAS_COMPOUND_ORDER" app.py
 - [x] להשתמש ב-`st.container(border=True)` לכרטיסים אמיתיים
 - [x] להשתמש ב-`st.metric()` לכרטיסי KPI פשוטים
 
-### CSS במפת Folium (iframe)
-- [x] לא להשתמש בסלקטור ID (`#map_{id}`) — ה-ID עשוי לא להתאים בזמן ריצה
-- [x] להשתמש בסלקטורי class של Leaflet: `.leaflet-tooltip.leaflet-tooltip-permanent`
-- [x] לכסות את כל הכיוונים: `::before`, `-top::before`, `-bottom::before`, `-left::before`, `-right::before`
-- [x] הסלקטור הגלובלי בטוח כי ה-CSS חי ב-iframe מבודד
+### תוויות מפה (Map Labels)
+- [x] לא להשתמש ב-`folium.Tooltip(permanent=True)` — Leaflet מחיל רקע לבן ו-`::before` שלא ניתן לדרוס בCSS או JS
+- [x] להשתמש ב-`folium.DivIcon` עם inline styles ב-HTML — שליטה מלאה ללא CSS של Leaflet
+- [x] `class_name="stn-lbl-icon"` לזיהוי ב-JS (zoom visibility + anti-overlap)
+- [x] JS: `querySelectorAll('.stn-lbl-icon')` לניהול תצוגה לפי zoom ≥ 11
+
+### CSS ב-Streamlit
+- [x] CSS מוזרק דרך `st.markdown('<style>...</style>', unsafe_allow_html=True)` — עובד
+- [x] סלקטורים: `[data-testid="..."]`, `[data-baseweb="..."]` — ספציפיים לגרסת Streamlit
+- [x] `!important` נדרש לדריסת CSS מקורי של Streamlit
 
 ### Multiselect Chips (BaseWeb)
 - [x] לכסות את כל האלמנטים המקוננים: `[data-baseweb="tag"]`, span, svg, `[role="presentation"]`

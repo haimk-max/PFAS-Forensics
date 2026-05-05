@@ -106,7 +106,7 @@ Key types: `BoreholeReading`, `FamilyReport`, `FingerprintResult`,
 ```
 my-first-project/
 ├── CLAUDE.md                 # קובץ זה
-├── PLAN.md                   # תכנון מקורי
+├── SUMMARY.md                # סיכום יכולות המערכת
 ├── geo-forensics/
 │   ├── generate_report.py    # סקריפט ראשי - יצירת דוחות HTML סטטיים
 │   ├── app.py                # אפליקציית Streamlit (דשבורד אינטראקטיבי)
@@ -127,24 +127,25 @@ my-first-project/
 │   ├── report_hagit.html     # דוח שנוצר עבור חגית
 │   ├── report_kishon.html    # דוח שנוצר עבור קישון
 │   ├── tests/                # בדיקות pytest
-│   ├── maps/                 # קבצי מפות
-│   ├── assets/               # נכסים סטטיים
-│   └── ui/                   # רכיבי ממשק
+│   ├── .streamlit/config.toml # ערכת נושא (theme)
+│   └── REQUIREMENTS.md       # מפרט דרישות הדשבורד
 ```
 
 ## פקודות הרצה
 
-### יצירת דוח HTML (מצב נוכחי)
+### דשבורד אינטראקטיבי (Streamlit)
+```bash
+cd geo-forensics
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+### יצירת דוח HTML סטטי
 ```bash
 cd geo-forensics && python generate_report.py "data/sample/דוגמה - חגית PFAS.xlsx" -o report_hagit.html
 cd geo-forensics && python generate_report.py "data/sample/נתוני קישון.xlsx" -o report_kishon.html
 ```
 **חשוב:** תמיד להריץ מתוך תיקיית `geo-forensics/` — הסקריפט משתמש בנתיבים יחסיים.
-
-### התקנת תלויות
-```bash
-pip install -r geo-forensics/requirements.txt
-```
 
 ### בדיקות
 ```bash
@@ -279,49 +280,23 @@ Conversion to WGS84 (EPSG:4326) for Leaflet maps via `pyproj` in
 
 ---
 
-## חזון עתידי — דשבורד מקומי אינטראקטיבי
+## דשבורד אינטראקטיבי — מצב נוכחי (app.py)
 
-### מטרה
-דשבורד שרץ מקומית (localhost) ומציג את **קובץ נתוני איכות המים המלא של הרשות** באופן אינטראקטיבי.
+דשבורד Streamlit שרץ מקומית ומאפשר ניתוח אינטראקטיבי של נתוני PFAS.
 
-### דרישות עיקריות
+### יכולות מומשות
+- ✅ טעינת קובצי Excel (כולל קבצים גדולים >1MB)
+- ✅ בחירת תחנות — multiselect בסרגל צד + ציור על מפה (polygon/circle/rectangle)
+- ✅ סינון לפי סוג מקור (source_type)
+- ✅ מפה אינטראקטיבית (Folium/Leaflet) עם DivIcon labels, צביעה לפי source_type
+- ✅ ניתוחים: PCA, MDS, Cosine Similarity, Hierarchical Clustering
+- ✅ גרפים: ריכוז סכומי (log Y), fingerprint מנורמל, heatmap דמיון
+- ✅ ממצאים אוטומטיים בעברית
+- ✅ ממשק RTL עם פונט Assistant, ערכת נושא ב-config.toml
 
-#### 1. טעינת נתונים
-- טעינת קובץ Excel מלא של נתוני איכות מים (רשות המים / משרד הבריאות)
-- תמיכה בקבצים גדולים (מעל 1MB) עם טעינה מהירה
-- ניקוי אוטומטי של נתונים חסרים/שגויים
-- זיהוי אוטומטי של עמודות רלוונטיות (תחנה, תאריך, תוצאות, קואורדינטות)
-
-#### 2. בחירת אזור ונקודות דיגום — סרגלי בחירה (Dropdowns / Filters)
-- **בחירת אזור גיאוגרפי**: dropdown לבחירת אזור (צפון, מרכז, דרום, או לפי אגנים)
-- **בחירת נקודות דיגום**: multi-select עם חיפוש לבחירת תחנות ספציפיות
-- **סינון לפי תאריך**: טווח תאריכים (date range picker)
-- **סינון לפי מזהם**: בחירת תרכובות PFAS ספציפיות
-- כל שינוי בסינון מעדכן את כל התצוגות (מפה + גרפים + טבלאות)
-
-#### 3. בחירה על גבי מפה (Map-based Selection)
-- מפה אינטראקטיבית (Leaflet / Folium) עם כל נקודות הדיגום
-- **לחיצה על נקודה** — בחירה/ביטול בחירה של תחנה בודדת
-- **ציור מלבן/פוליגון** על המפה לבחירת קבוצת תחנות (Leaflet.draw)
-- **סנכרון דו-כיווני**: בחירה על המפה מעדכנת את הסרגלים, ולהיפך
-- צביעה לפי ריכוז / אשכול / סטטוס
-- popup עם מידע מהיר על כל תחנה
-
-#### 4. תצוגות ודוחות
-- כל הניתוחים הקיימים (PCA, MDS, Cosine Similarity, Clustering)
-- טבלת נתונים אינטראקטיבית עם מיון וסינון
-- גרפי זמן (time series) לתחנות נבחרות
-- ייצוא דוח HTML סטטי מתוך הדשבורד
-- ייצוא נתונים ל-CSV
-
-#### 5. ארכיטקטורה טכנית
-- **Backend**: Python (Flask או FastAPI) — שרת מקומי
-- **Frontend**: HTML/JS עם Plotly.js + Leaflet.js, או Streamlit כאלטרנטיבה מהירה
-- **נתונים**: pandas DataFrame בזיכרון; אופציונלי SQLite לקבצים גדולים מאוד
-- **הרצה**: `python app.py` → נפתח בדפדפן ב-`http://localhost:8501`
-
-#### 6. UX
-- ממשק בעברית (RTL)
-- עיצוב רספונסיבי
-- טעינה מהירה — lazy loading לנתונים כבדים
-- שמירת מצב סינון ב-URL (query params) לשיתוף
+### כללי מימוש UI (ב-Streamlit)
+- **פונטים**: `@import url(...)` בתוך `<style>` ב-`st.markdown` (לא `st.html()` — DOMPurify מסיר link tags)
+- **כרטיסים**: `st.container(border=True)` + `st.metric()` (לא HTML divs — Streamlit עוטף ב-container משלו)
+- **מפה CSS**: `folium.DivIcon` עם inline styles (לא Tooltip permanent — Leaflet מחיל רקע לבן שלא ניתן לדרוס)
+- **Multiselect chips**: CSS ב-`st.markdown` מכוון ל-`[data-baseweb="tag"]` בתוך `section[data-testid="stSidebar"]`
+- **ערכת נושא**: `.streamlit/config.toml` עם `base`, `primaryColor`, `backgroundColor`, `textColor`, `font`
