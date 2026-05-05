@@ -37,16 +37,18 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.html("""
+st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-""")
+""", unsafe_allow_html=True)
 
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap');
+
 /* --- Base RTL + font --- */
-html, body, .stApp {
+html, body, .stApp, .stApp * {
     direction: rtl;
     font-family: 'Assistant', 'Noto Sans Hebrew', 'Arial', system-ui, sans-serif !important;
 }
@@ -607,7 +609,17 @@ try:
             color = _get_source_color(source_type)
             opacity = 0.8
             radius = max(6, min(20, 6 + 4 * np.log10(max(total, 0.01) + 1)))
-            tooltip = folium.Tooltip(station_name, permanent=True, sticky=False)
+            tooltip = folium.Tooltip(station_name, permanent=False, sticky=True)
+            _lbl = (
+                f'<div style="font-size:11px;font-weight:700;color:#0d1b2a;'
+                f'text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff;'
+                f'white-space:nowrap;pointer-events:none;background:transparent;border:none;">'
+                f'{station_name}</div>'
+            )
+            folium.Marker(
+                location=[lat, lon],
+                icon=folium.DivIcon(html=_lbl, icon_size=(150, 20), icon_anchor=(-8, 10), class_name="stn-lbl-icon"),
+            ).add_to(m)
         elif is_zero:
             color = "#e0e0e0"
             opacity = 0.25
@@ -646,34 +658,7 @@ try:
     # Zoom-aware labels with greedy anti-overlap + transparent tooltip styling
     from branca.element import Element as _Elem
     _mid = m._id
-    m.get_root().header.add_child(_Elem("""<style>
-.leaflet-tooltip.leaflet-tooltip-permanent {
-    background: transparent !important;
-    background-color: transparent !important;
-    border: 0 !important;
-    border-color: transparent !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    font-size: 11px;
-    font-weight: 700;
-    color: #0d1b2a;
-    text-shadow:
-        -1px -1px 0 #fff,  1px -1px 0 #fff,
-        -1px  1px 0 #fff,  1px  1px 0 #fff,
-         0   -2px 2px #fff, 0    2px 2px #fff;
-    pointer-events: none;
-    white-space: nowrap;
-}
-.leaflet-tooltip.leaflet-tooltip-permanent::before,
-.leaflet-tooltip-top::before,
-.leaflet-tooltip-bottom::before,
-.leaflet-tooltip-left::before,
-.leaflet-tooltip-right::before {
-    display: none !important;
-    border: 0 !important;
-}
-</style>"""))
+    # Zoom-aware labels: hide DivIcon labels below zoom 11, greedy anti-overlap above
     m.get_root().html.add_child(_Elem(f"""<script>
 (function(){{
     var _t=0;
@@ -684,9 +669,8 @@ try:
             var z=_m.getZoom();
             var c=document.getElementById('map_{_mid}');
             if(!c)return;
-            var tt=Array.from(c.querySelectorAll('.leaflet-tooltip-permanent'));
+            var tt=Array.from(c.querySelectorAll('.stn-lbl-icon'));
             if(z<11){{tt.forEach(function(t){{t.style.opacity='0';}});return;}}
-            tt.forEach(function(t){{t.style.opacity='1';}});
             var placed=[];
             var cr=c.getBoundingClientRect();
             tt.forEach(function(t){{
