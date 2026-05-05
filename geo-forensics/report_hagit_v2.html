@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>PFAS Forensics — PFAS — דוגמה - חגית PFAS.xlsx</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+:root {
+  --bg:#f5f3ee;--bg-2:#ebe7df;--surface:#ffffff;--surface-2:#faf8f4;
+  --ink:#1c1f24;--ink-2:#4a4f57;--ink-3:#7d8189;
+  --line:#e2ddd2;--line-2:#d4cdbe;
+  --accent:#2a9d8f;--accent-2:#e07b39;--warn:#d97a2c;--ok:#2d8b5e;--high:#7a3d9e;
+  --sim-90:#1f7a4d;--sim-70:#4ea66b;--sim-30:#d8c84a;--sim-low:#c64a3b;
+  --radius:4px;--radius-lg:6px;
+  --shadow-sm:0 1px 2px rgba(28,31,36,0.05);
+  --font-sans:"Assistant",system-ui,sans-serif;
+  --font-display:"Frank Ruhl Libre",Georgia,serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-family:var(--font-sans);background:var(--bg);color:var(--ink);
+  direction:rtl;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+
+.app{min-height:100vh;}
+
+/* Header */
+.app-header{display:flex;align-items:center;gap:16px;padding:14px 28px;
+  background:var(--surface);border-bottom:1px solid var(--line);}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-mark{width:38px;height:38px;border-radius:var(--radius);background:var(--ink);
+  color:white;display:flex;align-items:center;justify-content:center;font-size:18px;}
+.brand-name{font-family:var(--font-display);font-size:18px;font-weight:600;}
+.brand-sub{font-size:11px;color:var(--ink-3);margin-top:-2px;}
+.meta-bar{display:flex;gap:20px;font-size:12px;color:var(--ink-2);margin-right:auto;}
+.meta .dim{color:var(--ink-3);margin-left:5px;}
+
+/* Tabs */
+.tabs{display:flex;gap:0;background:var(--surface);border-bottom:1px solid var(--line);padding:0 28px;}
+.tab{font-family:var(--font-sans);font-size:13px;padding:11px 16px;
+  background:none;border:none;color:var(--ink-3);cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-1px;}
+.tab:hover{color:var(--ink-2);}
+.tab.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600;}
+
+/* Main */
+.main{padding:24px 28px 60px;max-width:1400px;margin:0 auto;}
+.section{display:none;}
+.section.active{display:block;}
+
+/* KPI */
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+.kpi-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:18px 20px;position:relative;overflow:hidden;box-shadow:var(--shadow-sm);}
+.kpi-card::before{content:'';position:absolute;top:0;right:0;bottom:0;width:3px;}
+.kpi-a::before{background:#2a9d8f;}.kpi-b::before{background:#e07b39;}
+.kpi-c::before{background:#7a3d9e;}.kpi-d::before{background:#2d8b5e;}
+.kpi-label{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;}
+.kpi-value{font-family:var(--font-display);font-size:32px;font-weight:600;line-height:1;letter-spacing:-0.02em;}
+.kpi-value.mono{font-family:var(--font-mono);font-size:16px;font-weight:500;letter-spacing:0;}
+.kpi-unit{font-size:11px;color:var(--ink-3);margin-top:6px;}
+
+/* Insights */
+.sec-title{font-family:var(--font-display);font-size:16px;font-weight:600;margin:0 0 10px;}
+.insight-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;}
+.insight-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:14px 16px;border-top:3px solid var(--accent);box-shadow:var(--shadow-sm);}
+.insight-card.tone-warn{border-top-color:var(--warn);}
+.insight-card.tone-ok{border-top-color:var(--ok);}
+.insight-card.tone-high{border-top-color:var(--high);}
+.insight-kicker{font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;}
+.insight-main{font-family:var(--font-display);font-size:17px;font-weight:600;line-height:1.2;word-break:break-word;}
+.insight-detail{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);margin-top:6px;}
+
+/* Panel */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:22px 24px;margin-bottom:20px;box-shadow:var(--shadow-sm);}
+.panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
+  margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line);}
+.panel-num{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);letter-spacing:0.1em;margin-bottom:3px;}
+.panel-title{font-family:var(--font-display);font-size:20px;font-weight:600;letter-spacing:-0.01em;}
+.panel-sub{font-size:12.5px;color:var(--ink-2);margin-top:4px;max-width:60ch;}
+.chart-wrap{width:100%;min-height:300px;}
+
+/* Caveat */
+.caveat{background:color-mix(in srgb,#d97a2c 8%,white);
+  border:1px solid color-mix(in srgb,#d97a2c 30%,#e2ddd2);
+  padding:10px 14px;border-radius:var(--radius);display:flex;align-items:flex-start;gap:10px;
+  font-size:12.5px;color:var(--ink-2);line-height:1.55;margin-top:12px;}
+.caveat-icon{width:22px;height:22px;border-radius:50%;background:var(--warn);color:white;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;}
+
+/* Sim legend */
+.sim-legend{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px;}
+.sim-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:100px;
+  font-size:11px;border:1px solid var(--line-2);background:var(--surface-2);font-family:var(--font-mono);}
+.sim-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+
+/* Pairs table */
+.pairs-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:12px;}
+.pairs-table th{font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.08em;
+  background:var(--bg-2);padding:8px 12px;text-align:right;border-radius:var(--radius);}
+.pairs-table td{padding:8px 12px;border-bottom:1px solid var(--line);}
+.pairs-table .pv{font-family:var(--font-mono);font-weight:600;}
+.bar-fill{display:inline-block;height:6px;border-radius:3px;vertical-align:middle;margin-right:6px;}
+
+/* Findings */
+.finding{background:var(--surface-2);border-radius:var(--radius);border-right:3px solid var(--accent);
+  padding:11px 14px;margin-bottom:8px;font-size:13px;line-height:1.55;}
+
+/* Map */
+#map{width:100%;height:480px;border-radius:var(--radius-lg);border:1px solid var(--line);}
+
+/* Compare drawer */
+.drawer{position:fixed;bottom:0;left:0;right:0;background:var(--surface);
+  border-top:1px solid var(--line);box-shadow:0 -8px 24px rgba(0,0,0,0.08);
+  max-height:60vh;overflow-y:auto;z-index:50;transform:translateY(100%);
+  transition:transform 0.25s ease;}
+.drawer.open{transform:translateY(0);}
+.drawer-head{display:flex;align-items:center;gap:20px;padding:14px 28px;
+  border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface);z-index:1;}
+.drawer-title{font-family:var(--font-display);font-size:20px;font-weight:600;flex:1;}
+.drawer-sim{font-family:var(--font-mono);font-size:24px;font-weight:600;color:var(--accent);}
+.drawer-close{width:32px;height:32px;border-radius:50%;border:1px solid var(--line-2);
+  background:var(--surface);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;}
+.drawer-body{padding:14px 28px 24px;}
+.cmp-row{display:grid;grid-template-columns:80px 1fr;gap:16px;align-items:center;
+  padding:5px 0;border-bottom:1px solid var(--line);}
+.cmp-name{font-family:var(--font-mono);font-size:12px;font-weight:600;}
+.cmp-bars{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.cmp-side{display:flex;align-items:center;gap:6px;}
+.cmp-side.a{justify-content:flex-end;}
+.cmp-side.b{flex-direction:row-reverse;justify-content:flex-end;}
+.cmp-bar{height:14px;border-radius:2px;min-width:1px;}
+.cmp-pct{font-family:var(--font-mono);font-size:11px;color:var(--ink-2);min-width:38px;text-align:center;}
+
+/* Footer */
+.report-footer{text-align:center;padding:30px;font-size:11px;color:var(--ink-3);}
+
+/* Responsive */
+@media(max-width:900px){
+  .kpi-strip{grid-template-columns:repeat(2,1fr);}
+  .insight-grid{grid-template-columns:repeat(2,1fr);}
+  .tabs{overflow-x:auto;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- Header -->
+<div class="app-header">
+  <div class="brand">
+    <div class="brand-mark">🔬</div>
+    <div>
+      <div class="brand-name" id="hdr-title"></div>
+      <div class="brand-sub" id="hdr-file"></div>
+    </div>
+  </div>
+  <div class="meta-bar">
+    <span class="meta"><span class="dim">תחנות </span><span id="hdr-n"></span></span>
+    <span class="meta"><span class="dim">תרכובות </span><span id="hdr-c"></span></span>
+    <span class="meta"><span class="dim">טווח </span><span id="hdr-d"></span></span>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs" id="tabs"></div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- KPI -->
+  <div class="kpi-strip" id="kpi-strip"></div>
+
+  <!-- Insights -->
+  <div id="insights-area"></div>
+
+  <!-- Sections -->
+  <div id="sec-map" class="section active"></div>
+  <div id="sec-conc" class="section"></div>
+  <div id="sec-fp" class="section"></div>
+  <div id="sec-sim" class="section"></div>
+  <div id="sec-pca" class="section"></div>
+  <div id="sec-findings" class="section"></div>
+</div>
+
+<!-- Compare drawer -->
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="drawer-title" id="drawer-title"></div>
+    <div class="drawer-sim" id="drawer-sim"></div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</div>
+
+<div class="report-footer" id="footer"></div>
+
+</div>
+
+<script>
+// ===== DATA (injected by Python) =====
+const D = {"group_name": "PFAS", "group_unit": "µg/L", "file_name": "דוגמה - חגית PFAS.xlsx", "n_stations": 22, "n_rows": 475, "n_compounds": 18, "date_str": "28/12/2021 — 15/01/2026", "top_station": "חגית - בריכה 1500", "top_value": 1121.106, "n_detected": 18, "n_total_stations": 22, "dominant_compound": "PFOS", "dominant_pct": 40.94699199607765, "top_pair_str": "מק טירלי 1 · מק טירלי 5", "top_pair_val": 99.9, "n_high_pairs": 56, "stations_geo": [{"name": "חגית - בריכה 1500", "lat": 32.616398746649615, "lon": 35.03625333189197, "total": 1121.106, "source_type": "נקודה מזוהה בנחל", "date": "14/11/2025"}, {"name": "חגית - בריכה 200", "lat": 32.616338081920304, "lon": 35.03809668713376, "total": 6.921, "source_type": "נקודה מזוהה בנחל", "date": "14/11/2025"}, {"name": "חגית - יציאה ראשית לנחל", "lat": 32.61726255118608, "lon": 35.03487726173915, "total": 6.438000000000001, "source_type": "נקודה מזוהה בנחל", "date": "10/12/2025"}, {"name": "דליה - בת שלמה", "lat": 32.59051529214801, "lon": 34.986750869996165, "total": 0.8009999999999999, "source_type": "תחנה הידרומטרית", "date": "01/01/2026"}, {"name": "נחל דליה - גשר דרך עפר", "lat": 32.58801066997422, "lon": 34.92415982064477, "total": 0.7110000000000001, "source_type": "נקודה מזוהה בנחל", "date": "15/01/2026"}, {"name": "מעין צבי ב'", "lat": 32.60065557958873, "lon": 34.93362264175637, "total": 0.515, "source_type": "מאגר", "date": "17/03/2024"}, {"name": "דליה- כביש ת''א-חיפה", "lat": 32.59246876446841, "lon": 34.94688736539777, "total": 0.44599999999999995, "source_type": "תחנה הידרומטרית", "date": "28/12/2021"}, {"name": "מעין צבי", "lat": 32.60064864790623, "lon": 34.93042685634777, "total": 0.31899999999999995, "source_type": "מאגר", "date": "17/03/2024"}, {"name": "נחל רון במעלה קידוח מק דליה 2", "lat": 32.59075688682353, "lon": 35.068745889581415, "total": 0.279, "source_type": "נקודה מזוהה בנחל", "date": "10/09/2025"}, {"name": "מק טירלי 6", "lat": 32.579528663854866, "lon": 34.97461489563271, "total": 0.23700000000000002, "source_type": "קידוח", "date": "14/01/2026"}, {"name": "מק טירלי 1", "lat": 32.57988080366733, "lon": 34.97486960289385, "total": 0.228, "source_type": "קידוח", "date": "14/01/2026"}, {"name": "מק טירלי 5", "lat": 32.57769658225278, "lon": 34.97375692175269, "total": 0.222, "source_type": "קידוח", "date": "14/01/2026"}, {"name": "ניקוז תחנת כוח חגית לנחל דליה", "lat": 32.61647116973713, "lon": 35.036466288279364, "total": 0.174, "source_type": "נקודה מזוהה בנחל", "date": "10/12/2025"}, {"name": "פ מעין צבי ה", "lat": 32.576086190343545, "lon": 34.93068264695085, "total": 0.068, "source_type": "קידוח", "date": "26/08/2025"}, {"name": "מעין צבי מ2", "lat": 32.57396024649929, "lon": 34.92347937632643, "total": 0.053000000000000005, "source_type": "קידוח", "date": "05/06/2024"}, {"name": "פ מעין צבי דקל ז", "lat": 32.571858428752996, "lon": 34.93972608731494, "total": 0.04, "source_type": "קידוח", "date": "26/08/2025"}, {"name": "פ מעין צבי התפ. 305", "lat": 32.57254389141591, "lon": 34.91919210159633, "total": 0.034999999999999996, "source_type": "קידוח", "date": "15/01/2026"}, {"name": "פ מעין צבי התפ. 304", "lat": 32.57746099757453, "lon": 34.92037997409961, "total": 0.023, "source_type": "קידוח", "date": "15/01/2026"}, {"name": "מק תות 4", "lat": 32.59160621134247, "lon": 35.02048197849888, "total": 0.0, "source_type": "קידוח", "date": "11/06/2023"}, {"name": "מק דליה 2", "lat": 32.58851255573574, "lon": 35.06149574511003, "total": 0.0, "source_type": "קידוח", "date": "03/04/2022"}, {"name": "מק דליה 1", "lat": 32.58233328996215, "lon": 35.0674166167744, "total": 0.0, "source_type": "קידוח", "date": "03/04/2022"}, {"name": "נחל דליה במורד קידוח דליה 1", "lat": 32.58229336107489, "lon": 35.063923295812025, "total": 0.0, "source_type": "נקודה מזוהה בנחל", "date": "10/09/2025"}], "source_map": {"נחל דליה - גשר דרך עפר": "נקודה מזוהה בנחל", "חגית - יציאה ראשית לנחל": "נקודה מזוהה בנחל", "חגית - בריכה 1500": "נקודה מזוהה בנחל", "חגית - בריכה 200": "נקודה מזוהה בנחל", "ניקוז תחנת כוח חגית לנחל דליה": "נקודה מזוהה בנחל", "נחל רון במעלה קידוח מק דליה 2": "נקודה מזוהה בנחל", "נחל דליה במורד קידוח דליה 1": "נקודה מזוהה בנחל", "מעין צבי ב'": "מאגר", "פ מעין צבי התפ. 305": "קידוח", "פ מעין צבי התפ. 304": "קידוח", "מעין צבי": "מאגר", "דליה- כביש ת''א-חיפה": "תחנה הידרומטרית", "דליה - בת שלמה": "תחנה הידרומטרית", "מק תות 4": "קידוח", "מק טירלי 6": "קידוח", "מק טירלי 5": "קידוח", "מק טירלי 1": "קידוח", "מק דליה 2": "קידוח", "מק דליה 1": "קידוח", "פ מעין צבי דקל ז": "קידוח", "פ מעין צבי ה": "קידוח", "מעין צבי מ2": "קידוח"}, "source_colors": {"קידוח ניטור": "#3498db", "קידוח הפקה": "#2ecc71", "קידוח": "#2980b9", "מט\"ש": "#e74c3c", "מעיין": "#9b59b6", "מים עיליים": "#f39c12", "נקודה מזוהה בנחל": "#e67e22", "תחנה הידרומטרית": "#1abc9c", "מאגר": "#8e44ad"}, "compound_colors": {"PFOS": "#0D47A1", "PFBS": "#1565C0", "PFHxS": "#1976D2", "6:2FT": "#42A5F5", "PFPeS": "#90CAF9", "PFHpS": "#BBDEFB", "PFOA": "#BF360C", "PFHxA": "#D84315", "PFHpA": "#E64A19", "PFNA": "#F4511E", "PFDA": "#FF7043", "PFDoA": "#FF8A65", "PFBA": "#FFAB76", "PFPeA": "#FFA726", "PFESA": "#FFB74D", "ADONA": "#FFCC80", "PFTDA": "#FFE0B2", "PFUnA": "#FFF3E0", "PFUnDA": "#FFE8CC", "GenX": "#FFD6A5"}, "default_color": "#95a5a6", "fingerprint": {"stations": ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק דליה 1", "מק דליה 2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "מק תות 4", "נחל דליה - גשר דרך עפר", "נחל דליה במורד קידוח דליה 1", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"], "compounds": ["PFOS", "PFBS", "PFHxS", "6:2FT", "PFPeS", "PFHpS", "PFOA", "PFHxA", "PFHpA", "PFNA", "PFDA", "PFDoA", "PFBA", "PFPeA", "PFESA", "ADONA", "PFTDA", "PFUnA"], "values": [[55.181023720349565, 0.0, 27.091136079900124, 1.1235955056179774, 3.870162297128589, 1.3732833957553057, 1.8726591760299622, 3.3707865168539324, 1.1235955056179774, 0.0, 0.0, 0.0, 0.37453183520599254, 4.619225967540574, 0.0, 0.0, 0.0, 0.0], [26.457399103139018, 0.0, 0.0, 0.0, 0.0, 0.0, 16.143497757847534, 46.63677130044843, 10.762331838565025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [80.2778684620366, 0.30059601857451484, 4.522319923361396, 7.419458998524672, 1.8330113298831692, 0.5351857897469107, 1.3629398112221323, 3.055018883138615, 0.37819795808781687, 0.04281486317975285, 0.07448002240644506, 0.0, 0.032467937911312576, 0.16564000192666883, 0.0, 0.0, 0.0, 0.0], [57.41944805663922, 0.26007802340702213, 35.6017916486057, 3.655541106776478, 0.3323219187978616, 0.7946828492992343, 1.0258633145499205, 0.057795116312671584, 0.26007802340702213, 0.057795116312671584, 0.0, 0.0, 0.5346048258922121, 0.0, 0.0, 0.0, 0.0, 0.0], [73.9981360671016, 1.7086051568810192, 13.482447965206587, 1.2581547064305687, 2.143522833178006, 1.133892513202858, 2.2211867039453246, 1.8949984467225849, 0.5902454178316248, 0.0, 0.0, 0.0, 0.01553277415346381, 1.553277415346381, 0.0, 0.0, 0.0, 0.0], [54.54545454545454, 8.463949843260188, 17.55485893416928, 9.090909090909092, 0.0, 0.0, 2.8213166144200623, 6.269592476489027, 1.2539184952978055, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [54.36893203883496, 6.601941747572816, 23.300970873786405, 4.854368932038835, 0.0, 0.0, 2.7184466019417477, 6.601941747572816, 1.5533980582524272, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [22.641509433962263, 13.20754716981132, 62.264150943396224, 0.0, 0.0, 0.0, 1.8867924528301887, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [33.33333333333333, 9.210526315789474, 39.03508771929825, 0.0, 6.578947368421052, 1.3157894736842104, 1.7543859649122806, 4.824561403508771, 1.3157894736842104, 0.0, 0.0, 0.0, 0.0, 2.631578947368421, 0.0, 0.0, 0.0, 0.0], [31.53153153153153, 9.45945945945946, 40.54054054054054, 0.0, 7.207207207207207, 1.8018018018018018, 1.3513513513513513, 4.0540540540540535, 1.3513513513513513, 0.0, 0.0, 0.0, 0.0, 2.7027027027027026, 0.0, 0.0, 0.0, 0.0], [35.44303797468354, 8.438818565400844, 37.552742616033754, 0.0, 6.751054852320674, 1.6877637130801686, 1.6877637130801686, 4.641350210970463, 1.2658227848101267, 0.0, 0.0, 0.0, 0.0, 2.5316455696202533, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [53.023909985935305, 4.781997187060478, 26.30098452883263, 0.9845288326300984, 4.3600562587904355, 0.0, 1.8284106891701826, 3.375527426160337, 0.9845288326300984, 0.0, 0.0, 0.0, 0.7032348804500703, 3.656821378340365, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [1.4336917562724012, 0.0, 16.487455197132615, 1.7921146953405016, 0.0, 0.0, 1.4336917562724012, 38.70967741935483, 12.544802867383511, 0.0, 0.0, 0.0, 0.0, 27.598566308243726, 0.0, 0.0, 0.0, 0.0], [74.13793103448275, 2.2988505747126435, 8.620689655172413, 3.4482758620689653, 0.0, 0.0, 4.597701149425287, 5.1724137931034475, 1.7241379310344827, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [22.499999999999996, 0.0, 40.0, 0.0, 10.0, 0.0, 2.5, 5.0, 0.0, 0.0, 0.0, 0.0, 2.5, 17.5, 0.0, 0.0, 0.0, 0.0], [17.64705882352941, 0.0, 44.11764705882352, 0.0, 14.705882352941178, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 4.411764705882352, 19.11764705882353, 0.0, 0.0, 0.0, 0.0], [17.391304347826086, 17.391304347826086, 47.826086956521735, 0.0, 8.695652173913043, 0.0, 4.3478260869565215, 4.3478260869565215, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [25.71428571428571, 14.285714285714285, 42.85714285714285, 0.0, 8.57142857142857, 0.0, 0.0, 2.857142857142857, 0.0, 0.0, 0.0, 0.0, 0.0, 5.714285714285714, 0.0, 0.0, 0.0, 0.0]]}, "concentration": {"stations": ["חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "דליה - בת שלמה", "נחל דליה - גשר דרך עפר", "מעין צבי ב'", "דליה- כביש ת''א-חיפה", "מעין צבי", "נחל רון במעלה קידוח מק דליה 2", "מק טירלי 6", "מק טירלי 1", "מק טירלי 5", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי ה", "מעין צבי מ2", "פ מעין צבי דקל ז", "פ מעין צבי התפ. 305", "פ מעין צבי התפ. 304"], "values": [1121.106, 6.921, 6.438000000000001, 0.8009999999999999, 0.7110000000000001, 0.515, 0.44599999999999995, 0.31899999999999995, 0.279, 0.23700000000000002, 0.228, 0.222, 0.174, 0.068, 0.053000000000000005, 0.04, 0.034999999999999996, 0.023], "source_types": ["נקודה מזוהה בנחל", "נקודה מזוהה בנחל", "נקודה מזוהה בנחל", "תחנה הידרומטרית", "נקודה מזוהה בנחל", "מאגר", "תחנה הידרומטרית", "מאגר", "נקודה מזוהה בנחל", "קידוח", "קידוח", "קידוח", "נקודה מזוהה בנחל", "קידוח", "קידוח", "קידוח", "קידוח", "קידוח"], "labels": ["1121", "6.921", "6.438", "0.801", "0.711", "0.515", "0.446", "0.319", "0.279", "0.237", "0.228", "0.222", "0.174", "0.068", "0.053", "0.040", "0.035", "0.023"]}, "sim_matrix": {"labels": ["חגית - בריכה 1500", "חגית - יציאה ראשית לנחל", "ניקוז תחנת כוח חגית לנחל דליה", "מעין צבי", "מעין צבי ב'", "חגית - בריכה 200", "דליה - בת שלמה", "נחל דליה - גשר דרך עפר", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 305", "מק טירלי 6", "מק טירלי 1", "מק טירלי 5", "מעין צבי מ2", "פ מעין צבי התפ. 304", "דליה- כביש ת''א-חיפה", "נחל רון במעלה קידוח מק דליה 2"], "values": [[99.99999999999999, 98.8990047540638, 99.49216184508408, 95.35559952232519, 93.19332205548649, 87.74407246242725, 91.54166909023517, 91.14842163005153, 49.65757915250639, 38.09024485372008, 53.32682603501265, 71.0273672145522, 67.47153506230977, 64.10074156282339, 38.542347777368704, 37.29248481423581, 49.732893326402554, 7.920019420094487], [98.8990047540638, 99.99999999999999, 99.51671611443798, 97.03272247479777, 96.47956569357738, 92.902946326022, 95.9623719390064, 95.72666552444728, 59.59627748502311, 48.68986320502099, 63.453621908661596, 79.41008147429042, 76.29195137772152, 73.3272213679357, 49.904258057296985, 48.35925862997777, 48.59945915477179, 11.68927266836151], [99.49216184508408, 99.51671611443798, 100.0, 96.83505508596484, 95.46759738073398, 90.17316044746254, 93.68605535140196, 93.53020815234608, 54.06941745826597, 42.056928804519636, 58.30485119455873, 75.37198994060364, 72.0874428880005, 68.79673603176995, 44.42208718053502, 43.33686075213217, 53.610230037778365, 12.38751181439292], [95.35559952232519, 97.03272247479777, 96.83505508596484, 100.0, 99.24794782670048, 94.99308234353818, 96.36471956580405, 97.17023490516844, 65.99802599265153, 55.01859317944088, 73.20055025656703, 86.1113872861635, 83.8027937239261, 81.23403638640265, 61.27332653771814, 61.00762776184499, 53.30004483574857, 21.08104447462213], [93.19332205548649, 96.47956569357738, 95.46759738073398, 99.24794782670048, 100.0, 97.61511647935498, 98.40147579965367, 98.98031594570907, 72.25562232724862, 61.782386708787044, 78.61116240852606, 90.63789268285937, 88.62886785016633, 86.35652006499647, 68.22891209505883, 67.16398221926636, 52.67318111115385, 23.998896069705427], [87.74407246242725, 92.902946326022, 90.17316044746254, 94.99308234353818, 97.61511647935498, 100.0, 98.83684131410462, 98.59442298948917, 79.69389294029052, 71.60738487407532, 83.78142485599835, 94.07998611394667, 92.48370236654158, 90.93281401834598, 77.00774367182512, 73.13244694861363, 39.938650813709934, 19.429524010802098], [91.54166909023517, 95.9623719390064, 93.68605535140196, 96.36471956580405, 98.40147579965367, 98.83684131410462, 100.0, 99.63783364400284, 78.9002977301132, 69.94295043203098, 80.61404726961376, 92.27352875413987, 90.2571882993666, 88.31138920070619, 70.24381759184111, 68.0951102259834, 46.99728521046718, 24.95695902575444], [91.14842163005153, 95.72666552444728, 93.53020815234608, 97.17023490516844, 98.98031594570907, 98.59442298948917, 99.63783364400284, 100.0, 78.68172493322048, 69.84533565447877, 82.77877065231294, 93.43123990645411, 91.56967448609838, 89.66751592144668, 71.87736548904424, 70.8818541486091, 46.936911092102214, 24.409888053653965], [49.65757915250639, 59.59627748502311, 54.06941745826597, 65.99802599265153, 72.25562232724862, 79.69389294029052, 78.9002977301132, 78.68172493322048, 99.99999999999999, 98.30857216518852, 93.02202680479718, 90.97112673478162, 91.75939308176437, 92.42861554446282, 88.04324128678425, 87.55404581436218, 30.17380229612089, 52.315278886969395], [38.09024485372008, 48.68986320502099, 42.056928804519636, 55.01859317944088, 61.782386708787044, 71.60738487407532, 69.94295043203098, 69.84533565447877, 98.30857216518852, 100.0, 90.9165811476416, 85.59980613745616, 86.85964755261331, 88.29837245225126, 87.0730984342548, 86.80980533338385, 15.313552422963426, 46.11001069101192], [53.32682603501265, 63.453621908661596, 58.30485119455873, 73.20055025656703, 78.61116240852606, 83.78142485599835, 80.61404726961376, 82.77877065231294, 93.02202680479718, 90.9165811476416, 100.0, 96.78964090498387, 97.82273860466705, 98.54682212535295, 95.89540617588781, 97.34793362201273, 26.885777316636045, 36.713926381337885], [71.0273672145522, 79.41008147429042, 75.37198994060364, 86.1113872861635, 90.63789268285937, 94.07998611394667, 92.27352875413987, 93.43123990645411, 90.97112673478162, 85.59980613745616, 96.78964090498387, 100.0, 99.86773339644111, 99.53844464189031, 90.72972779466569, 90.88925084728884, 39.47720222621593, 34.0166070017011], [67.47153506230977, 76.29195137772152, 72.0874428880005, 83.8027937239261, 88.62886785016633, 92.48370236654158, 90.2571882993666, 91.56967448609838, 91.75939308176437, 86.85964755261331, 97.82273860466705, 99.86773339644111, 99.99999999999999, 99.87594230086769, 92.56684843854042, 92.82072350358952, 38.09583012234322, 35.29449892713995], [64.10074156282339, 73.3272213679357, 68.79673603176995, 81.23403638640265, 86.35652006499647, 90.93281401834598, 88.31138920070619, 89.66751592144668, 92.42861554446282, 88.29837245225126, 98.54682212535295, 99.53844464189031, 99.87594230086769, 100.0, 93.9481711534009, 94.2139216843347, 35.058487706330574, 35.02168031890416], [38.542347777368704, 49.904258057296985, 44.42208718053502, 61.27332653771814, 68.22891209505883, 77.00774367182512, 70.24381759184111, 71.87736548904424, 88.04324128678425, 87.0730984342548, 95.89540617588781, 90.72972779466569, 92.56684843854042, 93.9481711534009, 99.99999999999997, 97.41835372346841, 16.334958175763127, 30.25309143082815], [37.29248481423581, 48.35925862997777, 43.33686075213217, 61.00762776184499, 67.16398221926636, 73.13244694861363, 68.0951102259834, 70.8818541486091, 87.55404581436218, 86.80980533338385, 97.34793362201273, 90.88925084728884, 92.82072350358952, 94.2139216843347, 97.41835372346841, 99.99999999999999, 23.450262160873482, 34.7035682336917], [49.732893326402554, 48.59945915477179, 53.610230037778365, 53.30004483574857, 52.67318111115385, 39.938650813709934, 46.99728521046718, 46.936911092102214, 30.17380229612089, 15.313552422963426, 26.885777316636045, 39.47720222621593, 38.09583012234322, 35.058487706330574, 16.334958175763127, 23.450262160873482, 100.0, 67.58976977941765], [7.920019420094487, 11.68927266836151, 12.38751181439292, 21.08104447462213, 23.998896069705427, 19.429524010802098, 24.95695902575444, 24.409888053653965, 52.315278886969395, 46.11001069101192, 36.713926381337885, 34.0166070017011, 35.29449892713995, 35.02168031890416, 30.25309143082815, 34.7035682336917, 67.58976977941765, 99.99999999999999]]}, "top_pairs": [{"a": "מק טירלי 1", "b": "מק טירלי 5", "v": 99.9}, {"a": "מק טירלי 1", "b": "מק טירלי 6", "v": 99.9}, {"a": "דליה - בת שלמה", "b": "נחל דליה - גשר דרך עפר", "v": 99.6}, {"a": "חגית - בריכה 1500", "b": "ניקוז תחנת כוח חגית לנחל דליה", "v": 99.5}, {"a": "חגית - יציאה ראשית לנחל", "b": "ניקוז תחנת כוח חגית לנחל דליה", "v": 99.5}, {"a": "מק טירלי 5", "b": "מק טירלי 6", "v": 99.5}, {"a": "מעין צבי", "b": "מעין צבי ב'", "v": 99.2}, {"a": "מעין צבי ב'", "b": "נחל דליה - גשר דרך עפר", "v": 99.0}, {"a": "חגית - בריכה 1500", "b": "חגית - יציאה ראשית לנחל", "v": 98.9}, {"a": "דליה - בת שלמה", "b": "חגית - בריכה 200", "v": 98.8}, {"a": "חגית - בריכה 200", "b": "נחל דליה - גשר דרך עפר", "v": 98.6}, {"a": "מק טירלי 5", "b": "פ מעין צבי התפ. 305", "v": 98.5}, {"a": "דליה - בת שלמה", "b": "מעין צבי ב'", "v": 98.4}, {"a": "פ מעין צבי דקל ז", "b": "פ מעין צבי ה", "v": 98.3}, {"a": "מק טירלי 1", "b": "פ מעין צבי התפ. 305", "v": 97.8}], "pca": {"stations": ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "נחל דליה - גשר דרך עפר", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"], "pc1": [14.110874986537892, -1.3243118185165037, 47.28483954967878, 13.72723398480057, 37.1222460798997, 18.6043508290352, 15.652239051769076, -29.52148835460297, -10.960221205348109, -13.208001078146347, -8.390419959715487, 12.312481471857303, -34.255498013174915, 39.69594703522276, -22.71108683666886, -29.01151620116542, -28.961737467315963, -20.16593205414663], "pc2": [-4.6581881712787645, 51.50196584042603, 2.3413156754009314, -13.426698704607041, -2.426920493768823, 2.056111610583889, -1.0173466233609754, -23.313984733728184, -7.585227181915389, -8.719498974775147, -7.243534360504044, -4.529728996729124, 44.83156483592483, 3.1735209928230645, -2.206469604695549, -7.392034603768634, -11.104457308269815, -10.28038919775727], "var_explained": [60.0672985734945, 31.42385827369949]}, "mds": {"stations": ["דליה - בת שלמה", "דליה- כביש ת''א-חיפה", "חגית - בריכה 1500", "חגית - בריכה 200", "חגית - יציאה ראשית לנחל", "מעין צבי", "מעין צבי ב'", "מעין צבי מ2", "מק טירלי 1", "מק טירלי 5", "מק טירלי 6", "נחל דליה - גשר דרך עפר", "נחל רון במעלה קידוח מק דליה 2", "ניקוז תחנת כוח חגית לנחל דליה", "פ מעין צבי דקל ז", "פ מעין צבי ה", "פ מעין צבי התפ. 304", "פ מעין צבי התפ. 305"], "x": [0.03599398875421611, 0.4762406611330095, 0.17935043882378168, 0.006089064444119357, 0.12615490954287295, 0.08830373897960166, 0.058243412693693396, -0.24444446147619547, -0.08895431314463192, -0.10486265062744606, -0.07445535234214347, 0.030372283820651897, 0.11885956075941109, 0.15769888955935038, -0.14566346326069504, -0.22355234978161492, -0.2393931190652154, -0.1559812388127657], "y": [-0.1011603323441434, 0.24204444947085108, -0.21025100276393596, -0.10132480198747992, -0.175020746860427, -0.13145132574883842, -0.11077802172521678, 0.02382193634238969, -0.017276688061286162, -0.010454230599842781, -0.026831335393274095, -0.09863049623563443, 0.6228508369034869, -0.184231129574864, 0.09165244575511841, 0.12646171865346445, 0.045902840243077093, 0.014675883926555444]}, "findings": ["<b>ריכוז הגבוה ביותר:</b> תחנה \"חגית - בריכה 1500\" (נקודה מזוהה בנחל) עם ריכוז כולל של 1121.11 µg/L.", "<b>תרכובת דומיננטית:</b> PFOS מהווה בממוצע 33.5% מסך הריכוזים בכל התחנות.", "<b>קורלציה חזקה (29 זוגות ≥95%):</b> \"דליה - בת שלמה\" ↔ \"חגית - בריכה 200\" (99%), \"דליה - בת שלמה\" ↔ \"חגית - יציאה ראשית לנחל\" (96%), \"דליה - בת שלמה\" ↔ \"מעין צבי\" (96%), \"דליה - בת שלמה\" ↔ \"מעין צבי ב&#x27;\" (98%), \"דליה - בת שלמה\" ↔ \"נחל דליה - גשר דרך עפר\" (100%).", "<b>תחנות ללא ריכוזים משמעותיים (< LOD):</b> \"מק דליה 1\", \"מק דליה 2\", \"מק תות 4\", \"נחל דליה במורד קידוח דליה 1\" — כל הריכוזים מתחת לסף הזיהוי. תחנות אלו לא נכללו בניתוח ההשוואתי.", "<b>חריגים בהרכב הכימי:</b> התחנות הבאות מציגות פרופיל שונה מרוב האחרות: \"דליה- כביש ת&#x27;&#x27;א-חיפה\" (ממוצע דמיון 33%), \"נחל רון במעלה קידוח מק דליה 2\" (ממוצע דמיון 25%). ייתכן שמדובר במקור זיהום נפרד או בתהליכי הנחתה (Retardation) המשפיעים על ההרכב.", "<b>ניתוח PCA — 5 אשכולות זוהו:</b> שני הרכיבים הראשיים מסבירים 91.5% מהשונות (60.1% + 31.4%). אשכול (8 תחנות): \"מעין צבי מ2\", \"מק טירלי 1\", \"מק טירלי 5\", \"מק טירלי 6\" ועוד 4 | אשכול (5 תחנות): \"דליה - בת שלמה\", \"חגית - בריכה 200\", \"מעין צבי\", \"מעין צבי ב&#x27;\" ועוד 1 | אשכול (3 תחנות): \"חגית - בריכה 1500\", \"חגית - יציאה ראשית לנחל\", \"ניקוז תחנת כוח חגית לנחל דליה\" | בודדת: \"דליה- כביש ת&#x27;&#x27;א-חיפה\" | בודדת: \"נחל רון במעלה קידוח מק דליה 2\".", "<b>היקף הסקר:</b> פריסת 22 נקודות דיגום ב-4 סוגי מקור, 18 תרכובות PFAS."], "generated_at": "05/05/2026 15:01"};
+
+// ===== Helpers =====
+const esc = s => {const d=document.createElement('div');d.textContent=s;return d.innerHTML;};
+const simColor = v => v>=90?'var(--sim-90)':v>=70?'var(--sim-70)':v>=30?'var(--sim-30)':'var(--sim-low)';
+const simColorHex = v => v>=90?'#1f7a4d':v>=70?'#4ea66b':v>=30?'#d8c84a':'#c64a3b';
+const srcColor = s => D.source_colors[s] || D.default_color;
+const cmpColor = c => D.compound_colors[c] || D.default_color;
+
+// ===== Header =====
+document.getElementById('hdr-title').textContent = 'ניתוח ' + D.group_name;
+document.getElementById('hdr-file').textContent = D.file_name;
+document.getElementById('hdr-n').textContent = D.n_stations;
+document.getElementById('hdr-c').textContent = D.n_compounds;
+document.getElementById('hdr-d').textContent = D.date_str;
+
+// ===== KPI =====
+document.getElementById('kpi-strip').innerHTML = `
+  <div class="kpi-card kpi-a"><div class="kpi-label">תחנות</div><div class="kpi-value">${D.n_stations}</div><div class="kpi-unit">נקודות דיגום</div></div>
+  <div class="kpi-card kpi-b"><div class="kpi-label">שורות נתונים</div><div class="kpi-value">${D.n_rows.toLocaleString()}</div><div class="kpi-unit">רשומות</div></div>
+  <div class="kpi-card kpi-c"><div class="kpi-label">תרכובות</div><div class="kpi-value">${D.n_compounds}</div><div class="kpi-unit">${esc(D.group_name)}</div></div>
+  <div class="kpi-card kpi-d"><div class="kpi-label">טווח תאריכים</div><div class="kpi-value mono">${esc(D.date_str)}</div></div>`;
+
+// ===== Insights =====
+if (D.n_detected > 0) {
+  document.getElementById('insights-area').innerHTML = `
+  <div class="sec-title">תובנות מרכזיות</div>
+  <div class="insight-grid">
+    <div class="insight-card tone-warn"><div class="insight-kicker">Σ${esc(D.group_name)} מקסימלי</div>
+      <div class="insight-main">${esc(D.top_station)}</div>
+      <div class="insight-detail">${D.top_value.toFixed(2)} ${esc(D.group_unit)}</div></div>
+    <div class="insight-card tone-ok"><div class="insight-kicker">שיעור גילוי</div>
+      <div class="insight-main">${D.n_detected}/${D.n_total_stations}</div>
+      <div class="insight-detail">תחנות עם ${esc(D.group_name)} &gt;LOD</div></div>
+    <div class="insight-card"><div class="insight-kicker">תרכובת דומיננטית</div>
+      <div class="insight-main">${esc(D.dominant_compound)}</div>
+      <div class="insight-detail">${D.dominant_pct.toFixed(1)}% ממוצע</div></div>
+    <div class="insight-card tone-high"><div class="insight-kicker">זוג דומה ביותר</div>
+      <div class="insight-main" style="font-size:13px">${esc(D.top_pair_str)}</div>
+      <div class="insight-detail">${D.top_pair_val.toFixed(0)}% דמיון</div></div>
+    <div class="insight-card"><div class="insight-kicker">זוגות ≥90% דמיון</div>
+      <div class="insight-main">${D.n_high_pairs}</div>
+      <div class="insight-detail">חשודים במקור משותף</div></div>
+  </div>`;
+}
+
+// ===== Tabs =====
+const TABS = [
+  {id:'map',label:'🗺 מפה'},
+  {id:'conc',label:'📊 ריכוז סכומי'},
+  {id:'fp',label:'🧪 הרכב יחסי'},
+  {id:'sim',label:'🔗 דמיון'},
+  {id:'pca',label:'📐 PCA / MDS'},
+  {id:'findings',label:'📋 ממצאים'},
+];
+let activeTab = 'map';
+function switchTab(id) {
+  activeTab = id;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.id===id));
+  document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id==='sec-'+id));
+  if(id==='map' && !window._mapInit) initMap();
+  if(id==='conc' && !window._concInit) initConc();
+  if(id==='fp' && !window._fpInit) initFP();
+  if(id==='sim' && !window._simInit) initSim();
+  if(id==='pca' && !window._pcaInit) initPCA();
+  if(id==='findings' && !window._findInit) initFindings();
+}
+const tabsEl = document.getElementById('tabs');
+TABS.forEach(t=>{
+  const btn = document.createElement('button');
+  btn.className = 'tab' + (t.id==='map'?' on':'');
+  btn.dataset.id = t.id;
+  btn.textContent = t.label;
+  btn.onclick = ()=>switchTab(t.id);
+  tabsEl.appendChild(btn);
+});
+
+// ===== Panel helper =====
+function panelHead(num, title, sub) {
+  return `<div class="panel-head"><div><div class="panel-num">${num}</div>
+    <div class="panel-title">${title}</div>
+    ${sub?'<div class="panel-sub">'+sub+'</div>':''}</div></div>`;
+}
+function caveat(txt) {
+  return `<div class="caveat"><div class="caveat-icon">!</div><div>${txt}</div></div>`;
+}
+
+// ===== MAP =====
+function initMap() {
+  window._mapInit = true;
+  const el = document.getElementById('sec-map');
+  el.innerHTML = `<div class="panel">${panelHead('01','מפת נקודות הדיגום',
+    'מיקום התחנות. גודל הסמן פרופורציוני לריכוז הסכומי.')}<div id="map"></div></div>`;
+
+  const map = L.map('map').setView([D.stations_geo[0]?.lat||31.9,D.stations_geo[0]?.lon||34.9], 10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'OpenStreetMap', maxZoom:18}).addTo(map);
+
+  const bounds = [];
+  D.stations_geo.forEach(s => {
+    const r = Math.max(6, Math.min(20, 6 + 4*Math.log10(Math.max(s.total,0.01)+1)));
+    const c = srcColor(s.source_type);
+    const opacity = s.total > 0 ? 0.85 : 0.25;
+    L.circleMarker([s.lat,s.lon],{radius:r,color:c,fillColor:c,fillOpacity:opacity,weight:1.5})
+      .bindPopup(`<div style="direction:rtl;text-align:right;font-family:Assistant,sans-serif;">
+        <b>${esc(s.name)}</b><br>סוג: ${esc(s.source_type)}<br>
+        Σ${esc(D.group_name)}: ${s.total.toFixed(3)} ${esc(D.group_unit)}<br>
+        תאריך: ${esc(s.date)}</div>`)
+      .bindTooltip(esc(s.name),{permanent:false,direction:'top'})
+      .addTo(map);
+    bounds.push([s.lat,s.lon]);
+  });
+  if(bounds.length) map.fitBounds(bounds, {padding:[30,30]});
+}
+
+// ===== CONCENTRATION =====
+function initConc() {
+  window._concInit = true;
+  const el = document.getElementById('sec-conc');
+  const c = D.concentration;
+  if(!c.stations.length){el.innerHTML='<div class="panel"><p>אין נתוני ריכוז להצגה.</p></div>';return;}
+
+  el.innerHTML = `<div class="panel">${panelHead('02','ריכוז סכומי — '+esc(D.group_name),
+    'סכום ריכוזי כל התרכובות בכל תחנה, בסקאלה לוגריתמית.')}
+    <div id="chart-conc" class="chart-wrap"></div>
+    ${caveat('הריכוז הסכומי משקף עומס נקודתי — אינו מעיד על מקור משותף.')}</div>`;
+
+  Plotly.newPlot('chart-conc',[{
+    type:'bar',
+    x:c.stations.map(s=>s.length>18?s.slice(0,18)+'…':s),
+    y:c.values,
+    text:c.labels,
+    textposition:'outside',
+    marker:{color:c.source_types.map(s=>srcColor(s)),line:{width:0}},
+    customdata:c.stations,
+    hovertemplate:'<b>%{customdata}</b><br>Σ'+esc(D.group_name)+': %{y:.3f} '+esc(D.group_unit)+'<extra></extra>',
+  }],{
+    yaxis:{type:'log',title:esc(D.group_unit)},
+    xaxis:{title:'תחנה'},
+    height:460,template:'plotly_white',
+    font:{family:'Assistant,sans-serif',size:13},
+    paper_bgcolor:'#fff',plot_bgcolor:'#fff',
+    margin:{t:20,r:20,b:80,l:60},
+  },{responsive:true});
+}
+
+// ===== FINGERPRINT =====
+function initFP() {
+  window._fpInit = true;
+  const el = document.getElementById('sec-fp');
+  const fp = D.fingerprint;
+  if(!fp.stations.length){el.innerHTML='<div class="panel"><p>אין מספיק נתונים.</p></div>';return;}
+
+  el.innerHTML = `<div class="panel">${panelHead('03','הרכב יחסי — '+esc(D.group_name),
+    'תרומה יחסית של כל תרכובת לסך הריכוז בכל תחנה.')}
+    <div id="chart-fp" class="chart-wrap"></div>
+    ${caveat('הרכב יחסי תלוי בקיום מספיק תרכובות מעל סף הזיהוי.')}</div>`;
+
+  const shortStn = fp.stations.map(s=>s.length>18?s.slice(0,18)+'…':s);
+  const traces = fp.compounds.map((cmp,ci)=>({
+    type:'bar',name:cmp,
+    x:shortStn,
+    y:fp.values.map(row=>row[ci]),
+    marker:{color:cmpColor(cmp),line:{width:0}},
+    hovertemplate:'<b>'+esc(cmp)+'</b><br>%{x}: %{y:.1f}%<extra></extra>',
+  }));
+
+  Plotly.newPlot('chart-fp',traces,{
+    barmode:'stack',
+    yaxis:{title:'אחוז (%)',range:[0,100]},
+    xaxis:{title:'תחנה'},
+    height:460,template:'plotly_white',
+    font:{family:'Assistant,sans-serif',size:13},
+    legend:{orientation:'h',yanchor:'bottom',y:1.02},
+    paper_bgcolor:'#fff',plot_bgcolor:'#fff',
+    margin:{t:40,r:20,b:80,l:60},
+  },{responsive:true});
+}
+
+// ===== SIMILARITY =====
+function initSim() {
+  window._simInit = true;
+  const el = document.getElementById('sec-sim');
+  const sm = D.sim_matrix;
+  if(!sm.labels.length||sm.labels.length<2){el.innerHTML='<div class="panel"><p>נדרשות לפחות 2 תחנות.</p></div>';return;}
+
+  let pairsHtml = '';
+  if(D.top_pairs.length){
+    pairsHtml = `<div style="font-size:13px;font-weight:600;margin:16px 0 8px;">זוגות עם דמיון ≥70%</div>
+    <table class="pairs-table"><thead><tr><th>תחנה א׳</th><th>תחנה ב׳</th><th>דמיון</th><th>הערה</th></tr></thead><tbody>`;
+    D.top_pairs.forEach(p=>{
+      const tone = p.v>=90?'sim-90':p.v>=70?'sim-70':'sim-30';
+      pairsHtml += `<tr><td>${esc(p.a)}</td><td>${esc(p.b)}</td>
+        <td class="pv"><span class="bar-fill" style="width:${p.v*0.6}px;background:var(--${tone});"></span>${p.v}%</td>
+        <td>${p.v>=90?'גבוה מאוד':'גבוה'}</td></tr>`;
+    });
+    pairsHtml += '</tbody></table>';
+  }
+
+  el.innerHTML = `<div class="panel">${panelHead('04','דמיון בין חתימות '+esc(D.group_name),
+    'Cosine Similarity — מידת הדמיון בין פרופילי התרכובות.')}
+    <div class="sim-legend">
+      <span class="sim-pill"><span class="sim-dot" style="background:var(--sim-low)"></span>0–30% נמוך</span>
+      <span class="sim-pill"><span class="sim-dot" style="background:var(--sim-30)"></span>30–70% בינוני</span>
+      <span class="sim-pill"><span class="sim-dot" style="background:var(--sim-70)"></span>70–90% גבוה</span>
+      <span class="sim-pill"><span class="sim-dot" style="background:var(--sim-90)"></span>90–100% גבוה מאוד</span>
+    </div>
+    <div id="chart-sim" class="chart-wrap"></div>
+    ${pairsHtml}
+    ${caveat('דמיון בהרכב אינו מוכיח מקור משותף — יש לפרש עם מידע הידרולוגי ומרחבי.')}</div>`;
+
+  Plotly.newPlot('chart-sim',[{
+    type:'heatmap',z:sm.values,x:sm.labels,y:sm.labels,
+    colorscale:[[0,'#c64a3b'],[0.3,'#d8c84a'],[0.7,'#4ea66b'],[0.9,'#1f7a4d'],[1,'#0d4a2e']],
+    zmin:0,zmax:100,
+    text:sm.values.map(r=>r.map(v=>Math.round(v)+'%')),
+    texttemplate:'%{text}',
+    textfont:{size:11,family:'JetBrains Mono,monospace',color:'white'},
+    hovertemplate:'<b>%{x}</b> ↔ <b>%{y}</b><br>דמיון: %{z:.1f}%<extra></extra>',
+    showscale:false,
+  }],{
+    height:Math.max(460,sm.labels.length*40+120),
+    template:'plotly_white',
+    font:{family:'Assistant,sans-serif',size:12},
+    paper_bgcolor:'#fff',plot_bgcolor:'#fff',
+    margin:{t:20,r:20,b:80,l:120},
+  },{responsive:true});
+
+  // Click handler for compare drawer
+  document.getElementById('chart-sim').on('plotly_click',function(data){
+    const pt = data.points[0];
+    if(pt) openDrawer(pt.x, pt.y);
+  });
+}
+
+// ===== PCA / MDS =====
+function initPCA() {
+  window._pcaInit = true;
+  const el = document.getElementById('sec-pca');
+  let html = `<div class="panel">${panelHead('05','PCA / MDS — ניתוח מרחבי',
+    'הפחתת ממדים: תחנות קרובות = הרכב כימי דומה.')}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div><div style="font-family:var(--font-display);font-size:15px;font-weight:600;margin-bottom:8px;">PCA — רכיבים ראשיים</div><div id="chart-pca" class="chart-wrap"></div></div>
+      <div><div style="font-family:var(--font-display);font-size:15px;font-weight:600;margin-bottom:8px;">MDS — מיפוי מרחק כימי</div><div id="chart-mds" class="chart-wrap"></div></div>
+    </div>
+    ${caveat('הקרבה בגרף משקפת דמיון בהרכב — לא בהכרח מקור משותף. מיקומי הצירים ב-MDS שרירותיים.')}</div>`;
+  el.innerHTML = html;
+
+  // PCA
+  if(D.pca && D.pca.stations.length>=2){
+    const traces = {};
+    D.pca.stations.forEach((s,i)=>{
+      const src = D.source_map[s]||'';
+      if(!traces[src])traces[src]={type:'scatter',mode:'markers+text',x:[],y:[],text:[],
+        textposition:'top center',textfont:{size:9,family:'Assistant'},name:src,
+        marker:{size:10,color:srcColor(src),line:{width:1.5,color:'white'}},
+        hovertemplate:[]};
+      traces[src].x.push(D.pca.pc1[i]);
+      traces[src].y.push(D.pca.pc2[i]);
+      traces[src].text.push(s);
+      traces[src].hovertemplate.push('<b>'+esc(s)+'</b><br>'+esc(src)+'<extra></extra>');
+    });
+    const ve = D.pca.var_explained;
+    Plotly.newPlot('chart-pca',Object.values(traces),{
+      xaxis:{title:'PC1 ('+ve[0].toFixed(1)+'%)'},
+      yaxis:{title:ve.length>1?'PC2 ('+ve[1].toFixed(1)+'%)':'PC2'},
+      height:380,template:'plotly_white',
+      font:{family:'Assistant,sans-serif',size:12},
+      legend:{orientation:'h',y:1.08},
+      paper_bgcolor:'#fff',plot_bgcolor:'#fff',
+      margin:{t:30,r:20,b:50,l:50},
+    },{responsive:true});
+  } else {
+    document.getElementById('chart-pca').innerHTML='<p style="color:var(--ink-3)">נדרשות לפחות 2 תחנות.</p>';
+  }
+
+  // MDS
+  if(D.mds && D.mds.stations.length>=2){
+    const traces = {};
+    D.mds.stations.forEach((s,i)=>{
+      const src = D.source_map[s]||'';
+      if(!traces[src])traces[src]={type:'scatter',mode:'markers+text',x:[],y:[],text:[],
+        textposition:'top center',textfont:{size:9,family:'Assistant'},name:src,
+        marker:{size:10,color:srcColor(src),line:{width:1.5,color:'white'}},
+        hovertemplate:[]};
+      traces[src].x.push(D.mds.x[i]);
+      traces[src].y.push(D.mds.y[i]);
+      traces[src].text.push(s);
+      traces[src].hovertemplate.push('<b>'+esc(s)+'</b><br>'+esc(src)+'<extra></extra>');
+    });
+    Plotly.newPlot('chart-mds',Object.values(traces),{
+      xaxis:{title:'ציר 1'},yaxis:{title:'ציר 2'},
+      height:380,template:'plotly_white',
+      font:{family:'Assistant,sans-serif',size:12},
+      legend:{orientation:'h',y:1.08},
+      paper_bgcolor:'#fff',plot_bgcolor:'#fff',
+      margin:{t:30,r:20,b:50,l:50},
+    },{responsive:true});
+  } else {
+    document.getElementById('chart-mds').innerHTML='<p style="color:var(--ink-3)">נדרשות לפחות 2 תחנות.</p>';
+  }
+}
+
+// ===== FINDINGS =====
+function initFindings() {
+  window._findInit = true;
+  const el = document.getElementById('sec-findings');
+  let fhtml = D.findings.map(f=>'<div class="finding">'+f+'</div>').join('');
+  if(!fhtml) fhtml = '<p style="color:var(--ink-3)">אין מספיק נתונים.</p>';
+  el.innerHTML = `<div class="panel">${panelHead('06','סיכום ממצאים והערות זהירות',
+    'ממצאים אוטומטיים המבוססים על הנתונים.')}
+    ${fhtml}
+    ${caveat('כלי זה תומך בניתוח מקצועי אך אינו מחליף שיקול דעת מומחה.')}</div>`;
+}
+
+// ===== COMPARE DRAWER =====
+function openDrawer(stnA, stnB) {
+  const sm = D.sim_matrix;
+  const ia = sm.labels.indexOf(stnA);
+  const ib = sm.labels.indexOf(stnB);
+  if(ia<0||ib<0||ia===ib)return;
+  const simVal = sm.values[ia][ib];
+
+  document.getElementById('drawer-title').innerHTML = esc(stnA)+' <span style="color:var(--ink-3)">↔</span> '+esc(stnB);
+  document.getElementById('drawer-sim').textContent = Math.round(simVal)+'%';
+
+  // Get fingerprints
+  const fp = D.fingerprint;
+  const idxA = fp.stations.indexOf(stnA);
+  const idxB = fp.stations.indexOf(stnB);
+  if(idxA<0||idxB<0){document.getElementById('drawer-body').innerHTML='<p>אין נתוני הרכב.</p>';return;}
+
+  const valsA = fp.values[idxA];
+  const valsB = fp.values[idxB];
+  const maxV = Math.max(...valsA,...valsB,1);
+
+  let rows = '';
+  fp.compounds.forEach((cmp,ci)=>{
+    const a = valsA[ci], b = valsB[ci];
+    if(a<0.5 && b<0.5)return;
+    const wA = (a/maxV)*100, wB = (b/maxV)*100;
+    const col = cmpColor(cmp);
+    rows += `<div class="cmp-row">
+      <div class="cmp-name">${esc(cmp)}</div>
+      <div class="cmp-bars">
+        <div class="cmp-side a"><span class="cmp-pct">${a.toFixed(1)}%</span><div class="cmp-bar" style="width:${wA}%;background:${col}"></div></div>
+        <div class="cmp-side b"><span class="cmp-pct">${b.toFixed(1)}%</span><div class="cmp-bar" style="width:${wB}%;background:${col}"></div></div>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('drawer-body').innerHTML =
+    `<div style="display:grid;grid-template-columns:80px 1fr;gap:16px;margin-bottom:8px;font-size:11px;color:var(--ink-3);">
+      <div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:center;">
+        <div>${esc(stnA)}</div><div>${esc(stnB)}</div></div></div>`+rows;
+
+  document.getElementById('drawer').classList.add('open');
+}
+function closeDrawer(){document.getElementById('drawer').classList.remove('open');}
+
+// ===== Footer =====
+document.getElementById('footer').innerHTML =
+  'דוח נוצר ב-'+esc(D.generated_at)+' • PFAS Forensics Dashboard v2 • '+esc(D.file_name);
+
+// ===== Init first tab =====
+initMap();
+</script>
+</body>
+</html>
