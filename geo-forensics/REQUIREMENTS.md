@@ -144,3 +144,32 @@ grep -n "background.*transparent" app.py
 # S/A ordering: fingerprint columns reordered for PFAS
 grep -n "PFAS_COMPOUND_ORDER" app.py
 ```
+
+---
+
+## 11. כללי מימוש UI (מתודולוגיה — Streamlit)
+
+### טעינת פונטים
+- [x] לא להשתמש ב-`@import url(...)` בתוך `<style>` — לא אמין ב-Streamlit
+- [x] להשתמש ב-`st.html()` עם `<link rel="stylesheet">` לטעינת Google Fonts
+- [x] להגדיר `font = "sans serif"` ב-`.streamlit/config.toml`
+
+### כרטיסים (Cards)
+- [x] לא להשתמש ב-`st.markdown('<div class="card">...')` — Streamlit עוטף כל markdown ב-container משלו ושובר את ההיררכיה
+- [x] להשתמש ב-`st.container(border=True)` לכרטיסים אמיתיים
+- [x] להשתמש ב-`st.metric()` לכרטיסי KPI פשוטים
+
+### CSS במפת Folium (iframe)
+- [x] לא להשתמש בסלקטור ID (`#map_{id}`) — ה-ID עשוי לא להתאים בזמן ריצה
+- [x] להשתמש בסלקטורי class של Leaflet: `.leaflet-tooltip.leaflet-tooltip-permanent`
+- [x] לכסות את כל הכיוונים: `::before`, `-top::before`, `-bottom::before`, `-left::before`, `-right::before`
+- [x] הסלקטור הגלובלי בטוח כי ה-CSS חי ב-iframe מבודד
+
+### Multiselect Chips (BaseWeb)
+- [x] לכסות את כל האלמנטים המקוננים: `[data-baseweb="tag"]`, span, svg, `[role="presentation"]`
+- [x] להוסיף hover states (למשל: X הופך אדום בהצבעה)
+- [x] למקד ל-sidebar: `section[data-testid="stSidebar"]` כ-prefix
+
+### ערכת נושא (Theme) — config.toml
+- [x] להגדיר `base`, `primaryColor`, `backgroundColor`, `secondaryBackgroundColor`, `textColor`, `font`
+- [x] ערכים אלה משפיעים על כל הרכיבים המקוריים של Streamlit (כפתורים, sliders, כותרות)

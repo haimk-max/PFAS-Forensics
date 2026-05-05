@@ -37,12 +37,19 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+st.html("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+""")
+
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap');
-
 /* --- Base RTL + font --- */
-.stApp { direction: rtl; font-family: 'Assistant', 'Noto Sans Hebrew', 'Arial', system-ui, sans-serif; }
+html, body, .stApp {
+    direction: rtl;
+    font-family: 'Assistant', 'Noto Sans Hebrew', 'Arial', system-ui, sans-serif !important;
+}
 .stMarkdown, .stText { text-align: right; }
 .stDataFrame { direction: ltr; }
 input[type="number"] { direction: ltr; text-align: left; }
@@ -51,28 +58,10 @@ section[data-testid="stSidebar"] .stSelectbox label,
 section[data-testid="stSidebar"] .stFileUploader label,
 section[data-testid="stSidebar"] .stMultiSelect label { text-align: right; }
 
-/* --- KPI card --- */
-.kpi-card {
-    background: #f8fafb; border: 1px solid #e0e6ed; border-radius: 8px;
-    padding: 14px 16px; text-align: center; direction: rtl;
-}
-.kpi-card .kpi-label { font-size: 0.82em; color: #6c757d; margin-bottom: 4px; }
-.kpi-card .kpi-value { font-size: 1.35em; font-weight: 700; color: #1a2332; }
-
-/* --- Insight card --- */
-.insight-card {
-    background: #f0f7f4; border: 1px solid #b6d7c4; border-radius: 8px;
-    padding: 12px 14px; text-align: center; direction: rtl; min-height: 90px;
-    display: flex; flex-direction: column; justify-content: center;
-}
-.insight-card .insight-label { font-size: 0.78em; color: #5a6d63; margin-bottom: 4px; }
-.insight-card .insight-value { font-size: 1.15em; font-weight: 700; color: #1a5c3a; }
-
-/* --- Chart card --- */
-.chart-card {
-    background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    border-radius: 10px; padding: 20px; margin: 12px 0;
-}
+/* --- KPI metric styling inside st.container(border=True) --- */
+[data-testid="stMetric"] { text-align: center; direction: rtl; }
+[data-testid="stMetricLabel"] { justify-content: center; }
+[data-testid="stMetricValue"] { justify-content: center; }
 
 /* --- Caveat note --- */
 .caveat-note {
@@ -101,7 +90,7 @@ section[data-testid="stSidebar"] .stMultiSelect label { text-align: right; }
 /* --- Header description --- */
 .header-desc { color: #5a6d78; font-size: 0.95em; margin-top: -6px; margin-bottom: 10px; direction: rtl; }
 
-/* --- Section header (keep existing + enhance) --- */
+/* --- Section header --- */
 .section-header {
     color: #1a8c5e; border-bottom: 2px solid #1a8c5e;
     padding-bottom: 8px; margin-top: 1.5rem;
@@ -115,14 +104,14 @@ section[data-testid="stSidebar"] .stMultiSelect label { text-align: right; }
     font-size: 0.92em; color: #2a5078; margin-bottom: 10px;
 }
 
-/* --- Finding card (unchanged) --- */
+/* --- Finding card --- */
 .finding-card {
     background: #f8f9fa; border-right: 4px solid #3498db;
     padding: 10px 15px; margin: 8px 0; border-radius: 4px;
     direction: rtl; text-align: right;
 }
 
-/* --- Method box (unchanged) --- */
+/* --- Method box --- */
 .method-box {
     background: #f0f4f8; border: 1px solid #d0d7de; border-radius: 6px;
     padding: 12px 16px; margin: 6px 0 12px 0; direction: rtl; text-align: right;
@@ -131,14 +120,35 @@ section[data-testid="stSidebar"] .stMultiSelect label { text-align: right; }
 .method-box b { color: #1a5276; }
 .method-box code { background: #e8ecf0; padding: 1px 5px; border-radius: 3px; direction: ltr; unicode-bidi: embed; }
 
-/* --- Multiselect tag overrides (softer chips) --- */
-[data-baseweb="tag"] {
-    background-color: #e8f0fe !important; border-radius: 12px !important;
-    font-size: 0.85em !important;
+/* --- Multiselect tag overrides (full chip hierarchy) --- */
+section[data-testid="stSidebar"] [data-baseweb="tag"] {
+    background-color: #e8f0fe !important;
+    border: 1px solid #c5d6f0 !important;
+    border-radius: 14px !important;
+    color: #1a3a5c !important;
+    padding: 2px 8px !important;
+    font-size: 0.82em !important;
+    height: auto !important;
+    min-height: 24px !important;
 }
-[data-baseweb="tag"] span { color: #1a3a5c !important; }
+section[data-testid="stSidebar"] [data-baseweb="tag"] span {
+    color: #1a3a5c !important;
+    font-weight: 500 !important;
+}
+section[data-testid="stSidebar"] [data-baseweb="tag"] [role="presentation"],
+section[data-testid="stSidebar"] [data-baseweb="tag"] svg {
+    fill: #5a6d78 !important;
+    color: #5a6d78 !important;
+}
+section[data-testid="stSidebar"] [data-baseweb="tag"]:hover [role="presentation"] {
+    fill: #d32f2f !important;
+}
+section[data-testid="stSidebar"] [data-baseweb="select"] > div {
+    background: #fafbfc !important;
+    border-color: #d0d7de !important;
+}
 
-/* --- Plotly charts: actual card styling (replaces broken div-wrap approach) --- */
+/* --- Plotly charts: card styling --- */
 [data-testid="stPlotlyChart"] {
     background: #ffffff;
     border-radius: 10px;
@@ -479,13 +489,17 @@ _date_str = f"{date_min:%d/%m/%Y} — {date_max:%d/%m/%Y}" if _date_valid else "
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.markdown(f'<div class="kpi-card"><div class="kpi-label">תחנות</div><div class="kpi-value">{n_stations}</div></div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        st.metric("תחנות", n_stations)
 with col2:
-    st.markdown(f'<div class="kpi-card"><div class="kpi-label">שורות נתונים</div><div class="kpi-value">{len(df_filtered):,}</div></div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        st.metric("שורות נתונים", f"{len(df_filtered):,}")
 with col3:
-    st.markdown(f'<div class="kpi-card"><div class="kpi-label">תרכובות</div><div class="kpi-value">{n_compounds or "—"}</div></div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        st.metric("תרכובות", n_compounds or "—")
 with col4:
-    st.markdown(f'<div class="kpi-card"><div class="kpi-label">טווח תאריכים</div><div class="kpi-value" style="font-size:0.95em">{_date_str}</div></div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        st.metric("טווח תאריכים", _date_str)
 
 # --- Quick Insights Row ---
 _enough_for_insights = len(max_event_nonzero) >= 1
@@ -496,20 +510,17 @@ if _enough_for_insights:
     _top_stn = max_event_nonzero.iloc[0]["station_name"] if not max_event_nonzero.empty else "—"
     _top_val = max_event_nonzero.iloc[0]["total_concentration"] if not max_event_nonzero.empty else 0
     with ic1:
-        st.markdown(
-            f'<div class="insight-card"><div class="insight-label">תחנה עם Σ{group.name} מקסימלי</div>'
-            f'<div class="insight-value">{html.escape(str(_top_stn))}<br>{_top_val:.2f} {group.unit}</div></div>',
-            unsafe_allow_html=True,
-        )
+        with st.container(border=True):
+            st.caption(f"תחנה עם Σ{group.name} מקסימלי")
+            st.markdown(f"**{html.escape(str(_top_stn))}**")
+            st.markdown(f"<span style='color:#1a5c3a; font-weight:600;'>{_top_val:.2f} {group.unit}</span>", unsafe_allow_html=True)
 
     _n_detected = len(max_event_nonzero)
     _n_total_stn = len(max_event_filtered)
     with ic2:
-        st.markdown(
-            f'<div class="insight-card"><div class="insight-label">תחנות עם {group.name} מזוהה</div>'
-            f'<div class="insight-value">{_n_detected} מתוך {_n_total_stn}</div></div>',
-            unsafe_allow_html=True,
-        )
+        with st.container(border=True):
+            st.caption(f"תחנות עם {group.name} מזוהה")
+            st.markdown(f"**{_n_detected} מתוך {_n_total_stn}**")
 
     _dominant = "—"
     _dominant_pct = 0.0
@@ -518,11 +529,10 @@ if _enough_for_insights:
         _dominant = _mean_fp.idxmax()
         _dominant_pct = _mean_fp.max()
     with ic3:
-        st.markdown(
-            f'<div class="insight-card"><div class="insight-label">תרכובת דומיננטית</div>'
-            f'<div class="insight-value">{html.escape(str(_dominant))}<br>{_dominant_pct:.1f}%</div></div>',
-            unsafe_allow_html=True,
-        )
+        with st.container(border=True):
+            st.caption("תרכובת דומיננטית")
+            st.markdown(f"**{html.escape(str(_dominant))}**")
+            st.markdown(f"<span style='color:#1a5c3a; font-weight:600;'>{_dominant_pct:.1f}%</span>", unsafe_allow_html=True)
 
     _top_pair = "—"
     _top_pair_val = 0.0
@@ -541,17 +551,14 @@ if _enough_for_insights:
                     _top_pair = f"{_sim_idx[_i]} ↔ {_sim_idx[_j]}"
                     _top_pair_val = _v
     with ic4:
-        st.markdown(
-            f'<div class="insight-card"><div class="insight-label">זוג דומה ביותר</div>'
-            f'<div class="insight-value">{html.escape(_top_pair)}<br>{_top_pair_val:.0f}%</div></div>',
-            unsafe_allow_html=True,
-        )
+        with st.container(border=True):
+            st.caption("זוג דומה ביותר")
+            st.markdown(f"**{html.escape(_top_pair)}**")
+            st.markdown(f"<span style='color:#1a5c3a; font-weight:600;'>{_top_pair_val:.0f}%</span>", unsafe_allow_html=True)
     with ic5:
-        st.markdown(
-            f'<div class="insight-card"><div class="insight-label">זוגות עם דמיון ≥90%</div>'
-            f'<div class="insight-value">{_n_high_pairs}</div></div>',
-            unsafe_allow_html=True,
-        )
+        with st.container(border=True):
+            st.caption("זוגות עם דמיון ≥90%")
+            st.markdown(f"**{_n_high_pairs}**")
 
 st.divider()
 
@@ -639,26 +646,33 @@ try:
     # Zoom-aware labels with greedy anti-overlap + transparent tooltip styling
     from branca.element import Element as _Elem
     _mid = m._id
-    m.get_root().header.add_child(_Elem(f"""<style>
-#map_{_mid} .leaflet-tooltip-permanent {{
+    m.get_root().header.add_child(_Elem("""<style>
+.leaflet-tooltip.leaflet-tooltip-permanent {
     background: transparent !important;
-    border: none !important;
+    background-color: transparent !important;
+    border: 0 !important;
+    border-color: transparent !important;
     box-shadow: none !important;
-    padding: 0 2px !important;
+    padding: 0 !important;
+    margin: 0 !important;
     font-size: 11px;
-    font-weight: 600;
-    color: #1a2332;
+    font-weight: 700;
+    color: #0d1b2a;
     text-shadow:
-        1px  1px 2px rgba(255,255,255,0.95),
-       -1px -1px 2px rgba(255,255,255,0.95),
-        1px -1px 2px rgba(255,255,255,0.95),
-       -1px  1px 2px rgba(255,255,255,0.95);
+        -1px -1px 0 #fff,  1px -1px 0 #fff,
+        -1px  1px 0 #fff,  1px  1px 0 #fff,
+         0   -2px 2px #fff, 0    2px 2px #fff;
     pointer-events: none;
     white-space: nowrap;
-}}
-#map_{_mid} .leaflet-tooltip-permanent::before {{
+}
+.leaflet-tooltip.leaflet-tooltip-permanent::before,
+.leaflet-tooltip-top::before,
+.leaflet-tooltip-bottom::before,
+.leaflet-tooltip-left::before,
+.leaflet-tooltip-right::before {
     display: none !important;
-}}
+    border: 0 !important;
+}
 </style>"""))
     m.get_root().html.add_child(_Elem(f"""<script>
 (function(){{
