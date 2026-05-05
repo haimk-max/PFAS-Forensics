@@ -39,6 +39,8 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap');
+
 /* --- Base RTL + font --- */
 .stApp { direction: rtl; font-family: 'Assistant', 'Noto Sans Hebrew', 'Arial', system-ui, sans-serif; }
 .stMarkdown, .stText { text-align: right; }
@@ -135,6 +137,33 @@ section[data-testid="stSidebar"] .stMultiSelect label { text-align: right; }
     font-size: 0.85em !important;
 }
 [data-baseweb="tag"] span { color: #1a3a5c !important; }
+
+/* --- Plotly charts: actual card styling (replaces broken div-wrap approach) --- */
+[data-testid="stPlotlyChart"] {
+    background: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.10);
+    padding: 8px 4px 4px 4px;
+    margin: 4px 0 14px 0;
+}
+
+/* --- Folium map container --- */
+[data-testid="stCustomComponentV1"] iframe,
+.element-container iframe {
+    border-radius: 8px;
+}
+
+/* --- Section spacing --- */
+[data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
+    gap: 0.5rem;
+}
+
+/* --- Dataframe: softer look --- */
+[data-testid="stDataFrame"] {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -533,7 +562,6 @@ st.divider()
 st.markdown('<h2 class="section-header">1. מפת נקודות הדיגום</h2>', unsafe_allow_html=True)
 st.markdown(f'<div class="section-desc">בחרו תחנות מהמפה או מהרשימה כדי להשוות בין חתימות {group.name} בתחנות הדיגום.</div>', unsafe_allow_html=True)
 
-st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 try:
     import folium
     from folium.plugins import Draw
@@ -706,8 +734,6 @@ try:
 except ImportError:
     st.warning("חסרות חבילות folium / streamlit-folium. התקן: pip install folium streamlit-folium")
 
-st.markdown('</div>', unsafe_allow_html=True)  # close chart-card
-
 st.divider()
 
 
@@ -732,7 +758,6 @@ if not max_event_nonzero.empty:
         f'<b>{_top_stn_s2}</b>, עם Σ{group.name} של <b>{_top_val_s2:.2f} {group.unit}</b>.</div>',
         unsafe_allow_html=True,
     )
-    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     fig_atten = go.Figure()
     _names_s2 = max_event_nonzero["station_name"].tolist()
     _short_names_s2 = [_short_name(n) for n in _names_s2]
@@ -755,7 +780,6 @@ if not max_event_nonzero.empty:
         font=dict(size=13),
     )
     st.plotly_chart(fig_atten, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="caveat-note">הריכוז הסכומי משקף את עומס הזיהום הנקודתי. '
         'אינו מעיד בהכרח על מקור משותף או על דעיכה לאורך מסלול זרימה.</div>',
@@ -785,7 +809,6 @@ with st.expander("על האנליזה — טביעת אצבע כימית", expan
 </div>""", unsafe_allow_html=True)
 
 if not fingerprint.empty:
-    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     fig_fp = go.Figure()
     compounds = fingerprint.columns.tolist()
     stations = fingerprint.index.tolist()
@@ -823,7 +846,6 @@ if not fingerprint.empty:
         annotations=annotations_fp,
     )
     st.plotly_chart(fig_fp, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="caveat-note">הרכב יחסי תלוי בקיום מספיק תרכובות מעל סף הזיהוי. '
         'תחנות עם ערכים נמוכים יציגו הרכב רגיש לרעש מדידה.</div>',
@@ -877,7 +899,6 @@ if not sim_matrix_nonzero.empty and len(sim_matrix_nonzero) >= 2:
         sim_ordered = sim_matrix_nonzero
         ordered_labels = sim_matrix_nonzero.index.tolist()
 
-    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     fig_sim = go.Figure(data=go.Heatmap(
         z=sim_ordered.values,
         x=ordered_labels,
@@ -897,7 +918,6 @@ if not sim_matrix_nonzero.empty and len(sim_matrix_nonzero) >= 2:
         xaxis=dict(side="bottom"),
     )
     st.plotly_chart(fig_sim, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
     # Top-pairs table (pairs with similarity >= 70%)
     _pairs_s4 = []
