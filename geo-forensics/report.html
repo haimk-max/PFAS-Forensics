@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔬 אפיון סביבתי ופורנזי של פלומת PFAS</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                 'Helvetica Neue', Arial, sans-serif;
+    background: #f0f2f5;
+    color: #333;
+    direction: rtl;
+    line-height: 1.6;
+  }
+
+  /* ── Header ── */
+  .report-header {
+    background: linear-gradient(135deg, #0066cc 0%, #004999 100%);
+    color: white; text-align: center; padding: 35px 20px 28px;
+  }
+  .report-header h1 { font-size: 1.9em; margin-bottom: 6px; font-weight: 700; }
+  .report-header .subtitle { font-size: 1.05em; opacity: 0.9; }
+  .report-header .badge {
+    display: inline-block; background: rgba(255,255,255,0.2);
+    padding: 4px 16px; border-radius: 20px; margin-top: 10px; font-size: 0.85em;
+  }
+
+  /* ── Layout ── */
+  .container { max-width: 1200px; margin: 0 auto; padding: 25px 20px; }
+  .section {
+    background: white; border-radius: 12px; padding: 28px;
+    margin-bottom: 25px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .section h2 { color: #0066cc; font-size: 1.35em; margin-bottom: 8px; font-weight: 700; }
+  .section .section-desc { color: #666; font-size: 0.92em; margin-bottom: 18px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1.5fr; gap: 25px; }
+  .two-col-equal { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+  @media (max-width: 850px) {
+    .two-col, .two-col-equal { grid-template-columns: 1fr; }
+  }
+
+  /* ── Metrics ── */
+  .metrics { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 20px 0; }
+  .metric {
+    background: #f7f9fc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 16px 28px; text-align: center; min-width: 140px;
+  }
+  .metric .value { font-size: 2em; font-weight: 700; color: #0066cc; }
+  .metric .label { color: #666; font-size: 0.9em; margin-top: 3px; }
+
+  /* ── Station filter panel ── */
+  .filter-panel {
+    background: white; border-radius: 12px; padding: 20px 24px;
+    margin-bottom: 25px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .filter-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px; flex-wrap: wrap; gap: 10px;
+  }
+  .filter-header h2 { color: #0066cc; font-size: 1.2em; font-weight: 700; margin: 0; }
+  .filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filter-actions button {
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #ccc;
+    background: #f7f9fc; cursor: pointer; font-size: 0.85em;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .filter-actions button:hover { background: #e8f0fe; border-color: #0066cc; }
+  .filter-actions button.active { background: #0066cc; color: white; border-color: #0066cc; }
+
+  .filter-grid {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .station-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: 18px;
+    border: 2px solid #ddd; background: #f9f9f9;
+    cursor: pointer; font-size: 0.85em; transition: all 0.15s;
+    user-select: none;
+  }
+  .station-chip:hover { border-color: #0066cc; background: #f0f5ff; }
+  .station-chip.selected {
+    border-color: #0066cc; background: #e8f0fe; font-weight: 600;
+  }
+  .station-chip .dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+  }
+  .filter-count {
+    font-size: 0.88em; color: #666; margin-top: 10px;
+  }
+
+  /* ── Max-concentration banner ── */
+  .max-banner {
+    background: linear-gradient(90deg, #fff3cd 0%, #ffeeba 100%);
+    border: 1px solid #ffc107; border-radius: 10px;
+    padding: 14px 22px; margin-bottom: 25px;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 0.95em; color: #856404;
+  }
+  .max-banner .icon { font-size: 1.5em; }
+
+  /* ── Methodology box (compact) ── */
+  .method-box-compact {
+    background: #f7f9fc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 14px 20px; margin-bottom: 18px;
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  }
+  .method-box-compact .method-text { font-size: 0.88em; color: #555; flex: 1; min-width: 200px; }
+  .method-box-compact .method-text b { color: #333; }
+  .method-box-compact .formula-inline {
+    background: white; border: 1px solid #ddd; border-radius: 8px;
+    padding: 8px 16px; font-size: 0.95em; direction: ltr; white-space: nowrap;
+  }
+  .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; }
+  .frac .num { border-bottom: 2px solid #333; padding-bottom: 3px; font-size: 0.9em; }
+  .frac .den { padding-top: 3px; font-size: 0.9em; }
+
+  /* ── Ratio table ── */
+  .ratio-table { border-collapse: collapse; width: 100%; font-size: 0.88em; }
+  .ratio-table th { background: #f7f9fc; padding: 8px 10px; border: 1px solid #e0e0e0; font-weight: 600; text-align: right; }
+  .ratio-table td { padding: 8px 10px; border: 1px solid #e0e0e0; text-align: center; }
+  .ratio-table tr:hover { background: #f0f5ff; }
+
+  /* ── Heatmap table ── */
+  .table-wrap { overflow-x: auto; }
+  .heatmap {
+    border-collapse: collapse; width: 100%; direction: ltr;
+    text-align: center; font-size: 0.85em;
+  }
+  .heatmap th, .heatmap td { padding: 8px 6px; border: 1px solid #e0e0e0; white-space: nowrap; }
+  .hm-corner { background: #f7f9fc; }
+  .hm-header {
+    background: #f7f9fc; color: #333; font-weight: 600;
+    writing-mode: vertical-rl; text-orientation: mixed;
+    padding: 12px 6px; font-size: 0.85em; max-height: 150px;
+  }
+  .hm-station {
+    background: #f7f9fc; font-weight: 600; text-align: right;
+    padding: 8px 10px; direction: rtl;
+  }
+  .hm-cell { font-weight: 600; min-width: 52px; }
+
+  /* ── Findings ── */
+  .findings {
+    background: #f0f7ff; border: 1px solid #b3d4fc;
+    border-radius: 10px; padding: 22px 28px;
+  }
+  .findings h3 { color: #0066cc; margin-bottom: 14px; font-size: 1.15em; }
+  .findings ul { list-style: none; padding: 0; }
+  .findings li {
+    padding: 8px 0; border-bottom: 1px solid #d6e8fa;
+    font-size: 0.93em; line-height: 1.7;
+  }
+  .findings li:last-child { border-bottom: none; }
+
+  .footer { text-align: center; color: #888; padding: 20px; font-size: 0.85em; }
+  .leaflet-container { direction: ltr; }
+  .map-label { background: none; border: none; }
+  .map-label span {
+    font-size: 11px; color: #333; white-space: nowrap;
+    text-shadow: 1px 1px 2px #fff, -1px -1px 2px #fff, 1px -1px 2px #fff, -1px 1px 2px #fff;
+    direction: rtl; line-height: 1.3;
+  }
+  .map-label b { color: #0066cc; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════ HEADER ════════════════════════ -->
+<div class="report-header">
+    <h1>אפיון סביבתי ופורנזי של פלומת PFAS</h1>
+    <div class="subtitle">ניתוח הידרוגיאולוגי והשוואה סטטיסטית של פרופילים כימיים</div>
+    <div class="badge">דו"ח עצמאי (Standalone HTML)</div>
+</div>
+
+<div class="container">
+
+    <!-- ════════════════════════ METRICS ════════════════════════ -->
+    <div class="metrics">
+        <div class="metric"><div class="value">18</div><div class="label">תחנות דיגום</div></div>
+        <div class="metric"><div class="value">8</div><div class="label">תרכובות PFAS</div></div>
+        <div class="metric"><div class="value">432</div><div class="label">שורות נתונים</div></div>
+        <div class="metric"><div class="value">5</div><div class="label">סוגי מקור</div></div>
+    </div>
+
+    <!-- ════════════════════════ STATION FILTER ════════════════════════ -->
+    <div class="filter-panel">
+        <div class="filter-header">
+            <h2>בחירת נקודות דיגום</h2>
+            <div class="filter-actions">
+                <button onclick="selectAll()">בחר הכל</button>
+                <button onclick="selectNone()">נקה הכל</button>
+            </div>
+        </div>
+        <div class="filter-actions" id="source-filters" style="margin-bottom:12px"></div>
+        <div class="filter-grid" id="station-chips"></div>
+        <div class="filter-count" id="filter-count"></div>
+    </div>
+
+    <!-- ════════════════════════ MAX-CONCENTRATION BANNER ════════════════════════ -->
+    <div class="max-banner">
+        <span class="icon">&#9888;</span>
+        <div><b>כלל הנתונים, הגרפים והניתוחים בדוח זה מתייחסים לאירוע הדיגום בו נמדד הריכוז הסכומי המירבי (&Sigma;PFAS) בכל תחנה.</b>
+        גישה זו מייצגת את תרחיש החשיפה המקסימלי ואת החותמת הכימית הבולטת ביותר.</div>
+    </div>
+
+    <!-- ════════════════════════ MAP ════════════════════════ -->
+    <div class="section">
+        <h2>1. פריסת נקודות הדיגום במרחב הגיאוגרפי</h2>
+        <p class="section-desc">גודל הסמן פרופורציונלי ל-&Sigma;PFAS המירבי בתחנה. לחיצה על סמן מציגה פרטים כולל התאריך הנבחר.</p>
+        <div id="map" style="height:480px;border-radius:8px;"></div>
+    </div>
+
+    <!-- ════════════════════════ CHARTS ════════════════════════ -->
+    <div class="two-col-equal">
+        <div class="section">
+            <h2>2. ריכוז כולל — &Sigma;PFAS Attenuation</h2>
+            <p class="section-desc">ציר לוגריתמי. עמודה אחת לכל תחנה (אירוע מירבי). בחינת דעיכת מסת המזהם לאורך מסלולי הסעה.</p>
+            <div style="width:100%;height:420px;"><canvas id="attenuation-canvas"></canvas></div>
+        </div>
+        <div class="section">
+            <h2>3. הרכב כימי יחסי — Chromatographic Shift</h2>
+            <p class="section-desc">מנורמל ל-100%. מעל כל עמודה מוצג הריכוז הסכומי (µg/L). התרכובות ממוינות לפי שיעורן בתחנה המרוכזת ביותר.</p>
+            <div style="width:100%;height:420px;"><canvas id="fingerprint-canvas"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════ PCA SCATTER ════════════════════════ -->
+    <div class="section">
+        <h2>4. PCA — פיזור לפי שונות מירבית</h2>
+        <div class="method-box-compact" style="flex-direction:column;align-items:stretch;">
+            <div class="method-text" style="margin-bottom:8px;">
+                <b>Principal Component Analysis (PCA)</b> — מקרין את וקטור ההרכב הכימי (%) של כל תחנה למישור דו-ממדי, כך שהצירים מייצגים את כיווני השונות הגדולים ביותר בנתונים.
+            </div>
+            <div style="display:flex;gap:24px;flex-wrap:wrap;">
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#27ae60;font-weight:600;">&#10003; יתרונות:</span> חושף מגמות וקבוצות על-בסיס ההרכב הכימי המלא; מזהה תרכובות שמניעות את ההפרדה בין קבוצות; מותאם לזיהוי פרקציונציה (Chromatographic Shift).
+                </div>
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#c0392b;font-weight:600;">&#10007; חסרונות:</span> ממקסם שונות ולא דמיון — תחנות עם חותמת כימית דומה אך יחסי-תרכובות מעט שונים עלולות להיראות רחוקות; רגיש לנוכחות תרכובת דומיננטית אחת שמושכת ציר שלם.
+                </div>
+            </div>
+        </div>
+        <p class="section-desc">נקודות קרובות = חותמת כימית דומה <b>לפי כיווני שונות</b>. גודל הנקודה פרופורציונלי לריכוז הכולל. תחנות ללא ריכוזים (&lt; LOD) אינן מוצגות.</p>
+        <div style="width:100%;height:500px;"><canvas id="pca-canvas"></canvas></div>
+    </div>
+
+    <!-- ════════════════════════ MDS SCATTER ════════════════════════ -->
+    <div class="section">
+        <h2>5. MDS — פיזור לפי דמיון כימי (Cosine Distance)</h2>
+        <div class="method-box-compact" style="flex-direction:column;align-items:stretch;">
+            <div class="method-text" style="margin-bottom:8px;">
+                <b>Multidimensional Scaling (MDS)</b> — ממפה את מטריצת Cosine Distance למישור דו-ממדי כך שהמרחק בין נקודות על הגרף משקף ככל הניתן את ה<b>דמיון הכימי</b> בפועל. תחנות שדומות ב-Cosine Similarity (מעל 90%) יופיעו <b>צמודות</b>.
+            </div>
+            <div style="display:flex;gap:24px;flex-wrap:wrap;">
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#27ae60;font-weight:600;">&#10003; יתרונות:</span> נאמן למטריקת הדמיון הפורנזית — מרחק על הגרף = מרחק כימי אמיתי; מנטרל הבדלי ריכוז מוחלט; אידיאלי לזיהוי מקור משותף (Source Apportionment).
+                </div>
+                <div class="method-text" style="flex:1;min-width:180px;">
+                    <span style="color:#c0392b;font-weight:600;">&#10007; חסרונות:</span> אינו חושף אילו תרכובות מניעות את ההפרדה; עלול לאבד מידע על כיווני פרקציונציה; איכות ההקרנה תלויה בערך ה-Stress (ככל שנמוך יותר, כך מדויק יותר).
+                </div>
+            </div>
+        </div>
+        <p class="section-desc">נקודות קרובות = <b>דמיון כימי גבוה</b> (Cosine Similarity). גודל הנקודה פרופורציונלי לריכוז הכולל. תחנות ללא ריכוזים (&lt; LOD) אינן מוצגות.</p>
+        <div style="width:100%;height:500px;"><canvas id="mds-canvas"></canvas></div>
+    </div>
+
+    <!-- ════════════════════════ HEATMAP ════════════════════════ -->
+    <div class="section">
+        <h2>6. מטריצת Cosine Similarity — השוואת חותמות כימיות</h2>
+        <p class="section-desc">התחנות ממוינות לפי Hierarchical Clustering. צבע ירוק = דמיון גבוה, אדום = דמיון נמוך.</p>
+        <div class="method-box-compact">
+            <div class="method-text"><b>Cosine Similarity</b> — השוואת פרופילים כימיים כווקטורים, תוך נטרול השפעת גודל הריכוזים.
+            ערך הקרוב ל-100% מצביע על חותמת כימית זהה ומאפשר לאמת קיומו של נתיב זרימה (Pathway).</div>
+            <div class="formula-inline">cos(&theta;) = <span class="frac">
+                <span class="num">&Sigma;(A<sub>i</sub>&times;B<sub>i</sub>)</span>
+                <span class="den">&radic;&Sigma;A<sub>i</sub>&sup2; &times; &radic;&Sigma;B<sub>i</sub>&sup2;</span>
+            </span></div>
+        </div>
+        <div class="table-wrap" id="heatmap-container"></div>
+    </div>
+
+    <!-- ════════════════════════ PFOS/PFHxS RATIO ════════════════════════ -->
+    <div class="section">
+        <h2>7. מדד פורנזי: יחס PFOS/PFHxS</h2>
+        <p class="section-desc">יחס מקובל בספרות הפורנזית (Charbonnet et al. 2021; Zenobio et al. 2026) להערכת קרבה למקור זיהום ומידת ה-Transport. ב-AFFF מקורי (3M ECF) היחס ~8; ירידה ביחס משקפת ספיחה סלקטיבית של PFOS לאורך מסלול הזרימה. יחסים פורנזיים נוספים (כגון &Sigma;PFCAs/&Sigma;PFSAs, יחס Branched/Linear, ונוכחות 6:2 FTS) מומלצים כקווי ראיה משלימים.</p>
+        <div class="table-wrap" id="ratio-container"></div>
+    </div>
+
+    <!-- ════════════════════════ FINDINGS ════════════════════════ -->
+    <div class="section">
+        <div class="findings">
+            <h3>סיכום ממצאים:</h3>
+            <ul id="findings-list"></ul>
+        </div>
+    </div>
+
+</div>
+
+<div class="footer">
+    <p>GeoForensics v0.1.0 | נוצר אוטומטית מקובץ: sample_pfas.xlsx</p>
+</div>
+
+<!-- ════════════════════════ DATA + LOGIC ════════════════════════ -->
+<script>
+// ── Embedded data ──
+const DATA = {"stations": [{"name": "מט\"ש חיפה - פליטה", "lat": 32.772469, "lon": 34.998917, "source_type": "מט\"ש", "n_compounds": 8, "max_total": 14.3499, "selected_date": "2024-09-22"}, {"name": "מעיין B-4", "lat": 32.772319, "lon": 34.922071, "source_type": "מעיין", "n_compounds": 8, "max_total": 0.2236, "selected_date": "2024-09-23"}, {"name": "נחל הקישון - גשר הזיו", "lat": 32.767939, "lon": 34.98612, "source_type": "מים עיליים", "n_compounds": 8, "max_total": 6.0492, "selected_date": "2025-03-08"}, {"name": "נחל הקישון - יוקנעם", "lat": 32.727324, "lon": 34.964884, "source_type": "מים עיליים", "n_compounds": 8, "max_total": 2.4909, "selected_date": "2025-03-13"}, {"name": "נחל הקישון - שפך", "lat": 32.776991, "lon": 35.007445, "source_type": "מים עיליים", "n_compounds": 8, "max_total": 4.5903, "selected_date": "2025-03-08"}, {"name": "קידוח B-1 (כרמל)", "lat": 32.78588, "lon": 34.93804, "source_type": "קידוח הפקה", "n_compounds": 8, "max_total": 0.2903, "selected_date": "2024-09-25"}, {"name": "קידוח B-2 (נשר)", "lat": 32.790421, "lon": 34.95404, "source_type": "קידוח הפקה", "n_compounds": 8, "max_total": 0.2906, "selected_date": "2024-09-16"}, {"name": "קידוח B-3 (טירת כרמל)", "lat": 32.736298, "lon": 34.943522, "source_type": "קידוח הפקה", "n_compounds": 8, "max_total": 0.2525, "selected_date": "2024-09-21"}, {"name": "קידוח B-5 (קריות)", "lat": 32.781516, "lon": 35.018109, "source_type": "קידוח הפקה", "n_compounds": 8, "max_total": 0.2621, "selected_date": "2025-03-13"}, {"name": "קידוח K-12", "lat": 32.761623, "lon": 34.984001, "source_type": "קידוח ניטור", "n_compounds": 8, "max_total": 14.0899, "selected_date": "2025-03-09"}, {"name": "קידוח K-15", "lat": 32.758024, "lon": 34.988279, "source_type": "קידוח ניטור", "n_compounds": 8, "max_total": 9.0574, "selected_date": "2025-03-06"}, {"name": "קידוח K-18", "lat": 32.753523, "lon": 34.992558, "source_type": "קידוח ניטור", "n_compounds": 8, "max_total": 5.1238, "selected_date": "2024-03-14"}, {"name": "קידוח K-22", "lat": 32.749023, "lon": 34.997904, "source_type": "קידוח ניטור", "n_compounds": 8, "max_total": 2.5128, "selected_date": "2025-03-13"}, {"name": "קידוח K-25", "lat": 32.744522, "lon": 35.002182, "source_type": "קידוח ניטור", "n_compounds": 8, "max_total": 1.424, "selected_date": "2024-03-13"}, {"name": "קידוח K-28", "lat": 32.74002, "lon": 35.00646, "source_type": "קידוח ניטור", "n_compounds": 8, "max_total": 0.6641, "selected_date": "2024-03-18"}, {"name": "קידוח M-3 (ליד מט\"ש)", "lat": 32.769769, "lon": 35.002125, "source_type": "קידוח ניטור", "n_compounds": 8, "max_total": 8.2582, "selected_date": "2025-03-13"}, {"name": "קידוח M-7 (מורד מט\"ש)", "lat": 32.766169, "lon": 35.006402, "source_type": "קידוח ניטור", "n_compounds": 8, "max_total": 3.8348, "selected_date": "2024-09-20"}, {"name": "קידוח תעשייתי - סולתם", "lat": 32.765224, "lon": 34.980791, "source_type": "קידוח ניטור", "n_compounds": 8, "max_total": 17.4678, "selected_date": "2024-03-20"}], "attenuation": [{"name": "קידוח תעשייתי - סולתם", "total": 17.4678, "source_type": "קידוח ניטור", "date": "2024-03-20"}, {"name": "מט\"ש חיפה - פליטה", "total": 14.3499, "source_type": "מט\"ש", "date": "2024-09-22"}, {"name": "קידוח K-12", "total": 14.0899, "source_type": "קידוח ניטור", "date": "2025-03-09"}, {"name": "קידוח K-15", "total": 9.0574, "source_type": "קידוח ניטור", "date": "2025-03-06"}, {"name": "קידוח M-3 (ליד מט\"ש)", "total": 8.2582, "source_type": "קידוח ניטור", "date": "2025-03-13"}, {"name": "נחל הקישון - גשר הזיו", "total": 6.0492, "source_type": "מים עיליים", "date": "2025-03-08"}, {"name": "קידוח K-18", "total": 5.1238, "source_type": "קידוח ניטור", "date": "2024-03-14"}, {"name": "נחל הקישון - שפך", "total": 4.5903, "source_type": "מים עיליים", "date": "2025-03-08"}, {"name": "קידוח M-7 (מורד מט\"ש)", "total": 3.8348, "source_type": "קידוח ניטור", "date": "2024-09-20"}, {"name": "קידוח K-22", "total": 2.5128, "source_type": "קידוח ניטור", "date": "2025-03-13"}, {"name": "נחל הקישון - יוקנעם", "total": 2.4909, "source_type": "מים עיליים", "date": "2025-03-13"}, {"name": "קידוח K-25", "total": 1.424, "source_type": "קידוח ניטור", "date": "2024-03-13"}, {"name": "קידוח K-28", "total": 0.6641, "source_type": "קידוח ניטור", "date": "2024-03-18"}, {"name": "קידוח B-2 (נשר)", "total": 0.2906, "source_type": "קידוח הפקה", "date": "2024-09-16"}, {"name": "קידוח B-1 (כרמל)", "total": 0.2903, "source_type": "קידוח הפקה", "date": "2024-09-25"}, {"name": "קידוח B-5 (קריות)", "total": 0.2621, "source_type": "קידוח הפקה", "date": "2025-03-13"}, {"name": "קידוח B-3 (טירת כרמל)", "total": 0.2525, "source_type": "קידוח הפקה", "date": "2024-09-21"}, {"name": "מעיין B-4", "total": 0.2236, "source_type": "מעיין", "date": "2024-09-23"}], "fingerprint": {"stations": ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"], "compounds": ["PFOS", "PFOA", "PFHxS", "PFBS", "PFNA", "PFDA", "GenX", "PFUnDA"], "values": [[5.58, 45.57, 1.31, 20.2, 9.53, 3.93, 12.52, 1.37], [21.33, 38.73, 10.96, 20.44, 3.49, 0.0, 5.05, 0.0], [34.9, 26.63, 18.65, 10.72, 4.75, 2.58, 1.23, 0.56], [45.04, 23.35, 20.57, 3.49, 3.88, 1.53, 1.58, 0.55], [30.39, 29.17, 14.91, 13.28, 6.81, 2.19, 2.12, 1.13], [28.45, 41.27, 6.37, 9.78, 6.34, 3.41, 4.37, 0.0], [29.9, 37.92, 9.74, 11.6, 2.44, 4.37, 4.03, 0.0], [32.59, 34.89, 4.32, 13.27, 7.13, 4.99, 2.81, 0.0], [24.65, 39.68, 11.9, 9.61, 2.98, 5.53, 5.65, 0.0], [62.96, 16.41, 10.83, 4.67, 2.27, 1.02, 1.23, 0.59], [52.37, 25.87, 11.17, 5.26, 2.42, 1.47, 0.98, 0.46], [60.29, 23.5, 7.15, 2.6, 2.69, 1.34, 1.79, 0.65], [62.7, 16.57, 9.7, 5.02, 3.0, 1.11, 1.03, 0.86], [64.42, 11.93, 12.11, 4.54, 3.14, 2.21, 1.0, 0.64], [52.1, 21.97, 13.6, 5.06, 3.37, 1.91, 1.13, 0.86], [7.44, 46.6, 2.42, 15.4, 9.26, 3.28, 14.39, 1.21], [6.35, 42.25, 2.16, 19.7, 7.99, 4.06, 15.45, 2.04], [57.85, 21.23, 10.33, 3.7, 3.1, 2.06, 1.08, 0.66]], "totals": [14.35, 0.224, 6.049, 2.491, 4.59, 0.29, 0.291, 0.253, 0.262, 14.09, 9.057, 5.124, 2.513, 1.424, 0.664, 8.258, 3.835, 17.468]}, "similarity": {"stations": ["קידוח M-3 (ליד מט\"ש)", "מט\"ש חיפה - פליטה", "קידוח M-7 (מורד מט\"ש)", "נחל הקישון - יוקנעם", "קידוח K-25", "קידוח K-12", "קידוח K-22", "קידוח K-18", "קידוח תעשייתי - סולתם", "קידוח K-15", "קידוח K-28", "נחל הקישון - גשר הזיו", "נחל הקישון - שפך", "מעיין B-4", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)"], "values": [[100.0, 99.4, 99.3, 54.9, 33.7, 39.4, 40.0, 48.2, 47.0, 55.4, 51.2, 68.7, 77.5, 90.9, 82.8, 88.9, 88.6, 85.1], [99.4, 100.0, 99.7, 50.8, 30.1, 35.8, 36.4, 44.3, 43.2, 51.8, 47.5, 66.3, 75.8, 90.7, 81.3, 86.5, 86.3, 83.0], [99.3, 99.7, 100.0, 52.2, 32.0, 37.5, 38.1, 45.5, 44.6, 52.9, 48.9, 67.2, 76.3, 90.9, 81.3, 86.8, 86.1, 83.2], [54.9, 50.8, 52.2, 100.0, 94.0, 95.3, 95.0, 95.7, 96.9, 98.0, 98.6, 97.5, 93.7, 78.9, 88.3, 85.4, 85.2, 88.9], [33.7, 30.1, 32.0, 94.0, 100.0, 99.7, 99.7, 98.0, 98.6, 96.4, 97.6, 87.0, 81.5, 61.7, 78.8, 68.2, 71.0, 75.3], [39.4, 35.8, 37.5, 95.3, 99.7, 100.0, 100.0, 99.1, 99.5, 98.0, 98.7, 89.1, 84.4, 66.3, 82.4, 72.6, 75.5, 79.4], [40.0, 36.4, 38.1, 95.0, 99.7, 100.0, 100.0, 99.2, 99.5, 98.0, 98.7, 89.0, 84.4, 66.5, 82.9, 72.7, 75.9, 79.5], [48.2, 44.3, 45.5, 95.7, 98.0, 99.1, 99.2, 100.0, 99.8, 99.2, 99.0, 90.6, 87.1, 71.5, 87.3, 78.5, 81.9, 84.5], [47.0, 43.2, 44.6, 96.9, 98.6, 99.5, 99.5, 99.8, 100.0, 99.4, 99.6, 92.0, 88.1, 71.7, 86.9, 78.4, 81.2, 84.4], [55.4, 51.8, 52.9, 98.0, 96.4, 98.0, 98.0, 99.2, 99.4, 100.0, 99.7, 95.1, 92.3, 78.6, 91.1, 84.6, 86.8, 89.6], [51.2, 47.5, 48.9, 98.6, 97.6, 98.7, 98.7, 99.0, 99.6, 99.7, 100.0, 95.0, 91.4, 75.8, 88.8, 82.0, 83.8, 87.2], [68.7, 66.3, 67.2, 97.5, 87.0, 89.1, 89.0, 90.6, 92.0, 95.1, 95.0, 100.0, 98.9, 89.8, 94.0, 92.8, 92.0, 95.1], [77.5, 75.8, 76.3, 93.7, 81.5, 84.4, 84.4, 87.1, 88.1, 92.3, 91.4, 98.9, 100.0, 94.6, 96.9, 95.8, 95.6, 97.5], [90.9, 90.7, 90.9, 78.9, 61.7, 66.3, 66.5, 71.5, 71.7, 78.6, 75.8, 89.8, 94.6, 100.0, 94.5, 96.8, 96.0, 96.6], [82.8, 81.3, 81.3, 88.3, 78.8, 82.4, 82.9, 87.3, 86.9, 91.1, 88.8, 94.0, 96.9, 94.5, 100.0, 96.4, 98.5, 98.6], [88.9, 86.5, 86.8, 85.4, 68.2, 72.6, 72.7, 78.5, 78.4, 84.6, 82.0, 92.8, 95.8, 96.8, 96.4, 100.0, 98.8, 99.2], [88.6, 86.3, 86.1, 85.2, 71.0, 75.5, 75.9, 81.9, 81.2, 86.8, 83.8, 92.0, 95.6, 96.0, 98.5, 98.8, 100.0, 99.2], [85.1, 83.0, 83.2, 88.9, 75.3, 79.4, 79.5, 84.5, 84.4, 89.6, 87.2, 95.1, 97.5, 96.6, 98.6, 99.2, 99.2, 100.0]]}, "findings": ["<b>ריכוז הגבוה ביותר:</b> תחנה \"קידוח תעשייתי - סולתם\" (קידוח ניטור) עם ריכוז כולל של 17.47 µg/L.", "<b>תרכובת דומיננטית:</b> PFOS מהווה בממוצע 37.7% מסך הריכוזים בכל התחנות.", "<b>קורלציה חזקה (47 זוגות ≥95%):</b> המטריצה מעידה על קורלציה איתנה בין מקורות תחנה לבין רוב הנקודות במורד נחל דליה וכולל מאגרי מעין צבי. דוגמאות: \"מט\"ש חיפה - פליטה\" ↔ \"קידוח M-3 (ליד מט\"ש)\" (99%), \"מט\"ש חיפה - פליטה\" ↔ \"קידוח M-7 (מורד מט\"ש)\" (100%), \"מעיין B-4\" ↔ \"קידוח B-1 (כרמל)\" (96%), \"מעיין B-4\" ↔ \"קידוח B-2 (נשר)\" (97%), \"מעיין B-4\" ↔ \"קידוח B-5 (קריות)\" (97%).", "<b>ניתוח PCA — 3 אשכולות זוהו:</b> שני הרכיבים הראשיים מסבירים 96.5% מהשונות (92.5% + 4.0%). אשכול (8 תחנות): \"נחל הקישון - יוקנעם\", \"קידוח K-12\", \"קידוח K-15\", \"קידוח K-18\" ועוד 4 | אשכול (7 תחנות): \"מעיין B-4\", \"נחל הקישון - גשר הזיו\", \"נחל הקישון - שפך\", \"קידוח B-1 (כרמל)\" ועוד 3 | אשכול (3 תחנות): \"מט\"ש חיפה - פליטה\", \"קידוח M-3 (ליד מט\"ש)\", \"קידוח M-7 (מורד מט\"ש)\".", "<b>טווח ריכוזים:</b> יחס ריכוז מקסימלי/מינימלי = 142x (מ-0.12 עד 17.47 µg/L), המעיד על דעיכה (Attenuation) לאורך מסלולי הזרימה.", "<b>היקף הסקר:</b> פריסת 18 נקודות דיגום ב-5 סוגי מקור, 8 תרכובות PFAS."], "pfos_pfhxs_ratios": {"מט\"ש חיפה - פליטה": 4.25, "מעיין B-4": 1.95, "נחל הקישון - גשר הזיו": 1.87, "נחל הקישון - יוקנעם": 2.19, "נחל הקישון - שפך": 2.04, "קידוח B-1 (כרמל)": 4.46, "קידוח B-2 (נשר)": 3.07, "קידוח B-3 (טירת כרמל)": 7.55, "קידוח B-5 (קריות)": 2.07, "קידוח K-12": 5.81, "קידוח K-15": 4.69, "קידוח K-18": 8.43, "קידוח K-22": 6.46, "קידוח K-25": 5.32, "קידוח K-28": 3.83, "קידוח M-3 (ליד מט\"ש)": 3.07, "קידוח M-7 (מורד מט\"ש)": 2.94, "קידוח תעשייתי - סולתם": 5.6}, "pca": {"stations": ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"], "pc1": [-38.96, -19.731, 0.553, 12.442, -5.688, -13.187, -10.19, -7.828, -15.021, 29.289, 16.196, 23.85, 28.756, 32.58, 17.881, -36.885, -37.04, 22.981], "pc2": [-3.915, 4.29, 10.17, 9.422, 7.3, -2.746, 0.89, -4.142, 3.377, -2.764, -1.162, -6.872, -3.726, -1.256, 1.656, -4.264, -3.509, -2.748], "var_explained": [92.5, 4.0]}, "mds": {"stations": ["מט\"ש חיפה - פליטה", "מעיין B-4", "נחל הקישון - גשר הזיו", "נחל הקישון - יוקנעם", "נחל הקישון - שפך", "קידוח B-1 (כרמל)", "קידוח B-2 (נשר)", "קידוח B-3 (טירת כרמל)", "קידוח B-5 (קריות)", "קידוח K-12", "קידוח K-15", "קידוח K-18", "קידוח K-22", "קידוח K-25", "קידוח K-28", "קידוח M-3 (ליד מט\"ש)", "קידוח M-7 (מורד מט\"ש)", "קידוח תעשייתי - סולתם"], "x": [-0.2885, -0.1135, 0.0343, 0.0963, -0.0039, -0.0629, -0.042, -0.0273, -0.0747, 0.1688, 0.1044, 0.1376, 0.1673, 0.1931, 0.1187, -0.2658, -0.2803, 0.1385], "y": [0.1567, 0.0626, -0.0188, -0.0528, 0.0022, 0.0346, 0.0232, 0.015, 0.0412, -0.0929, -0.0574, -0.0758, -0.0921, -0.1063, -0.0653, 0.1467, 0.1554, -0.0762], "stress": 0.5255}, "group_unit": "µg/L"};
+const COMPOUND_COLORS = {"PFOS": "#e74c3c", "PFOA": "#e91e9e", "PFHxS": "#3498db", "PFNA": "#2ecc71", "PFDA": "#f39c12", "PFUnDA": "#9b59b6", "PFUnA": "#9b59b6", "PFBS": "#1abc9c", "GenX": "#e67e22", "PFPeS": "#8e44ad", "PFHpA": "#d35400", "6:2FT": "#7f8c8d", "PFHpS": "#c0392b", "PFPeA": "#16a085", "PFHxA": "#2980b9", "PFDoA": "#c0392b", "PFBA": "#27ae60", "ADONA": "#f1c40f", "PFESA": "#8e44ad", "PFTDA": "#d35400"};
+const SOURCE_COLORS = {"קידוח ניטור": "#3498db", "קידוח הפקה": "#2ecc71", "קידוח": "#2980b9", "מט\"ש": "#e74c3c", "מעיין": "#9b59b6", "מים עיליים": "#f39c12", "נקודה מזוהה בנחל": "#e67e22", "תחנה הידרומטרית": "#1abc9c", "מאגר": "#8e44ad"};
+const DEFAULT_COLOR = '#95a5a6';
+const GROUP_UNIT = 'µg/L';
+const GROUP_NAME = 'PFAS';
+
+// ── State ──
+let selectedStations = new Set(DATA.stations.map(s => s.name));
+let map, markers = [];
+let attenuationChart = null, fingerprintChart = null;
+
+// ── Helpers ──
+function getSourceColor(s) { return SOURCE_COLORS[s] || DEFAULT_COLOR; }
+function getCompoundColor(c) { return COMPOUND_COLORS[c] || DEFAULT_COLOR; }
+
+// Heatmap color: red (0%) -> yellow (50%) -> green (100%)
+function heatmapColor(val) {
+    if (val <= 50) {
+        const t = val / 50;
+        const r = 220; const g = Math.round(60 + t * 160); const b = Math.round(60 * (1 - t));
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    } else {
+        const t = (val - 50) / 50;
+        const r = Math.round(220 - t * 185); const g = Math.round(220 - t * 35); const b = Math.round(t * 80);
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    }
+}
+
+// Graduated marker radius (log scale)
+function markerRadius(total) {
+    if (total <= 0) return 5;
+    const r = 5 + Math.log10(total + 1) * 6;
+    return Math.min(Math.max(r, 5), 28);
+}
+
+// ── Filter panel ──
+function buildFilterPanel() {
+    const sourceTypes = [...new Set(DATA.stations.map(s => s.source_type))];
+    const srcDiv = document.getElementById('source-filters');
+    sourceTypes.forEach(st => {
+        const btn = document.createElement('button');
+        btn.textContent = st;
+        btn.style.borderRight = '4px solid ' + getSourceColor(st);
+        btn.onclick = () => toggleSourceType(st);
+        srcDiv.appendChild(btn);
+    });
+    const grid = document.getElementById('station-chips');
+    DATA.stations.forEach(s => {
+        const chip = document.createElement('div');
+        chip.className = 'station-chip selected';
+        chip.dataset.station = s.name;
+        chip.dataset.source = s.source_type;
+        chip.innerHTML = '<span class="dot" style="background:' + getSourceColor(s.source_type) + '"></span>' + s.name;
+        chip.onclick = () => toggleStation(s.name);
+        grid.appendChild(chip);
+    });
+    updateFilterCount();
+}
+
+function toggleStation(name) {
+    if (selectedStations.has(name)) selectedStations.delete(name);
+    else selectedStations.add(name);
+    updateUI();
+}
+function toggleSourceType(st) {
+    const stationsOfType = DATA.stations.filter(s => s.source_type === st).map(s => s.name);
+    const allSelected = stationsOfType.every(n => selectedStations.has(n));
+    stationsOfType.forEach(n => { if (allSelected) selectedStations.delete(n); else selectedStations.add(n); });
+    updateUI();
+}
+function selectAll() { DATA.stations.forEach(s => selectedStations.add(s.name)); updateUI(); }
+function selectNone() { selectedStations.clear(); updateUI(); }
+function updateFilterCount() {
+    document.getElementById('filter-count').textContent =
+        selectedStations.size + ' מתוך ' + DATA.stations.length + ' תחנות נבחרו';
+}
+function updateChipStyles() {
+    document.querySelectorAll('.station-chip').forEach(chip => {
+        chip.classList.toggle('selected', selectedStations.has(chip.dataset.station));
+    });
+}
+
+// ── Map (graduated markers) ──
+function initMap() {
+    const lats = DATA.stations.map(s => s.lat);
+    const lons = DATA.stations.map(s => s.lon);
+    const cLat = lats.reduce((a,b) => a+b, 0) / lats.length;
+    const cLon = lons.reduce((a,b) => a+b, 0) / lons.length;
+    map = L.map('map').setView([cLat, cLon], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Legend
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function() {
+        const div = L.DomUtil.create('div');
+        div.style.cssText = 'background:rgba(255,255,255,0.92);padding:10px 14px;border-radius:8px;font-family:sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2);direction:rtl';
+        const types = [...new Set(DATA.stations.map(s => s.source_type))];
+        let html = '<b style="font-size:13px">סוג מקור</b>';
+        types.forEach(t => {
+            html += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0">' +
+                '<span style="width:12px;height:12px;border-radius:50%;background:' + getSourceColor(t) +
+                ';display:inline-block;border:1px solid #fff"></span>' +
+                '<span style="font-size:12px">' + t + '</span></div>';
+        });
+        html += '<div style="margin-top:8px;border-top:1px solid #ddd;padding-top:6px"><b style="font-size:11px">גודל = &Sigma;' + GROUP_NAME + '</b></div>';
+        div.innerHTML = html;
+        return div;
+    };
+    legend.addTo(map);
+    updateMap();
+}
+
+function updateMap() {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+    DATA.stations.filter(s => selectedStations.has(s.name)).forEach(s => {
+        const r = markerRadius(s.max_total);
+        const m = L.circleMarker([s.lat, s.lon], {
+            radius: r, fillColor: getSourceColor(s.source_type), color: '#fff',
+            weight: 2, opacity: 1, fillOpacity: 0.85
+        }).addTo(map).bindPopup(
+            '<b>' + s.name + '</b><br>סוג: ' + s.source_type +
+            '<br>&Sigma;' + GROUP_NAME + ': ' + (s.max_total > 0 ? s.max_total.toFixed(2) : '< LOD') + ' ' + GROUP_UNIT +
+            '<br>תאריך נבחר: ' + (s.selected_date || '-') +
+            '<br>תרכובות: ' + s.n_compounds
+        );
+        markers.push(m);
+
+        // Permanent label: station name + total concentration
+        const concLabel = s.max_total > 0 ? (s.max_total >= 1 ? s.max_total.toFixed(1) : s.max_total.toFixed(3)) : '< LOD';
+        const label = L.marker([s.lat, s.lon], {
+            icon: L.divIcon({
+                className: 'map-label',
+                html: '<span>' + s.name + '<br><b>' + concLabel + '</b></span>',
+                iconSize: [120, 30],
+                iconAnchor: [-r - 2, 15]
+            })
+        }).addTo(map);
+        markers.push(label);
+    });
+    if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.15));
+    }
+}
+
+// ── Attenuation chart (Chart.js) ──
+function updateAttenuationChart() {
+    const filtered = DATA.attenuation.filter(a => selectedStations.has(a.name));
+    const ctx = document.getElementById('attenuation-canvas').getContext('2d');
+    if (attenuationChart) attenuationChart.destroy();
+    attenuationChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: filtered.map(a => a.name),
+            datasets: [{ data: filtered.map(a => a.total), backgroundColor: filtered.map(a => getSourceColor(a.source_type)), borderWidth: 0 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: function(ctx) { return '\u03A3' + GROUP_NAME + ': ' + ctx.parsed.y.toFixed(2) + ' ' + GROUP_UNIT; } } }
+            },
+            scales: {
+                y: { type: 'logarithmic', title: { display: true, text: '\u03A3' + GROUP_NAME + ' (' + GROUP_UNIT + ')', font: { size: 13 } }, grid: { color: '#e0e0e0' } },
+                x: { ticks: { maxRotation: 55, minRotation: 35, font: { size: 12, weight: 'bold' } } }
+            }
+        }
+    });
+}
+
+// ── Fingerprint chart with total labels on top ──
+function updateFingerprintChart() {
+    const fp = DATA.fingerprint;
+    const selIdx = [];
+    fp.stations.forEach((s, i) => { if (selectedStations.has(s)) selIdx.push(i); });
+    const ctx = document.getElementById('fingerprint-canvas').getContext('2d');
+    if (fingerprintChart) fingerprintChart.destroy();
+
+    const datasets = fp.compounds.map((compound, ci) => ({
+        label: compound,
+        data: selIdx.map(i => fp.values[i][ci]),
+        backgroundColor: getCompoundColor(compound),
+        borderWidth: 0
+    }));
+
+    // Total concentration labels plugin
+    const totalLabelsPlugin = {
+        id: 'totalLabels',
+        afterDraw(chart) {
+            const ctx2 = chart.ctx;
+            const meta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+            ctx2.save();
+            ctx2.font = 'bold 10px sans-serif';
+            ctx2.textAlign = 'center';
+            ctx2.fillStyle = '#333';
+            selIdx.forEach((si, barIdx) => {
+                const total = fp.totals[si];
+                if (total > 0 && meta.data[barIdx]) {
+                    const bar = meta.data[barIdx];
+                    const label = total >= 1 ? total.toFixed(1) : total.toFixed(3);
+                    ctx2.fillText(label, bar.x, bar.y - 6);
+                } else if (meta.data[barIdx]) {
+                    const bar = meta.data[barIdx];
+                    ctx2.fillStyle = '#999';
+                    ctx2.fillText('< LOD', bar.x, chart.chartArea.top + chart.chartArea.height / 2);
+                    ctx2.fillStyle = '#333';
+                }
+            });
+            ctx2.restore();
+        }
+    };
+
+    fingerprintChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: selIdx.map(i => fp.stations[i]), datasets: datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            layout: { padding: { top: 20 } },
+            plugins: {
+                legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } },
+                tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%'; } } }
+            },
+            scales: {
+                x: { stacked: true, ticks: { maxRotation: 55, minRotation: 35, font: { size: 12, weight: 'bold' } } },
+                y: { stacked: true, max: 100, title: { display: true, text: 'הרכב יחסי (%)', font: { size: 13 } }, grid: { color: '#e0e0e0' } }
+            }
+        },
+        plugins: [totalLabelsPlugin]
+    });
+}
+
+// ── PCA scatter plot ──
+let pcaChart = null;
+function updatePcaChart() {
+    const pca = DATA.pca;
+    if (!pca || pca.stations.length < 2) {
+        document.getElementById('pca-canvas').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:40px">אין מספיק תחנות עם ריכוזים לניתוח PCA</p>';
+        return;
+    }
+    const ctx = document.getElementById('pca-canvas').getContext('2d');
+    if (pcaChart) pcaChart.destroy();
+
+    // Build datasets grouped by source_type
+    const stationInfo = {};
+    DATA.stations.forEach(s => { stationInfo[s.name] = s; });
+    const sourceGroups = {};
+    pca.stations.forEach((stn, i) => {
+        if (!selectedStations.has(stn)) return;
+        const info = stationInfo[stn];
+        const st = info ? info.source_type : 'אחר';
+        if (!sourceGroups[st]) sourceGroups[st] = [];
+        sourceGroups[st].push({ x: pca.pc1[i], y: pca.pc2[i], name: stn, total: info ? info.max_total : 0 });
+    });
+
+    const datasets = Object.entries(sourceGroups).map(([st, pts]) => ({
+        label: st,
+        data: pts.map(p => ({ x: p.x, y: p.y })),
+        backgroundColor: getSourceColor(st),
+        borderColor: '#fff',
+        borderWidth: 1.5,
+        pointRadius: pts.map(p => Math.max(5, Math.min(20, 5 + Math.log10(p.total + 1) * 5))),
+        pointHoverRadius: pts.map(p => Math.max(7, Math.min(22, 7 + Math.log10(p.total + 1) * 5))),
+        _stationNames: pts.map(p => p.name),
+        _totals: pts.map(p => p.total)
+    }));
+
+    pcaChart = new Chart(ctx, {
+        type: 'scatter',
+        data: { datasets: datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 14 } },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const ds = ctx.dataset;
+                            const name = ds._stationNames[ctx.dataIndex];
+                            const total = ds._totals[ctx.dataIndex];
+                            return name + ' (' + (total >= 1 ? total.toFixed(1) : total.toFixed(3)) + ' ' + GROUP_UNIT + ')';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { title: { display: true, text: 'PC1 (' + pca.var_explained[0] + '% שונות)', font: { size: 13 } }, grid: { color: '#eee' } },
+                y: { title: { display: true, text: 'PC2 (' + pca.var_explained[1] + '% שונות)', font: { size: 13 } }, grid: { color: '#eee' } }
+            }
+        },
+        plugins: [{
+            // Draw station name labels on each point
+            id: 'pcaLabels',
+            afterDraw(chart) {
+                const ctx2 = chart.ctx;
+                ctx2.save();
+                ctx2.font = '11px sans-serif';
+                ctx2.fillStyle = '#333';
+                ctx2.textAlign = 'right';
+                chart.data.datasets.forEach((ds, di) => {
+                    const meta = chart.getDatasetMeta(di);
+                    meta.data.forEach((pt, pi) => {
+                        const name = ds._stationNames[pi];
+                        // Short name (last part after " - ")
+                        const shortName = name.length > 20 ? name.split(' - ').pop() || name.slice(0, 18) + '...' : name;
+                        ctx2.fillText(shortName, pt.x - 8, pt.y - 8);
+                    });
+                });
+                ctx2.restore();
+            }
+        }]
+    });
+}
+
+// ── MDS scatter plot ──
+let mdsChart = null;
+function updateMdsChart() {
+    const mds = DATA.mds;
+    if (!mds || mds.stations.length < 2) {
+        document.getElementById('mds-canvas').parentElement.innerHTML = '<p style="color:#999;text-align:center;padding:40px">אין מספיק תחנות עם ריכוזים לניתוח MDS</p>';
+        return;
+    }
+    const ctx = document.getElementById('mds-canvas').getContext('2d');
+    if (mdsChart) mdsChart.destroy();
+
+    const stationInfo = {};
+    DATA.stations.forEach(s => { stationInfo[s.name] = s; });
+    const sourceGroups = {};
+    mds.stations.forEach((stn, i) => {
+        if (!selectedStations.has(stn)) return;
+        const info = stationInfo[stn];
+        const st = info ? info.source_type : 'אחר';
+        if (!sourceGroups[st]) sourceGroups[st] = [];
+        sourceGroups[st].push({ x: mds.x[i], y: mds.y[i], name: stn, total: info ? info.max_total : 0 });
+    });
+
+    const datasets = Object.entries(sourceGroups).map(([st, pts]) => ({
+        label: st,
+        data: pts.map(p => ({ x: p.x, y: p.y })),
+        backgroundColor: getSourceColor(st),
+        borderColor: '#fff',
+        borderWidth: 1.5,
+        pointRadius: pts.map(p => Math.max(5, Math.min(20, 5 + Math.log10(p.total + 1) * 5))),
+        pointHoverRadius: pts.map(p => Math.max(7, Math.min(22, 7 + Math.log10(p.total + 1) * 5))),
+        _stationNames: pts.map(p => p.name),
+        _totals: pts.map(p => p.total)
+    }));
+
+    mdsChart = new Chart(ctx, {
+        type: 'scatter',
+        data: { datasets: datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 14 } },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const ds = ctx.dataset;
+                            const name = ds._stationNames[ctx.dataIndex];
+                            const total = ds._totals[ctx.dataIndex];
+                            return name + ' (' + (total >= 1 ? total.toFixed(1) : total.toFixed(3)) + ' ' + GROUP_UNIT + ')';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { title: { display: true, text: 'MDS ציר 1', font: { size: 13 } }, grid: { color: '#eee' } },
+                y: { title: { display: true, text: 'MDS ציר 2', font: { size: 13 } }, grid: { color: '#eee' } }
+            }
+        },
+        plugins: [{
+            id: 'mdsLabels',
+            afterDraw(chart) {
+                const ctx2 = chart.ctx;
+                ctx2.save();
+                ctx2.font = '11px sans-serif';
+                ctx2.fillStyle = '#333';
+                ctx2.textAlign = 'right';
+                chart.data.datasets.forEach((ds, di) => {
+                    const meta = chart.getDatasetMeta(di);
+                    meta.data.forEach((pt, pi) => {
+                        const name = ds._stationNames[pi];
+                        const shortName = name.length > 20 ? name.split(' - ').pop() || name.slice(0, 18) + '...' : name;
+                        ctx2.fillText(shortName, pt.x - 8, pt.y - 8);
+                    });
+                });
+                ctx2.restore();
+            }
+        }]
+    });
+}
+
+// ── PFOS/PFHxS ratio table ──
+function renderRatioTable() {
+    const ratios = DATA.pfos_pfhxs_ratios;
+    if (!ratios || Object.keys(ratios).length === 0) {
+        document.getElementById('ratio-container').innerHTML = '<p style="color:#999;text-align:center">אין נתונים זמינים</p>';
+        return;
+    }
+    const entries = Object.entries(ratios).filter(([s, v]) => v !== null && selectedStations.has(s)).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) {
+        document.getElementById('ratio-container').innerHTML = '<p style="color:#999;text-align:center">בחר תחנות עם ריכוזי PFOS ו-PFHxS</p>';
+        return;
+    }
+    let html = '<table class="ratio-table"><thead><tr><th>תחנה</th><th>PFOS/PFHxS</th><th>פרשנות</th></tr></thead><tbody>';
+    entries.forEach(([stn, ratio]) => {
+        let interp = '';
+        if (ratio >= 5) interp = '<span style="color:#c0392b;font-weight:600">קרוב למקור</span>';
+        else if (ratio >= 2) interp = '<span style="color:#e67e22;font-weight:600">אזור מעבר</span>';
+        else interp = '<span style="color:#27ae60;font-weight:600">מרוחק / Transport</span>';
+        html += '<tr><td style="text-align:right;font-weight:600">' + stn + '</td><td><b>' + ratio.toFixed(2) + '</b></td><td>' + interp + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('ratio-container').innerHTML = html;
+}
+
+// ── Heatmap (red-yellow-green, clustered) ──
+function updateHeatmap() {
+    const sim = DATA.similarity;
+    const selIdx = [];
+    sim.stations.forEach((s, i) => { if (selectedStations.has(s)) selIdx.push(i); });
+
+    if (selIdx.length === 0) {
+        document.getElementById('heatmap-container').innerHTML = '<p style="color:#999;text-align:center;padding:20px">בחר תחנות כדי להציג את מטריצת הדמיון</p>';
+        return;
+    }
+
+    let html = '<table class="heatmap"><thead><tr><th class="hm-corner"></th>';
+    selIdx.forEach(j => { html += '<th class="hm-header">' + sim.stations[j] + '</th>'; });
+    html += '</tr></thead><tbody>';
+
+    selIdx.forEach(i => {
+        html += '<tr><td class="hm-station">' + sim.stations[i] + '</td>';
+        selIdx.forEach(j => {
+            const val = sim.values[i][j];
+            let bg, tc;
+            if (i === j) { bg = '#555'; tc = '#fff'; }
+            else { bg = heatmapColor(val); tc = (val >= 40 && val <= 75) ? '#333' : '#fff'; }
+            html += '<td class="hm-cell" style="background:' + bg + ';color:' + tc + '">' + val.toFixed(0) + '%</td>';
+        });
+        html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('heatmap-container').innerHTML = html;
+}
+
+// ── Findings ──
+function renderFindings() {
+    const ul = document.getElementById('findings-list');
+    ul.innerHTML = DATA.findings.map(f => '<li>' + f + '</li>').join('');
+}
+
+// ── Master update ──
+function updateUI() {
+    updateChipStyles();
+    updateFilterCount();
+    updateMap();
+    updateAttenuationChart();
+    updateFingerprintChart();
+    updatePcaChart();
+    updateMdsChart();
+    renderRatioTable();
+    updateHeatmap();
+}
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', function() {
+    buildFilterPanel();
+    initMap();
+    updateAttenuationChart();
+    updateFingerprintChart();
+    updatePcaChart();
+    updateMdsChart();
+    renderRatioTable();
+    updateHeatmap();
+    renderFindings();
+});
+</script>
+
+</body>
+</html>

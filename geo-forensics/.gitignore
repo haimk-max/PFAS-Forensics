@@ -1,0 +1,23 @@
+# Uploaded user data - never commit real data
+data/uploads/*.xlsx
+data/uploads/*.csv
+data/uploads/*.xls
+
+# Large data files (>1MB)
+data/sample/העברת ידע למשרד הבריאות*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,30 @@
+# GeoForensics - Contaminant Source Investigation Platform
+# Install: pip install -r requirements.txt
+
+# --- UI ---
+streamlit>=1.31.0
+streamlit-folium>=0.18.0
+
+# --- Maps ---
+folium>=0.15.0
+
+# --- Data ---
+pandas>=2.1.0
+openpyxl>=3.1.0          # Excel file reading
+
+# --- Charts ---
+plotly>=5.18.0
+
+# --- Statistics ---
+numpy>=1.25.0
+scipy>=1.11.0
+
+# --- Coordinates ---
+# pyproj>=3.6.0          # Optional: ITM <-> WGS84 (fallback: arcpy or math)
+scikit-learn>=1.3.0
+
+# --- Export ---
+jinja2>=3.1.0            # HTML report templates
+
+# --- Testing ---
+pytest>=7.4.0
