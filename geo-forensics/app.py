@@ -47,9 +47,6 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap');
 
-/* DEBUG: remove after confirming CSS injection works */
-section[data-testid="stSidebar"] { border-right: 5px solid red !important; }
-
 /* --- Base RTL + font --- */
 html, body, .stApp, .stApp * {
     direction: rtl;
