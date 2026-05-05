@@ -37,16 +37,21 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.html("""
+st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-""")
+""", unsafe_allow_html=True)
 
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap');
+
+/* DEBUG: remove after confirming CSS injection works */
+section[data-testid="stSidebar"] { border-right: 5px solid red !important; }
+
 /* --- Base RTL + font --- */
-html, body, .stApp {
+html, body, .stApp, .stApp * {
     direction: rtl;
     font-family: 'Assistant', 'Noto Sans Hebrew', 'Arial', system-ui, sans-serif !important;
 }
