@@ -677,6 +677,24 @@ try:
     m.get_root().html.add_child(_Elem(f"""<script>
 (function(){{
     var _t=0;
+    function _styleTooltip(t){{
+        t.style.background='transparent';
+        t.style.backgroundColor='transparent';
+        t.style.border='none';
+        t.style.borderColor='transparent';
+        t.style.boxShadow='none';
+        t.style.padding='0';
+        t.style.margin='0';
+        t.style.fontSize='11px';
+        t.style.fontWeight='700';
+        t.style.color='#0d1b2a';
+        t.style.textShadow='-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff';
+        t.style.pointerEvents='none';
+        t.style.whiteSpace='nowrap';
+        var b=t.querySelector('::before');
+        var arr=t.children;
+        for(var i=0;i<arr.length;i++){{arr[i].style.display='none';}}
+    }}
     function _init(){{
         var _m=window['map_{_mid}'];
         if(!_m){{if(++_t<40)setTimeout(_init,150);return;}}
@@ -685,8 +703,8 @@ try:
             var c=document.getElementById('map_{_mid}');
             if(!c)return;
             var tt=Array.from(c.querySelectorAll('.leaflet-tooltip-permanent'));
+            tt.forEach(_styleTooltip);
             if(z<11){{tt.forEach(function(t){{t.style.opacity='0';}});return;}}
-            tt.forEach(function(t){{t.style.opacity='1';}});
             var placed=[];
             var cr=c.getBoundingClientRect();
             tt.forEach(function(t){{
