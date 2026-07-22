@@ -24,6 +24,9 @@ _BUILTIN_GROUPS: dict[str, ContaminantGroup] = {
             "PFOS", "PFOA", "PFHxS", "PFNA", "PFDA", "PFUnDA", "PFBS", "GenX",
             "PFHxA", "PFHpA", "PFDoA", "PFBA", "ADONA", "6:2FT", "PFESA",
             "PFPeA", "PFHpS", "PFPeS", "PFTDA", "PFUnA",
+            # Sulfonates/precursors seen in Water Authority lab exports.
+            # FOSA and 8:2FTS are diagnostic AFFF/precursor markers.
+            "82FTS", "FOSA", "PFDS", "PFTDS",
         ],
         thresholds={
             "PFOS": 0.1,
@@ -46,6 +49,10 @@ _BUILTIN_GROUPS: dict[str, ContaminantGroup] = {
             "PFPeS": 0.1,
             "PFTDA": 0.1,
             "PFUnA": 0.1,
+            "82FTS": 0.1,
+            "FOSA": 0.1,
+            "PFDS": 0.1,
+            "PFTDS": 0.1,
         },
         unit="µg/L",
     ),

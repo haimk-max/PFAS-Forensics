@@ -47,7 +47,10 @@ SIDEBAR_WIDTH = 350
 PAGE_ICON = "🔬"
 
 # --- Color Palettes ---
-PFAS_S_COMPOUNDS = ["PFOS", "PFBS", "PFHxS", "6:2FT", "PFPeS", "PFHpS"]
+PFAS_S_COMPOUNDS = [
+    "PFOS", "PFBS", "PFHxS", "6:2FT", "PFPeS", "PFHpS",
+    "PFDS", "PFTDS", "82FTS", "FOSA",
+]
 PFAS_A_COMPOUNDS = [
     "PFOA", "PFHxA", "PFHpA", "PFNA", "PFDA", "PFDoA",
     "PFBA", "PFPeA", "PFESA", "ADONA", "PFTDA", "PFUnA",
@@ -59,6 +62,8 @@ COMPOUND_COLORS = {
     # S group — Blue palette (dark → light)
     "PFOS": "#0D47A1", "PFBS": "#1565C0", "PFHxS": "#1976D2",
     "6:2FT": "#42A5F5", "PFPeS": "#90CAF9", "PFHpS": "#BBDEFB",
+    "PFDS": "#1E88E5", "PFTDS": "#5C9CE6",
+    "82FTS": "#64B5F6", "FOSA": "#2E5FA3",
     # A group — Orange/warm palette (dark → light)
     "PFOA": "#BF360C", "PFHxA": "#D84315", "PFHpA": "#E64A19",
     "PFNA": "#F4511E", "PFDA": "#FF7043", "PFDoA": "#FF8A65",
