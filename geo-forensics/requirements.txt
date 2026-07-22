@@ -20,7 +20,9 @@ numpy>=1.25.0
 scipy>=1.11.0
 
 # --- Coordinates ---
-# pyproj>=3.6.0          # Optional: ITM <-> WGS84 (fallback: arcpy or math)
+pyproj>=3.6.0            # ITM <-> WGS84 (accurate; math fallback exists if absent)
+
+# --- Machine Learning ---
 scikit-learn>=1.3.0
 
 # --- Export ---

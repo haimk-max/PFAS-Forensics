@@ -1,0 +1,14 @@
+# Deployment mirror of geo-forensics/.streamlit/config.toml (Clinical theme).
+# Streamlit Community Cloud runs from the repo root, so it reads THIS file, not
+# the one under geo-forensics/. Keep the [theme] block in sync between the two.
+[server]
+headless = true
+port = 8501
+
+[theme]
+base = "light"
+primaryColor = "#2a9d8f"
+backgroundColor = "#f5f3ee"
+secondaryBackgroundColor = "#faf8f4"
+textColor = "#1c1f24"
+font = "sans serif"

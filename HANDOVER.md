@@ -11,7 +11,9 @@
 1. **`Industrial-Areas-Report/` נמחק מהריפו** (החלטת משתמש, סשן זה).
    עותק מיושן היה; מקור האמת בריפו `haimk-max/industrial-areas-report`. README/NEXT_STEPS/CLAUDE/SUMMARY נוקו מכל הפניה אליו.
 
-2. **יעד פריסה: Streamlit Cloud** — הפלטפורמה הרשמית לאפליקציית PFAS. טרם בוצע; הצעד הבא הפרקטי.
+2. **יעד פריסה: Streamlit Cloud** — הריפו **הוכן לפריסה** (סשן זה). נותר רק ה-OAuth של המשתמש ב-share.streamlit.io (Main file path: `geo-forensics/app.py`, branch `main`). ראה סעיף "פריסה" ב-README.
+   - **Footgun שנפתר:** Streamlit Cloud מריץ מ**שורש** הריפו, לא מ-`geo-forensics/`. לכן: (א) נוצר `requirements.txt` בשורש שמפנה ל-`geo-forensics/requirements.txt` (בלי שכפול); (ב) נוצר `.streamlit/config.toml` בשורש (מראה של זה שב-geo-forensics — Streamlit לא קורא config מתת-תיקייה כש-CWD=שורש). **שני קבצי ה-config חייבים להישאר מסונכרנים.**
+   - `pyproj` שוחרר ב-requirements (היה מוער) — עכשיו backend הקואורדינטות המדויק; math fallback עדיין קיים אם חסר.
 
 3. **הוכרע (סשן זה): הדשבורד הקנוני = עיצוב Clinical.**
    - `app.py` = הגרסה הקנונית (לשעבר `app_v2.py`) — עיצוב Clinical, לשוניות `st.tabs()`, KPI strip, insight cards, `html.escape` עקבי.

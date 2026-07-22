@@ -43,6 +43,21 @@ python generate_report_v2.py "data/sample/דוגמה - חגית PFAS.xlsx" -o re
 cd geo-forensics && pytest
 ```
 
+## פריסה ל-Streamlit Community Cloud
+
+הריפו מוכן לפריסה. ב-[share.streamlit.io](https://share.streamlit.io) → **New app**:
+
+| שדה | ערך |
+|-----|-----|
+| Repository | `haimk-max/my-first-project` |
+| Branch | `main` |
+| Main file path | `geo-forensics/app.py` |
+
+לחיצה על **Deploy** נותנת URL ציבורי קבוע. אין הגדרות נוספות:
+- `requirements.txt` בשורש (מפנה ל-`geo-forensics/requirements.txt`) — Streamlit Cloud מזהה אותו אוטומטית.
+- `.streamlit/config.toml` בשורש — ערכת הנושא (Clinical). נדרש בשורש כי Streamlit Cloud מריץ מתיקיית השורש.
+- קבצי הדוגמה ב-`geo-forensics/data/sample/` כלולים בריפו; טעינתם עצמאית מתיקיית העבודה.
+
 ## טכנולוגיות
 
 | רכיב | טכנולוגיה |

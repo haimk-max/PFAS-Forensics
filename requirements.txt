@@ -1,0 +1,4 @@
+# Root requirements — for Streamlit Community Cloud.
+# Streamlit Cloud runs from the repo root and looks for requirements.txt here.
+# Single source of truth is geo-forensics/requirements.txt — do not duplicate deps.
+-r geo-forensics/requirements.txt
