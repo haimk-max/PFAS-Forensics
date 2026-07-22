@@ -911,12 +911,13 @@ if not max_event_nonzero.empty:
 # =============================================================================
 # Section Tabs
 # =============================================================================
-tab_map, tab_conc, tab_fp, tab_sim, tab_pca, tab_findings, tab_raw = st.tabs([
+tab_map, tab_conc, tab_fp, tab_sim, tab_pca, tab_attr, tab_findings, tab_raw = st.tabs([
     "🗺 מפה",
     "📊 ריכוז סכומי",
     "🧪 הרכב יחסי",
     "🔗 דמיון",
     "📐 PCA / MDS",
+    "🧭 ייחוס מקור",
     "📋 ממצאים",
     "🗂 נתונים גולמיים",
 ])
@@ -1458,10 +1459,126 @@ with tab_pca:
     ), unsafe_allow_html=True)
 
 
+# ─── TAB: Source Attribution (screening) ─────────────────────────────────────
+with tab_attr:
+    st.markdown(_panel_head(
+        "06", "ייחוס מקור — סינון ראשוני",
+        "התאמת חתימות לפרופילי-מקור ספרותיים + הערכת מועמדים מוצהרים. "
+        "כלי סינון לתעדוף חקירה — לא קביעת מקור."
+    ), unsafe_allow_html=True)
+
+    import glob as _glob
+
+    from src.attribution import evaluate_candidates, flow_from_region, load_region
+    from src.source_profiles import PROFILES, marker_flags, match_profiles
+
+    _regions_dir = os.path.join(os.path.dirname(__file__), "regions")
+    _region_names = sorted(
+        os.path.basename(p) for p in _glob.glob(os.path.join(_regions_dir, "*"))
+        if os.path.isdir(p) and os.path.isfile(os.path.join(p, "region.json"))
+    )
+
+    _auto_idx = 0
+    _loaded_regions = {}
+    for _i, _rn in enumerate(_region_names):
+        try:
+            _loaded_regions[_rn] = load_region(_rn)
+            _mf = os.path.basename(_loaded_regions[_rn].get("measurement_file", ""))
+            if _mf and file_name and _mf == os.path.basename(file_name):
+                _auto_idx = _i + 1
+        except (OSError, ValueError, KeyError):
+            continue
+
+    _region_choice = st.selectbox(
+        "אזור (regions/)",
+        options=["— ללא אזור —"] + _region_names,
+        index=_auto_idx,
+        help="ישות אזור: מניפסט + שכבות הקשר (מקורות מוצהרים, הנחות זרימה). "
+             "בעתיד: חיבור לשכבות ה-GIS הארגוניות.",
+    )
+
+    if _region_choice == "— ללא אזור —":
+        st.info("בחר אזור כדי להעריך מועמדים מוצהרים. התאמת הפרופילים למטה פועלת גם ללא אזור.")
+        _region = None
+    else:
+        _region = _loaded_regions.get(_region_choice)
+
+    # Flow assumption banner (mandatory transparency)
+    if _region is not None:
+        _fl = flow_from_region(_region, "groundwater")
+        st.markdown(_caveat(
+            f"<b>שקיפות הנחות:</b> {_fl.describe_he()}. "
+            "כל עוד הכיוון מונח ולא מדוד — ציר הידרולוגי תומך בעקביות בלבד, "
+            "ואף מועמד אינו עולה מעל \"מועמד משני\"."
+        ), unsafe_allow_html=True)
+
+        _cands = evaluate_candidates(df_filtered, fingerprint, max_event_filtered, _region)
+        for _c in _cands:
+            with st.container(border=True):
+                st.markdown(
+                    f"**{_c['name_he']}** · {_c['kind']} · "
+                    f"<span style='color:#7a3d9e; font-weight:600;'>{_c['tier']}</span><br>"
+                    f"<span style='font-size:12px; color:#7d8189;'>מיקום: {_c['location_quality']}</span>",
+                    unsafe_allow_html=True,
+                )
+                _m1, _m2, _m3 = st.columns(3)
+                _m1.metric("תחנות פגועות במורד המשוער", _c["n_downgradient"])
+                _m2.metric("התאמה כימית במורד", f"{_c['chem_share']*100:.0f}%")
+                _m3.metric("ראיות פליטה", len(_c["emission_evidence"]))
+                _ev_html = "<div style='direction:rtl; font-size:13px; line-height:1.7;'>"
+                _ev_html += "<b>בעד:</b><ul style='margin:4px 0;'>"
+                _ev_html += "".join(f"<li>{html.escape(e)}</li>" for e in _c["evidence_for"]) or "<li>—</li>"
+                _ev_html += "</ul><b>נגד / הסברים חלופיים:</b><ul style='margin:4px 0;'>"
+                _ev_html += "".join(f"<li>{html.escape(e)}</li>" for e in _c["evidence_against"]) or "<li>—</li>"
+                _ev_html += "</ul><b>מה יפריך:</b><ul style='margin:4px 0;'>"
+                _ev_html += "".join(f"<li>{html.escape(e)}</li>" for e in _c["would_refute"])
+                _ev_html += "</ul></div>"
+                st.markdown(_ev_html, unsafe_allow_html=True)
+
+    # Per-station profile matching (works with or without a region)
+    st.markdown('<div class="v2-section-title" style="margin-top:14px;">התאמת תחנות לפרופילי-מקור</div>', unsafe_allow_html=True)
+    with st.expander("מתודולוגיה — פרופילי-מקור", expanded=False):
+        _prof_rows = "".join(
+            f"<tr><td><b>{html.escape(p.name_he)}</b></td><td>{html.escape(p.notes_he)}</td></tr>"
+            for p in PROFILES
+        )
+        st.markdown(f"""<div class="v2-method">
+<b>עיקרון:</b> השוואת טביעת האצבע של כל תחנה (קוסינוס — המתמטיקה הקיימת) לפרופילים יחסיים אופייניים מהספרות (ITRC; Barzen-Hanson 2017; Houtz 2013). פרופילים ברמת-סינון (heuristic), עם גרסת "טרי" ו"בלוי" — קדם-חומרים מתפרקים לאורך ההסעה.<br>
+<b>פלט:</b> "עקבי עם" בלבד — התאמה גבוהה אינה קובעת מקור; פרופילים שונים חופפים חלקית.<br>
+<table style="font-size:12px; margin-top:6px;">{_prof_rows}</table>
+</div>""", unsafe_allow_html=True)
+
+    if not fingerprint.empty:
+        _matches = match_profiles(fingerprint, top_n=2)
+        if not _matches.empty:
+            _piv = _matches[_matches["rank"] == 1][["station", "profile_he", "score"]]
+            _piv = _piv.rename(columns={"station": "תחנה", "profile_he": "התאמה מובילה (עקבי עם)", "score": "ציון (%)"})
+            _piv = _piv.sort_values("ציון (%)", ascending=False)
+            st.dataframe(_piv, use_container_width=True, hide_index=True)
+
+        _flags = marker_flags(df_filtered)
+        _precursor = _flags[_flags["flags"].apply(lambda fl: any("קדם-חומרים" in f for f in fl))]
+        if not _precursor.empty:
+            st.markdown('<div class="v2-section-title" style="margin-top:10px;">תחנות עם סמני קדם-חומרים פעילים</div>', unsafe_allow_html=True)
+            st.markdown(
+                "<div style='direction:rtl; font-size:13px;'>" +
+                "".join(f"<div class='v2-finding'>{html.escape(r['station'])}: " +
+                        " · ".join(html.escape(f) for f in r['flags']) + "</div>"
+                        for _, r in _precursor.iterrows()) +
+                "</div>", unsafe_allow_html=True)
+    else:
+        st.info("אין נתוני fingerprint להתאמה.")
+
+    st.markdown(_caveat(
+        "פרופילי-המקור הם היוריסטיקה ספרותית ברמת סינון. התאמה — גם גבוהה — "
+        "היא ראיה אחת מתוך שלושה צירים נדרשים (כימי, הידרולוגי, פליטה) ואינה מזהה מקור."
+    ), unsafe_allow_html=True)
+
+
 # ─── TAB: Findings ────────────────────────────────────────────────────────────
 with tab_findings:
     st.markdown(_panel_head(
-        "06", "סיכום ממצאים והערות זהירות",
+        "07", "סיכום ממצאים והערות זהירות",
         "ממצאים אוטומטיים המבוססים על הנתונים שנטענו."
     ), unsafe_allow_html=True)
 
@@ -1480,7 +1597,7 @@ with tab_findings:
 
 # ─── TAB: Raw Data ────────────────────────────────────────────────────────────
 with tab_raw:
-    st.markdown(_panel_head("07", "נתונים גולמיים"), unsafe_allow_html=True)
+    st.markdown(_panel_head("08", "נתונים גולמיים"), unsafe_allow_html=True)
 
     st.subheader("סיכום תחנות")
     st.dataframe(station_summary, use_container_width=True, hide_index=True)

@@ -1,0 +1,33 @@
+{
+  "name": "hagit",
+  "name_he": "אזור חגית מורחב",
+  "crs": "EPSG:2039",
+  "bbox_itm": [190152, 711112, 203910, 724822],
+  "measurement_file": "data/sample/אזור חגית מורחב - סינון של דוח העברת ידע למשרד הבריאות.xlsx",
+  "flow": {
+    "surface": {
+      "direction_deg": 270,
+      "tier": "assumed",
+      "declared_by": "משתמש (השירות ההידרולוגי)",
+      "declared_on": "2026-07-22",
+      "notes_he": "הנחת עבודה לצורך הדגמה: זרימה עילית כללית ממזרח למערב. תוחלף בנגזרת DEM (S2)."
+    },
+    "groundwater": {
+      "direction_deg": 270,
+      "tier": "assumed",
+      "declared_by": "משתמש (השירות ההידרולוגי)",
+      "declared_on": "2026-07-22",
+      "notes_he": "הנחת עבודה: זרימת תהום כללית ממזרח למערב. תוחלף בנגזרת מפלסים (S3)."
+    }
+  },
+  "layers": [
+    {
+      "path": "sources.geojson",
+      "kind": "potential_sources",
+      "source": "עדות משתמש + קואורדינטות משוערות (לא GIS רשמי)",
+      "fetched_at": "2026-07-22",
+      "quality": "approximate",
+      "notes_he": "יוחלף בשכבות ה-GIS הארגוניות של הרשות כשיחובר (עיקרון ממשק-הספקים)."
+    }
+  ]
+}

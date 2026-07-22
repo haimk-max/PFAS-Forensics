@@ -1,0 +1,27 @@
+{
+  "type": "FeatureCollection",
+  "name": "hagit_potential_sources",
+  "crs_note": "coordinates are WGS84 lon/lat; itm gives EPSG:2039",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [35.045, 32.5765] },
+      "properties": {
+        "id": "hagit_power_station",
+        "name_he": "תחנת הכוח חגית",
+        "itm": [204485, 720260],
+        "location_quality": "approximate — לאימות מול GIS רשמי",
+        "kind": "power_station",
+        "expected_profiles": ["afff_ecf_fresh", "afff_ecf_weathered", "afff_ft_modern"],
+        "emission_evidence": [
+          "חוות מכלי דלק נוזלי (גיבוי לגז) — עדות משתמש 2026-07-22",
+          "מערך כיבוי בקצף — עדות משתמש 2026-07-22"
+        ],
+        "evidence_tier": "user_testimony",
+        "hypothesis_origin": "המשתמש (החשוד המרכזי שלו) — נבדק כהשערה מול הסברים מתחרים, לא כהנחה",
+        "since_year": null,
+        "notes_he": "תחנת כוח מבוססת גז; הרלוונטיות ל-PFAS היא מערך כיבוי הקצף בחוות הדלק. יש לברר: סוג הקצף, אירועי שימוש/תרגולים, ניקוזי החווה."
+      }
+    }
+  ]
+}
