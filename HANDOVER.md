@@ -38,9 +38,10 @@
 
 ### שינוי שם ריפו → `PFAS-Forensics`
 
-- הוכרע: הריפו ישונה מ-`my-first-project` ל-**`PFAS-Forensics`** (GitHub ממיר רווח למקף; אין "שם תצוגה" נפרד).
-- ההתייחסויות הפנימיות עודכנו מראש (README ×2 כולל הוראת הפריסה, CLAUDE ×1). **טרם נפרס** ל-Streamlit Cloud — לכן שינוי השם בטוח (הרגע האידיאלי, לפני פריסה).
-- GitHub מקים redirect אוטומטי מהשם הישן; נשבר רק אם ייווצר ריפו חדש בשם `my-first-project`.
+- **בוצע**: הריפו שונה מ-`my-first-project` ל-**`PFAS-Forensics`** (GitHub ממיר רווח למקף; אין "שם תצוגה" נפרד). הנתיב המלא כעת: `haimk-max/PFAS-Forensics`.
+- ההתייחסויות הפנימיות עודכנו (README ×2 כולל הוראת הפריסה, CLAUDE ×1). git בסשן ממשיך לעבוד דרך ה-redirect של GitHub.
+- **טרם נפרס** ל-Streamlit Cloud — שינוי השם נעשה לפני הפריסה (הרגע האידיאלי). כשפורסים: `Repository: haimk-max/PFAS-Forensics`, branch `main`, main file `geo-forensics/app.py`.
+- ⚠ ה-redirect של GitHub יישבר אם ייווצר ריפו חדש בשם `my-first-project`.
 
 ### לקחים טכניים
 
