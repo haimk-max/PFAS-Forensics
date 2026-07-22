@@ -1,270 +1,101 @@
-# Industrial Areas Water Quality Monitoring System - Summary
+# GeoForensics PFAS — סיכום יכולות המערכת
 
-## What Was Built
+## מטרת הפרויקט
 
-A complete **automated system** for generating periodic water quality monitoring reports for Israeli industrial areas above the Coastal Aquifer.
+פלטפורמה לניתוח גיאו-פורנזי של מזהמי PFAS במים תהומיים ועיליים, עבור השירות ההידרולוגי, רשות המים.
+הכלי עוזר לזהות מקורות זיהום, להשוות פרופילים כימיים בין תחנות, ולהפיק דוחות להחלטות רגולטוריות.
 
-### System Capabilities
+---
 
-✅ **Data Integration**
-- Water Authority groundwater quality data (via data.gov.il CKAN API)
-- Excel file consolidation of historical water quality measurements
-- PRTR industrial emissions registry (מפל"ס)
-- Mei Raanana industrial wastewater monitoring program
-- Ministry of Environmental Protection facility data
+## מה המערכת יודעת לעשות
 
-✅ **Analysis Engine**
-- Contamination severity assessment (none/mild/moderate/severe/very-severe)
-- Trend detection (increasing/decreasing/stable) for water quality parameters
-- Regulatory compliance evaluation against drinking water standards
-- Pollution source identification matching groundwater contaminants to PRTR facilities
-- Facility risk ranking based on emissions, proximity, industry type
+### 1. טעינת נתונים מ-Excel
+- קריאת קבצי `xlsx` עם עמודות: תחנה, מקור, קואורדינטות ITM, תרכובת, ריכוז
+- זיהוי אוטומטי של קבוצת מזהמים (PFAS, BTEX, ממסים כלוריים, מתכות, חנקות)
+- המרת קואורדינטות ITM → WGS84 (pyproj)
+- תמיכה בעברית בשמות עמודות ותחנות
 
-✅ **Report Generation**
-- HTML reports with interactive tables and status indicators
-- JSON structured data exports for integration
-- Customizable templates
-- Area-specific summaries and findings
+### 2. ניתוחים סטטיסטיים
+| ניתוח | תפקיד |
+|-------|--------|
+| **Chemical Fingerprint** | פרופיל אחוזי תרכובות לכל תחנה — הבסיס להשוואה |
+| **Cosine Similarity** | מטריצת דמיון בין תחנות (0–100%), מזהה plumes משותפים |
+| **PCA** | הפחתת ממדים — מציג "מרחק" בין תחנות בשתי צירים |
+| **MDS** | Multidimensional Scaling על מרחק קוסינוס — וידוא PCA |
+| **Hierarchical Clustering** | קיבוץ היררכי של תחנות לפי הרכב כימי |
+| **ΣPFAS Concentration** | ריכוז כולל לכל תחנה, ציר לוגריתמי |
 
-✅ **Demonstration**
-- Complete working example for Raanana industrial area (אזור תעשייה רעננה)
-- Sample data showing TCE contamination, metal coating facilities
-- Full pipeline execution from data load → analysis → report generation
+### 3. דשבורד Streamlit אינטראקטיבי (app.py / app_v2.py)
+- העלאת קובץ Excel ישירות מהדפדפן
+- מפה אינטראקטיבית (Folium) עם סימוני תחנות וצבעי מקור
+- לשוניות: מפה | ריכוזים | פרופיל כימי | מטריצת דמיון | PCA/MDS | ממצאים
+- סיכום ממצאים אוטומטי בעברית (תחנה מקסימלית, תרכובת דומיננטית, חריגים, אשכולות)
+- **app_v2.py** — גרסה עם עיצוב Clinical (פלטת צבעים נקייה, כרטיסי KPI, טיפוגרפיה משודרגת)
 
-## Project Structure
+### 4. דוחות HTML עצמאיים (generate_report.py / generate_report_v2.py)
+- קובץ HTML יחיד self-contained — אין שרת, נפתח בדפדפן
+- כל הנתונים מוטמעים כ-JSON; גרפים מרונדרים client-side (Plotly.js, Leaflet.js)
+- מפה אינטראקטיבית עם פופ-אפים לכל תחנה
+- 5 לשוניות: מפה | ריכוזים | פרופיל | דמיון | PCA
+- **generate_report_v2.py** — גרסה עם עיצוב Clinical + Compare Drawer (השוואת זוג תחנות)
+
+---
+
+## קבצים מרכזיים
 
 ```
-Industrial-Areas-Report/
-│
-├── Data Sources (data_sources/)
-│   ├── water_authority.py      - Israel Water Authority API connector
-│   ├── prtr.py                 - PRTR emissions registry
-│   ├── mei_raanana.py          - Wastewater monitoring data
-│   └── excel_importer.py       - Excel file loader
-│
-├── Analysis (analysis/)
-│   ├── water_quality_analyzer.py      - Contamination assessment
-│   └── pollution_source_analyzer.py   - Facility risk analysis
-│
-├── Reporting (reporting/)
-│   └── report_generator.py     - HTML/JSON report creation
-│
-├── Demo (demo/)
-│   └── raanana_demo.py         - Full Raanana case study
-│
-├── Tests (tests/)
-│   └── test_analysis.py        - Unit tests
-│
-├── Documentation
-│   ├── README.md               - Project overview
-│   ├── QUICKSTART.md           - How to use (5-10 mins)
-│   ├── IMPLEMENTATION.md       - Technical reference
-│   └── config.py               - Settings & standards
-│
-└── Supporting Files
-    └── requirements.txt        - Python dependencies
+geo-forensics/
+├── app.py                  ← דשבורד Streamlit (גרסה מקורית)
+├── app_v2.py               ← דשבורד Streamlit (עיצוב Clinical)
+├── generate_report.py      ← מחולל HTML סטטי (v1)
+├── generate_report_v2.py   ← מחולל HTML סטטי (v2, Clinical + Compare Drawer)
+├── config.py               ← צבעים, PFAS_COMPOUND_ORDER, הגדרות מפה
+├── src/
+│   ├── analytics.py        ← cosine_similarity_matrix, generate_findings_summary
+│   ├── data_model.py       ← build_fingerprint_matrix, calc_total_concentration
+│   ├── data_loader.py      ← טעינת Excel, זיהוי עמודות
+│   ├── geo_utils.py        ← המרת ITM ↔ WGS84
+│   └── contaminant_groups.py ← 5 קבוצות מזהמים מוגדרות + detect_group()
+├── data/sample/            ← קבצי נתונים לדוגמה (חגית, קישון)
+├── report_hagit_v2.html    ← דוח דוגמה (22 תחנות, 18 תרכובות)
+├── report_kishon_v2.html   ← דוח דוגמה (32 תחנות, 19 תרכובות)
+└── tests/                  ← 31 בדיקות pytest (כולן עוברות)
 ```
 
-## Key Features
+---
 
-### 1. Water Quality Analysis
-- Accepts data from data.gov.il API or Excel consolidation
-- Calculates contamination severity by comparing to drinking water standards
-- Detects trends: Is contamination increasing, decreasing, or stable?
-- Identifies contaminated wells above configurable thresholds
-- Generates area-wide summary statistics
+## הרצה מהירה
 
-### 2. Pollution Source Identification
-- Links detected groundwater contaminants to PRTR-reporting facilities
-- Matches by:
-  - Industry type (e.g., "metal coating" facility → TCE contamination)
-  - Reported emissions (facility reports TCE emissions → high confidence)
-  - Geographic proximity to contaminated wells
-- Ranks facilities by risk score (0-1)
-- Provides recommendations (investigate, monitor, routine)
-
-### 3. Integrated Wastewater Monitoring
-- Incorporates local water corporation data (Mei Raanana)
-- Tracks industrial wastewater facility compliance
-- Logs violations and corrective actions
-- Correlates with groundwater contamination
-
-### 4. Flexible Data Input
-- **Option 1:** Direct API to data.gov.il (if network permits)
-- **Option 2:** Excel file with historical consolidation
-- **Option 3:** Hybrid (try API, fallback to Excel)
-- Includes template generator for standardized Excel format
-
-## Raanana Case Study
-
-The system demonstrates end-to-end capability with Raanana:
-
-**Problem Identified:**
-- High TCE (trichloroethylene) contamination in monitoring well RAIN-01
-- Measured: 250-310 μg/L
-- Standard: 5 μg/L (for 60% alert threshold)
-- **Severity: SEVERE + INCREASING TREND**
-
-**Sources Identified:**
-- Metal Coating Facility A: Reports 150 kg TCE/year
-- Chemical Facility B: Reports benzene and other VOCs
-- Both located in Raanana industrial zone
-
-**Wastewater Monitoring Status:**
-- 2 factories in compliance program
-- 87.5% average compliance rate
-- 3 violations in past year (resolved)
-
-**Automated Report Generated:**
-```
-Report_Raanana_20260419_123045.html  ← Interactive summary
-Report_Raanana_20260419_123045.json  ← Machine-readable data
-```
-
-## How to Use
-
-### Quick Start (3 minutes)
+### דשבורד
 ```bash
-cd Industrial-Areas-Report
+cd geo-forensics
 pip install -r requirements.txt
-python demo/raanana_demo.py
+streamlit run app_v2.py
 ```
 
-### Use Your Data (10 minutes)
-```python
-from data_sources.excel_importer import ExcelDataSource
-
-# Create template
-ExcelDataSource.create_template_excel("my_data.xlsx")
-# Fill with your water quality measurements...
-
-# Generate report
-from demo.raanana_demo import run_raanana_demo  # See structure
-# Adapt for your area
+### דוח HTML סטטי
+```bash
+cd geo-forensics
+python generate_report_v2.py "data/sample/דוגמה - חגית PFAS.xlsx" -o report.html
 ```
-
-### Customize for Your Area
-Edit `config.py`:
-```python
-INDUSTRIAL_AREAS["my_area"] = {
-    "hebrew": "שם בעברית",
-    "known_contaminants": ["TCE", ...],
-    "status": "..."
-}
-```
-
-## Technology Stack
-
-- **Python 3.7+**
-- **Data Handling:** pandas, numpy
-- **API:** ckanapi (for data.gov.il)
-- **Web Scraping:** requests, beautifulsoup4
-- **Visualization:** matplotlib, plotly (extensible)
-- **Testing:** pytest
-- **Output:** reportlab, HTML/JSON generation
-
-## Data Sources Reference
-
-| Source | URL | Data | Type |
-|--------|-----|------|------|
-| Water Authority | https://data.gov.il | borehole_quality_history | API/Excel |
-| PRTR Registry | https://www.gov.il/he/pages/prtr | Facility emissions | Web/GIS |
-| Mei Raanana | https://mei-raanana.co.il | Wastewater monitoring | Web reports |
-| GovMap | https://www.govmap.gov.il | GIS layers | Map/WMS |
-| Env. Ministry | https://www.gov.il/he/departments/topics/prtr | Facility data | Database |
-
-## Known Limitations & Next Steps
-
-### Current Limitations
-- ⚠️ Live APIs (gov.il, data.gov.il) may be access-restricted in some environments
-- **Workaround:** Use Excel import (works offline, fully functional)
-- Demo uses sample/placeholder data to demonstrate pipeline
-- GIS/mapping features are framework-ready (need map library)
-
-### How to Connect Real Data
-1. **For Water Authority data:**
-   - If data.gov.il accessible: `WaterAuthorityDataSource()` works directly
-   - Else: Use `ExcelDataSource()` with Excel consolidation file
-
-2. **For PRTR data:**
-   - Current: Placeholder facility data
-   - To upgrade: Implement web scraping or API call to PRTR portal
-   - Or: Download PRTR dataset from data.gov.il
-
-3. **For Mei Raanana:**
-   - Current: Placeholder compliance data
-   - To upgrade: Scrape mei-raanana.co.il or obtain direct data feed
-
-### Enhancement Opportunities
-- [ ] Add map visualizations (folium, plotly)
-- [ ] Schedule automation (APScheduler for monthly reports)
-- [ ] Email delivery (smtplib)
-- [ ] Add chart generation (matplotlib)
-- [ ] Web dashboard (Flask/Django)
-- [ ] Database backend (PostgreSQL)
-- [ ] Support more industrial areas
-- [ ] Historical trend analysis (2010-present)
-
-## What You Can Do Now
-
-1. **Understand the system:** Read QUICKSTART.md (5 mins)
-2. **See it in action:** Run `python demo/raanana_demo.py` (1 min)
-3. **Review the code:** ~2500 lines of well-commented Python
-4. **Use your own data:** Create Excel template, add your measurements
-5. **Extend it:** Add your own data sources, analysis, or reports
-
-## Files in This Repository
-
-```
-my-first-project/
-├── Industrial-Areas-Report/           ← THE NEW SYSTEM
-│   ├── README.md                      (Project overview)
-│   ├── QUICKSTART.md                  (How to use)
-│   ├── IMPLEMENTATION.md              (Technical docs)
-│   ├── config.py                      (Settings)
-│   ├── requirements.txt               (Dependencies)
-│   ├── data_sources/                  (4 data connectors)
-│   ├── analysis/                      (2 analysis engines)
-│   ├── reporting/                     (Report generator)
-│   ├── demo/                          (Raanana example)
-│   ├── tests/                         (Unit tests)
-│   └── reports/                       (Output directory)
-│
-├── README.md                          (Original project root)
-└── בדיקה שניה                         (Original test file)
-```
-
-## Summary
-
-You now have a **production-ready framework** for:
-- ✅ Automating water quality monitoring analysis
-- ✅ Linking contamination to industrial pollution sources  
-- ✅ Generating comprehensive periodic reports
-- ✅ Integrating multiple Israeli government data sources
-- ✅ Customizing for additional industrial areas
-
-The system is **data-source agnostic** — works with:
-- Real APIs (when accessible)
-- Excel consolidation files (reliable, offline-capable)
-- Web-scraped data
-- Any custom data source you connect
-
-**Next step:** Read `Industrial-Areas-Report/QUICKSTART.md` and run the demo! 🚀
 
 ---
 
-## Contact & Attribution
+## ניסוח ייחוס — עיקרון קריטי
 
-This system integrates data from:
-- Israel Water Authority (רשות המים)
-- Ministry of Environmental Protection (משרד להגנת הסביבה)
-- Local Water Corporations (תאגידי מים)
-- Government Data Portal (data.gov.il)
-
-All source data is public and governed by Israeli Open Data regulations.
+הדוחות משתמשים בשפת "מועמד ליבה" / "מועמד משני" / "רקע מקומי" — **לעולם לא "המקור"**.
+דמיון גבוה בין תחנות אינו מוכיח זהות מקור; הוא מחייב בדיקה משלימה (כיוון זרימה, ראיות פליטה, chronology).
 
 ---
 
-**Status:** ✅ Ready to Use  
-**Commitment:** Pushed to branch `claude/add-monitoring-report-link-nZBO4`  
-**Date:** April 19, 2026
+## מצב (2026-07-22)
+
+| רכיב | מצב |
+|------|-----|
+| דשבורד Streamlit (app.py) | ✅ פועל |
+| דשבורד Clinical (app_v2.py) | ✅ פועל |
+| דוחות HTML v1 | ✅ פועל |
+| דוחות HTML v2 + Compare Drawer | ✅ פועל |
+| בדיקות pytest | ✅ 31/31 עוברות |
+| פריסה ב-Streamlit Cloud | ⏳ טרם בוצע |
+| החלטה: app.py vs app_v2.py | ⏳ פתוח |

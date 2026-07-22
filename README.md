@@ -1,52 +1,46 @@
-# Groundwater Contamination Monitoring & GeoForensics
+# GeoForensics PFAS Dashboard
 
-מערכת לניטור זיהום מי תהום באזורי תעשייה בישראל וחקירה גיאו-פורנזית של מזהמים.
+פלטפורמה לניתוח גיאו-פורנזי של מזהמי PFAS במים תהומיים ועיליים — עבור השירות ההידרולוגי, רשות המים.
 
 ## מבנה הפרויקט
 
 ```
 my-first-project/
-├── geo-forensics/           ← דשבורד אינטראקטיבי לניתוח PFAS (Streamlit)
-│   ├── app.py               ← אפליקציית Streamlit
-│   ├── generate_report.py   ← מחולל דוחות HTML סטטיים
+├── geo-forensics/           ← הליבה: דשבורד ודוחות PFAS
+│   ├── app.py               ← דשבורד Streamlit (גרסה מקורית)
+│   ├── app_v2.py            ← דשבורד Streamlit (עיצוב Clinical)
+│   ├── generate_report.py   ← מחולל דוחות HTML סטטיים (v1)
+│   ├── generate_report_v2.py← מחולל דוחות HTML סטטיים (v2)
 │   ├── config.py            ← הגדרות: צבעים, מפה, UI
 │   ├── src/                 ← מודולי אנליטיקה ועיבוד נתונים
 │   ├── tests/               ← בדיקות pytest
 │   ├── data/sample/         ← קבצי נתונים לדוגמה
 │   └── REQUIREMENTS.md      ← מפרט דרישות הדשבורד
 │
-├── Industrial-Areas-Report/ ← מערכת דוחות תקופתיים (ארכיטקטורת Plugins)
-│   ├── core/                ← חוזים, interfaces, pipeline
-│   ├── plugins/             ← forensics, trend detection, attribution
-│   ├── data_sources/        ← Water Authority API, Excel, PRTR
-│   ├── reporting/           ← מחולל דוחות HTML/JSON
-│   ├── demo/                ← הדגמה — אזור תעשייה רעננה
-│   └── README.md            ← תיעוד מלא
-│
 ├── CLAUDE.md                ← הנחיות עבודה ותיעוד טכני
-└── SUMMARY.md               ← סיכום יכולות המערכת
+├── SUMMARY.md               ← סיכום יכולות המערכת
+├── HANDOVER.md              ← זיכרון בין-סשן
+└── PROCESS.md               ← מעקב דרישות
 ```
 
 ## התחלה מהירה
 
-### GeoForensics — דשבורד PFAS
+### דשבורד אינטראקטיבי
 ```bash
 cd geo-forensics
 pip install -r requirements.txt
-streamlit run app.py
+streamlit run app_v2.py
 ```
 
-### דוח HTML סטטי
+### דוח HTML סטטי (self-contained)
 ```bash
 cd geo-forensics
-python generate_report.py "data/sample/דוגמה - חגית PFAS.xlsx" -o report.html
+python generate_report_v2.py "data/sample/דוגמה - חגית PFAS.xlsx" -o report.html
 ```
 
-### Industrial Areas Report — מערכת דוחות תקופתיים
+### בדיקות
 ```bash
-cd Industrial-Areas-Report
-pip install -r requirements.txt
-python demo/raanana_demo.py
+cd geo-forensics && pytest
 ```
 
 ## טכנולוגיות
@@ -55,6 +49,6 @@ python demo/raanana_demo.py
 |-------|-----------|
 | דשבורד | Streamlit, streamlit-folium, Plotly |
 | מפות | Folium / Leaflet.js |
-| אנליטיקה | scikit-learn, scipy, numpy, pandas |
-| דוחות | Jinja2, Plotly.js, Bootstrap RTL |
-| קואורדינטות | pyproj (ITM ↔ WGS84) |
+| אנליטיקה | scikit-learn (PCA, MDS), scipy (clustering), numpy, pandas |
+| דוחות HTML | Plotly.js, Bootstrap RTL, Leaflet.js |
+| קואורדינטות | pyproj — ITM (EPSG:2039) ↔ WGS84 (EPSG:4326) |
