@@ -73,6 +73,15 @@ COLUMN_MAPPING: dict[str, str] = {
 # עמודות חובה - חייבות להיות בכל קובץ
 REQUIRED_COLUMNS = ["station_name", "x_itm", "y_itm", "sample_date", "compound", "concentration"]
 
+# פרמטרים מצרפיים (סכום כולל) — לא תרכובות בודדות.
+# TPFAS = סכום כל הקונגנרים; אם נכנס לניתוח הוא סופר-כפול את הריכוז ומשתלט על
+# טביעת האצבע. חייב להיסנן כבר בטעינה כך שלא ייכנס ל-df כלל.
+# ההשוואה נעשית על ערך מנורמל (strip + upper).
+AGGREGATE_PARAMETERS = {
+    "TPFAS", "PFAS TOTAL", "TOTAL PFAS", "SUM PFAS", "ΣPFAS",
+    'סה"כ PFAS', "PFAS סה\"כ",
+}
+
 
 def load_file(file) -> pd.DataFrame:
     # Determine file name
@@ -116,6 +125,13 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
     # Drop fully empty rows
     df = df.dropna(how="all")
+
+    # Drop aggregate/total parameters (e.g. TPFAS = sum of congeners).
+    # They must never enter the DataFrame — otherwise they inflate ΣPFAS and
+    # dominate the fingerprint. Filtered here so no downstream code sees them.
+    if "compound" in df.columns:
+        _agg = {a.strip().upper() for a in AGGREGATE_PARAMETERS}
+        df = df[~df["compound"].astype(str).str.strip().str.upper().isin(_agg)]
 
     # Parse dates
     if "sample_date" in df.columns:

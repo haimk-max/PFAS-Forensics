@@ -92,3 +92,13 @@ class TestCleanData:
         df = pd.DataFrame({"concentration": ["<0.01", "0.5", "N.D.", "1.2"]})
         result = clean_data(df)
         assert result["concentration"].tolist() == [0.0, 0.5, 0.0, 1.2]
+
+    def test_aggregate_parameter_dropped(self):
+        """TPFAS (total-of-congeners) must be filtered out so it never inflates
+        ΣPFAS or dominates the fingerprint. Real congeners are kept."""
+        df = pd.DataFrame({
+            "compound": ["PFOS", "TPFAS", "PFOA", "tpfas ", "Total PFAS"],
+            "concentration": [0.1, 0.3, 0.2, 0.3, 0.3],
+        })
+        result = clean_data(df)
+        assert result["compound"].tolist() == ["PFOS", "PFOA"]
