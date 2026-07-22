@@ -40,7 +40,8 @@
 
 - **בוצע**: הריפו שונה מ-`my-first-project` ל-**`PFAS-Forensics`** (GitHub ממיר רווח למקף; אין "שם תצוגה" נפרד). הנתיב המלא כעת: `haimk-max/PFAS-Forensics`.
 - ההתייחסויות הפנימיות עודכנו (README ×2 כולל הוראת הפריסה, CLAUDE ×1). git בסשן ממשיך לעבוד דרך ה-redirect של GitHub.
-- **טרם נפרס** ל-Streamlit Cloud — שינוי השם נעשה לפני הפריסה (הרגע האידיאלי). כשפורסים: `Repository: haimk-max/PFAS-Forensics`, branch `main`, main file `geo-forensics/app.py`.
+- **הפריסה בוצעה** (המשתמש צפה באפליקציה החיה): `haimk-max/PFAS-Forensics`, branch `main`, main file `geo-forensics/app.py`. תקלת-דרך שנפתרה: שתי אפליקציות OAuth של Streamlit ב-GitHub — הישנה ("Streamlit") מול "Streamlit Community Cloud" (שמעולם לא קיבלה הרשאה); נדרש grant לריפו פרטיים דרך האחרונה.
+- **הצעד הבא של הסשן הבא**: המשתמש ראה את האפליקציה החיה ואמר "יש הרבה מה לתקן" — **רשימת התיקונים טרם נאספה**. לפתוח את הסשן באיסוף הרשימה מהמשתמש (רצוי עם צילומי מסך), לרשום ב-PROCESS.md, ורק אז לתקן. ה-UI מעולם לא עבר QA ויזואלי בדפדפן מצדנו — רק קומפילציה ובדיקות.
 - ⚠ ה-redirect של GitHub יישבר אם ייווצר ריפו חדש בשם `my-first-project`.
 
 ### לקחים טכניים
