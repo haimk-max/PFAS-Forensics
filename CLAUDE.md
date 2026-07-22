@@ -77,9 +77,10 @@ my-first-project/
 ├── HANDOVER.md               # זיכרון בין-סשן
 ├── PROCESS.md                # מעקב דרישות
 ├── geo-forensics/
-│   ├── generate_report.py    # סקריפט ראשי - יצירת דוחות HTML סטטיים
-│   ├── generate_report_v2.py # גרסה 2
-│   ├── app.py / app_v2.py    # אפליקציית Streamlit (דשבורד אינטראקטיבי)
+│   ├── generate_report.py    # מחולל דוחות HTML סטטיים (v1)
+│   ├── generate_report_v2.py # מחולל דוחות HTML — עיצוב Clinical + Compare Drawer
+│   ├── app.py                # דשבורד Streamlit — קנוני (עיצוב Clinical)
+│   ├── app_legacy.py         # דשבורד Streamlit — גרסה מקורית (גלילה רציפה)
 │   ├── config.py             # הגדרות: מפה, קואורדינטות, UI
 │   ├── requirements.txt      # תלויות Python
 │   ├── src/

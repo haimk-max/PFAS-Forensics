@@ -25,12 +25,13 @@
 | **Hierarchical Clustering** | קיבוץ היררכי של תחנות לפי הרכב כימי |
 | **ΣPFAS Concentration** | ריכוז כולל לכל תחנה, ציר לוגריתמי |
 
-### 3. דשבורד Streamlit אינטראקטיבי (app.py / app_v2.py)
+### 3. דשבורד Streamlit אינטראקטיבי (app.py)
 - העלאת קובץ Excel ישירות מהדפדפן
 - מפה אינטראקטיבית (Folium) עם סימוני תחנות וצבעי מקור
-- לשוניות: מפה | ריכוזים | פרופיל כימי | מטריצת דמיון | PCA/MDS | ממצאים
+- לשוניות: מפה | ריכוז סכומי | הרכב יחסי | דמיון | PCA/MDS | ממצאים | נתונים גולמיים
 - סיכום ממצאים אוטומטי בעברית (תחנה מקסימלית, תרכובת דומיננטית, חריגים, אשכולות)
-- **app_v2.py** — גרסה עם עיצוב Clinical (פלטת צבעים נקייה, כרטיסי KPI, טיפוגרפיה משודרגת)
+- **עיצוב Clinical** (Claude Design): פלטת צבעים נקייה, כרטיסי KPI, טיפוגרפיה משודרגת, `html.escape` עקבי
+- **app_legacy.py** — הגרסה המקורית (גלילה אנכית רציפה, ללא לשוניות) שמורה לצורכי השוואה
 
 ### 4. דוחות HTML עצמאיים (generate_report.py / generate_report_v2.py)
 - קובץ HTML יחיד self-contained — אין שרת, נפתח בדפדפן
@@ -45,8 +46,8 @@
 
 ```
 geo-forensics/
-├── app.py                  ← דשבורד Streamlit (גרסה מקורית)
-├── app_v2.py               ← דשבורד Streamlit (עיצוב Clinical)
+├── app.py                  ← דשבורד Streamlit — קנוני (עיצוב Clinical)
+├── app_legacy.py           ← דשבורד Streamlit — גרסה מקורית (גלילה רציפה)
 ├── generate_report.py      ← מחולל HTML סטטי (v1)
 ├── generate_report_v2.py   ← מחולל HTML סטטי (v2, Clinical + Compare Drawer)
 ├── config.py               ← צבעים, PFAS_COMPOUND_ORDER, הגדרות מפה
@@ -70,7 +71,7 @@ geo-forensics/
 ```bash
 cd geo-forensics
 pip install -r requirements.txt
-streamlit run app_v2.py
+streamlit run app.py
 ```
 
 ### דוח HTML סטטי
@@ -92,10 +93,10 @@ python generate_report_v2.py "data/sample/דוגמה - חגית PFAS.xlsx" -o re
 
 | רכיב | מצב |
 |------|-----|
-| דשבורד Streamlit (app.py) | ✅ פועל |
-| דשבורד Clinical (app_v2.py) | ✅ פועל |
+| דשבורד קנוני (app.py, עיצוב Clinical) | ✅ פועל |
+| דשבורד מקורי (app_legacy.py) | ✅ שמור להשוואה |
 | דוחות HTML v1 | ✅ פועל |
 | דוחות HTML v2 + Compare Drawer | ✅ פועל |
 | בדיקות pytest | ✅ 31/31 עוברות |
+| החלטה: app.py vs app_v2.py | ✅ נסגר — v2 קנוני (2026-07-22) |
 | פריסה ב-Streamlit Cloud | ⏳ טרם בוצע |
-| החלטה: app.py vs app_v2.py | ⏳ פתוח |

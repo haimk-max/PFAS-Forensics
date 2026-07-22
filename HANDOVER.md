@@ -13,14 +13,17 @@
 
 2. **יעד פריסה: Streamlit Cloud** — הפלטפורמה הרשמית לאפליקציית PFAS. טרם בוצע; הצעד הבא הפרקטי.
 
-3. **החלטה פתוחה: app.py vs app_v2.py** — שתי גרסאות דשבורד פועלות:
-   - `app.py` — גרסה מקורית, יציבה, נבדקה
-   - `app_v2.py` — גרסה עם עיצוב Clinical (Claude Design), לשוניות st.tabs(), KPI strip, insight cards
-   המשתמש טרם בחר גרסה קנונית. לפתוח ב-PROCESS.md לפני שינויים נוספים בדשבורד.
+3. **הוכרע (סשן זה): הדשבורד הקנוני = עיצוב Clinical.**
+   - `app.py` = הגרסה הקנונית (לשעבר `app_v2.py`) — עיצוב Clinical, לשוניות `st.tabs()`, KPI strip, insight cards, `html.escape` עקבי.
+   - `app_legacy.py` = הגרסה המקורית (גלילה אנכית רציפה) — נשמרה להשוואה, לא לפיתוח.
+   - הנימוק: עקביות עם `generate_report_v2` (אותה שפה ויזואלית), אבטחת HTML טובה יותר, וההשקעה ב-Claude Design.
+   - במעבר הוחזרו מ-app_legacy 3 דברים שהיו עדיפים בו: **מתודולוגיה מלאה** (נוסף "חוזקות" לכל 5 ההסברים), **PCA/MDS במלוא הרוחב** (במקום זה-לצד-זה שהצטופף עם 32 תחנות), ותוקן ה-**MDS FutureWarning**.
+   - `.streamlit/config.toml` עודכן לפלטת Clinical (accent `#2a9d8f`, bg `#f5f3ee`).
 
 ### מה נבנה בסשן זה
 
-- **app_v2.py** (1491 שורות): דשבורד Streamlit עם עיצוב Clinical מ-Claude Design.
+- **app.py** (קנוני): דשבורד Streamlit עם עיצוב Clinical מ-Claude Design (לשעבר app_v2.py).
+- **app_legacy.py**: הגרסה המקורית, שמורה להשוואה.
 - **generate_report_v2.py** (844 שורות): מחולל HTML v2 עם Compare Drawer (השוואת זוג תחנות).
 - **report_hagit_v2.html / report_kishon_v2.html**: דוחות דוגמה שנוצרו ומוטמעים בריפו.
 
@@ -28,7 +31,8 @@
 
 - `st.html()` — DOMPurify מסיר `<link>` tags → פונטים חייבים דרך `@import` בתוך `<style>` ב-`st.markdown`.
 - Plotly heatmap RTL: `reversescale=True` + `autosize=False` + `height` מפורש.
-- MDS FutureWarning: להוסיף `init='random'` ל-`MDS()` בגרסה הבאה.
+- **MDS FutureWarning תוקן**: `MDS(..., init="random")` — ב-sklearn 1.10 ברירת המחדל תשתנה ל-`classical_mds`; `init="random"` משמר את ההתנהגות הנוכחית.
+- `st.tabs()` בסטרימליט אינו lazy — כל תוכן הלשוניות מרונדר בכל rerun (show/hide ב-CSS). אין רווח ביצועים; היתרון הוא ניווט בלבד. תלות סמויה: `pca_data` מחושב בלשונית PCA (05) ונצרך בלשונית ממצאים (06) — עובד כי 05 רץ לפני 06, אך שביר אם סדר הלשוניות ישתנה.
 
 ---
 

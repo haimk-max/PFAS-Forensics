@@ -7,8 +7,8 @@
 ```
 my-first-project/
 ├── geo-forensics/           ← הליבה: דשבורד ודוחות PFAS
-│   ├── app.py               ← דשבורד Streamlit (גרסה מקורית)
-│   ├── app_v2.py            ← דשבורד Streamlit (עיצוב Clinical)
+│   ├── app.py               ← דשבורד Streamlit — קנוני (עיצוב Clinical)
+│   ├── app_legacy.py        ← דשבורד Streamlit — גרסה מקורית (גלילה רציפה)
 │   ├── generate_report.py   ← מחולל דוחות HTML סטטיים (v1)
 │   ├── generate_report_v2.py← מחולל דוחות HTML סטטיים (v2)
 │   ├── config.py            ← הגדרות: צבעים, מפה, UI
@@ -29,7 +29,7 @@ my-first-project/
 ```bash
 cd geo-forensics
 pip install -r requirements.txt
-streamlit run app_v2.py
+streamlit run app.py
 ```
 
 ### דוח HTML סטטי (self-contained)
