@@ -133,9 +133,9 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         _agg = {a.strip().upper() for a in AGGREGATE_PARAMETERS}
         df = df[~df["compound"].astype(str).str.strip().str.upper().isin(_agg)]
 
-    # Parse dates
+    # Parse dates (handles both regular date strings and Excel serial numbers)
     if "sample_date" in df.columns:
-        df["sample_date"] = pd.to_datetime(df["sample_date"], dayfirst=True, errors="coerce")
+        df["sample_date"] = _parse_dates(df["sample_date"])
 
     # Parse concentrations - handle "<LOD" values (below limit of detection)
     if "concentration" in df.columns:
@@ -171,6 +171,34 @@ def _load_csv(file) -> pd.DataFrame:
             return pd.read_csv(file, encoding=DEFAULT_ENCODING)
         except UnicodeDecodeError:
             return pd.read_csv(file, encoding=FALLBACK_ENCODING)
+
+
+# Excel serial-date range guard: ~1970-01-01 (25569) .. ~2069 (73415).
+# Values inside this window that arrive as bare numbers are Excel serials,
+# not nanosecond timestamps — pd.to_datetime would otherwise misread them
+# (e.g. 45840 -> 1970-01-01 00:00:00.000045840). Some Water Authority Excel
+# exports store the sample date as a raw serial number instead of a date cell.
+_EXCEL_SERIAL_MIN = 25569   # 1970-01-01
+_EXCEL_SERIAL_MAX = 73415   # ~2070-01-01
+
+
+def _parse_dates(series: pd.Series) -> pd.Series:
+    """Parse a date column, converting Excel serial numbers correctly.
+
+    Regular date strings/datetimes go through pd.to_datetime as usual; bare
+    numbers within the plausible Excel-serial range are converted with the
+    1899-12-30 origin.
+    """
+    numeric = pd.to_numeric(series, errors="coerce")
+    is_serial = numeric.notna() & numeric.between(_EXCEL_SERIAL_MIN, _EXCEL_SERIAL_MAX)
+
+    parsed = pd.to_datetime(series, dayfirst=True, errors="coerce")
+    if is_serial.any():
+        serial_dates = pd.to_datetime(
+            numeric.where(is_serial), unit="D", origin="1899-12-30", errors="coerce"
+        )
+        parsed = parsed.where(~is_serial, serial_dates)
+    return parsed
 
 
 def _parse_concentration(value) -> float | None:

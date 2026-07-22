@@ -88,6 +88,15 @@ class TestCleanData:
         result = clean_data(df)
         assert pd.api.types.is_datetime64_any_dtype(result["sample_date"])
 
+    def test_excel_serial_date_parsing(self):
+        """Excel serial numbers (e.g. Water Authority exports) must convert to
+        real dates, not be misread as nanosecond timestamps (1970)."""
+        # 45840 = 2025-07-02 in Excel's 1899-12-30 origin.
+        df = pd.DataFrame({"sample_date": [45840, 44558], "concentration": [0.5, 0.2]})
+        result = clean_data(df)
+        assert str(result["sample_date"].iloc[0].date()) == "2025-07-02"
+        assert str(result["sample_date"].iloc[1].date()) == "2021-12-28"
+
     def test_concentration_cleaning(self):
         df = pd.DataFrame({"concentration": ["<0.01", "0.5", "N.D.", "1.2"]})
         result = clean_data(df)
