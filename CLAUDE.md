@@ -71,7 +71,7 @@
 
 ## GeoForensics PFAS — מבנה הפרויקט
 ```
-my-first-project/
+PFAS-Forensics/
 ├── CLAUDE.md                 # קובץ זה
 ├── SUMMARY.md                # סיכום יכולות המערכת
 ├── HANDOVER.md               # זיכרון בין-סשן

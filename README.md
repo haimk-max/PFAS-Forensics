@@ -5,7 +5,7 @@
 ## מבנה הפרויקט
 
 ```
-my-first-project/
+PFAS-Forensics/
 ├── geo-forensics/           ← הליבה: דשבורד ודוחות PFAS
 │   ├── app.py               ← דשבורד Streamlit — קנוני (עיצוב Clinical)
 │   ├── app_legacy.py        ← דשבורד Streamlit — גרסה מקורית (גלילה רציפה)
@@ -49,7 +49,7 @@ cd geo-forensics && pytest
 
 | שדה | ערך |
 |-----|-----|
-| Repository | `haimk-max/my-first-project` |
+| Repository | `haimk-max/PFAS-Forensics` |
 | Branch | `main` |
 | Main file path | `geo-forensics/app.py` |
 
