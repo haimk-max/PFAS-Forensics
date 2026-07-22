@@ -1,104 +1,74 @@
-# CLAUDE.md — Industrial Areas Groundwater Monitoring System
+# CLAUDE.md — GeoForensics PFAS Dashboard
 
 ## Project Purpose
 
-Automated platform for analyzing groundwater contamination in Israeli industrial areas
-and generating periodic regulatory reports for the Water Authority and Ministry of
-Environmental Protection. Raanana industrial zone is the pilot case study.
+פלטפורמה לניתוח גיאו-פורנזי של מזהמי PFAS במים, קרקע ושפכים — עבור השירות ההידרולוגי, רשות המים.
+הפרויקט מייצר דוחות HTML אינטראקטיביים ודשבורד Streamlit מקבצי Excel, הכוללים ניתוחים סטטיסטיים, מפות וגרפים.
+הליבה: `geo-forensics/`.
 
-### GeoForensics PFAS Module
-
-פלטפורמה לניתוח גיאו-פורנזי של מזהמי PFAS במים, קרקע ושפכים.
-הפרויקט מייצר דוחות HTML אינטראקטיביים מקבצי Excel, הכוללים ניתוחים סטטיסטיים, מפות, וגרפים.
-
----
-1. Think Before Coding
-Don't assume. Don't hide confusion. Surface tradeoffs.
-
-Before implementing:
-
-State your assumptions explicitly. If uncertain, ask.
-If multiple interpretations exist, present them - don't pick silently.
-If a simpler approach exists, say so. Push back when warranted.
-If something is unclear, stop. Name what's confusing. Ask.
-2. Simplicity First
-Minimum code that solves the problem. Nothing speculative.
-
-No features beyond what was asked.
-No abstractions for single-use code.
-No "flexibility" or "configurability" that wasn't requested.
-No error handling for impossible scenarios.
-If you write 200 lines and it could be 50, rewrite it.
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-3. Surgical Changes
-Touch only what you must. Clean up only your own mess.
-
-When editing existing code:
-
-Don't "improve" adjacent code, comments, or formatting.
-Don't refactor things that aren't broken.
-Match existing style, even if you'd do it differently.
-If you notice unrelated dead code, mention it - don't delete it.
-When your changes create orphans:
-
-Remove imports/variables/functions that YOUR changes made unused.
-Don't remove pre-existing dead code unless asked.
-The test: Every changed line should trace directly to the user's request.
-
-4. Goal-Driven Execution
-Define success criteria. Loop until verified.
-
-Transform tasks into verifiable goals:
-
-"Add validation" → "Write tests for invalid inputs, then make them pass"
-"Fix the bug" → "Write a test that reproduces it, then make it pass"
-"Refactor X" → "Ensure tests pass before and after"
-For multi-step tasks, state a brief plan:
-
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+> **תיקיית `Industrial-Areas-Report/` בריפו זה — עותק מיושן.** מקור האמת החי: הריפו `haimk-max/industrial-areas-report`. אין לפתח כאן; סעיפי הארכיטקטורה שתיארו אותה הוסרו מקובץ זה (זמינים בהיסטוריית git).
 
 ---
 
-## Architecture Principles
+## עקרונות עבודה אדם–מודל
 
-### Plugin-First Design
+> הועתק מ-`sessions-archive/templates/CLAUDE.base.md@9801386` (הבית הקנוני; אין סנכרון אוטומטי — עדכון מהותי שם מחייב סבב-הפצה יזום).
 
-The system is built on an **Open-Closed** principle: the core orchestration layer is
-closed to modification, while every analysis capability is a plugin that can be added,
-replaced, or disabled without touching core code.
+### א. ממשל מסמכים ותיעוד
+1. **עובדה אחת — בית אחד**: לכל עובדה (סטטוס, גרסה, החלטה, לקח) מקום קנוני יחיד; כל אזכור אחר הוא הפניה. שכפול עובדות — לא מספר הקבצים — הוא מקור הדריפט.
+2. **מבחן קיום למסמך חדש**: מסמך מצדיק את קיומו רק אם הוא עונה על שאלה שאף מסמך קיים לא עונה עליה; אחרת — מיזוג.
+3. **מקור אחד, פורמטים נגזרים**: תוצר בכמה פורמטים נכתב פעם אחת ומרונדר — אלא אם הפורמטים הם מסמכים מעוצבים בעבודת-יד עם תוכן עיצובי משלהם, שאז ריצת רינדור לא תבטל את העבודה הידנית ועדיף שומר-עקביות read-only.
+4. **תיעוד גר ליד מושאו**: ממשל פר-פרויקט בריפו של הפרויקט; כל מה שחוצה-פרויקטים — בבית משותף אחד.
+5. **טבלת תפקידי מסמכים**: קובץ הממשל מכיל טבלה קצרה "איזו שאלה כל מסמך עונה" — הפילטר למסמך הבא.
 
-```
-core/            ← stable contracts + orchestration (rarely changes)
-plugins/         ← all capabilities as drop-in packages (grows freely)
-knowledge/       ← cumulative context store (approved reports feed next year)
-areas/           ← GeoJSON polygons per industrial area
-config.py        ← pipeline activation per area (data, not code)
-```
+### ב. זיכרון ולמידה מתמשכת
+6. **זיכרון בין-סשן committed**: הנחיות יציבות (CLAUDE.md) + מסירת-סשן נרטיבית (HANDOVER) + מעקב דרישות עם hash ושיטת אימות לכל סגירה (PROCESS). תוכניות בצ'אט נעלמות; קבצים נשארים.
+7. **צינור קידום לקחים**: לקח מקודם לחוק כתוב רק אחרי מקרה שני שמאמת אותו.
+8. **מטא-ביקורת תקופתית**: אחת לרבעון/אבן-דרך — בדיקת דריפט מסמכים, כלים לא-מסונכרנים, לקחים שהבשילו, ותוצרים בבית הלא-נכון.
+9. **תעודת מעבר**: כל רעיון/תוצר שנודד בין כלים או פרויקטים מגיע עם בלוק FACT / ASSUMPTION / DECISION / OPEN — מה מחייב ומה רק השראה.
+10. **רמת ודאות מוצהרת**: כל מסמך מסכם נפתח בהצהרת מקורות ומגבלות; טענות מהותיות מסומנות סטטוס אינליין.
 
-**Rule:** adding a new analysis module (e.g., PFAS forensics, LSTM trend detector)
-= create a new folder under `plugins/`, implement the relevant Protocol from
-`core/interfaces.py`, decorate with `@register_plugin`. Zero changes to core.
+### ג. עבודה עם מודלים
+11. **תגובה מילולית לפני תכנון, תכנון לפני ביצוע**: ביקורת/משוב מקבלים קודם ניתוח ביקורתי מילולי; המודל מוזמן לחלוק ("לא מחויב למסקנות אך מחויב לשקול אותן").
+12. **תיוג מוצא לכל קלט מודבק**: סקירה/משוב/טקסט נושא שורת מקור — אדם / מודל (איזה) / משולב.
+13. **הקצאת מודלים לפי צפיפות-ערך**: מודל חזק לשיפוט; מודל זול לביצוע מובנה מבריף סגור.
+14. **אימות מכני לעבודה מואצלת**: כל האצלה מלווה באימות שאינו תלוי בדיווח המבצע — SHA מול remote, צילום מסך, בדיקת מבנה. "בוצע בהצלחה" איננו ראיה.
+15. **בדיקת השמטה ולא רק אימות**: בביקורת תוצרי מודל לחפש גם את מה שחסר, לא רק לאמת את הכתוב.
+16. **שלב bootstrap מוצהר**: פרויקט שמומחה בונה לבד בסיוע AI מוגדר מראש כשלב עם נקודת-סיום שבה עובר לצוות/תשתית ארגונית.
 
-### Six Extension Points (core/interfaces.py)
+### ד. חובת אובייקטיביות במחקר ובהערכת רעיונות
+17. **השערה — לא הנחת-יסוד**: כשמתבקש מחקר או הערכה של רעיון (במיוחד רעיון/אבחנה של המבקש עצמו) — ההשערה נכנסת למחקר כהשערה לבדיקה מול הסברים מתחרים. אסור להטמיע אותה כהנחת-יסוד בבריפים לסוכני מחקר; בריף מוטה = מחקר מוטה, גם אם הממצאים נכונים בפרטיהם.
+18. **חיפוש ראיות-נגד מובנה**: כל מחקר כולל ציר ייעודי לראיות סותרות ולהסברים חלופיים; טענות מכריעות-החלטה עוברות סבב הפרכה אדברסרי (סוכנים שמנדטם להפריך) לפני הצגת מסקנות.
+19. **היגיינת ראיות**: בדיקת אינטרס-מקור (ספק שמוכר את הפתרון = חשד); בדיקת "מה קרה אחר-כך" לכל סיפור-הצלחה מצוטט; הבחנה בין מדדי-פרוקסי (השתתפות, תפוקה) לתוצאות בפועל (מימוש, אימוץ).
+20. **חשד מוגבר להתאמה נוחה**: ממצא שמתיישב עם עמדה קודמת של המבקש מקבל בדיקה מחמירה יותר, לא מקלה; הדוח מציין במפורש היכן מסקנותיו חופפות לעמדות המבקש ועל איזה בסיס עצמאי הן עומדות. (מבחן-העזר: "אילו המבקש האמין בהיפך — האם המחקר הזה היה מגלה זאת?")
 
-| Protocol | Where | Purpose |
-|---|---|---|
-| `DataSource` | `plugins/data_sources/` | Fetch raw measurements |
-| `ContaminantFamilyAnalyzer` | `plugins/forensics/` | Per-family group analysis |
-| `ForensicsModule` | `plugins/forensics/` | Chemical fingerprinting per well |
-| `TrendDetector` | `plugins/trend_detection/` | Detect trend types in time series |
-| `SourceAttributor` | `plugins/source_attribution/` | Rank pollution candidates |
-| `ReportSection` | `plugins/report_sections/` | Render one HTML section |
+הפרוטוקול המלא למחקר: `sessions-archive/toolkit/process/playbooks/objective-research.md`.
 
-### Typed Data Contracts (core/contracts.py)
+---
 
-All inter-module data flows through typed dataclasses — never raw `dict`.
-Key types: `BoreholeReading`, `FamilyReport`, `FingerprintResult`,
-`TrendResult`, `Attribution`, `ReportContext`.
+## אילוצי סביבה
+
+- המשתמש עובד **אך ורק** דרך Claude Code on the web — **אין גישה לטרמינל**.
+- `~/.claude/` לא שורד בין סשנים. כל זיכרון בין-סשן חייב להיות committed לריפו.
+- **זיכרון בין-סשן**: `HANDOVER.md` בשורש — קרא בתחילת כל סשן; סקיל `/handover` בסוף כל סשן.
+- **מעקב דרישות**: `PROCESS.md` — SSOT לדרישות פתוחות/סגורות (hash + שיטת אימות לכל סגירה).
+
+## קונבנציות שפה
+
+- **קבצי Markdown** (ממשל, תוכניות, דוחות): **עברית**. **קוד**: **אנגלית**. **Commit messages**: אנגלית.
+- **HTML עברי**: RTL מלא, `<bdi>` סביב טוקנים לטיניים, חצים ← בזרימת טקסט עברי. תבנית קנונית: `sessions-archive/toolkit/process/templates/hebrew-doc.html`; הדפסה: `toolkit/process/playbooks/print-ready-html.md`; QA חזותי: `toolkit/process/playbooks/screenshot-qa.md`.
+
+## תזכורת toolkit (עדכון הבית הקנוני חוצה-הפרויקטים)
+
+שינית/הוספת **כלי** שעשוי לשמש פרויקט אחר? עדכן את הבית הקנוני ב-`sessions-archive/toolkit/` **באותו סבב** ורענן את הערת ה-provenance בעותק המקומי. **אין סנכרון אוטומטי** — עותק הוא fork שמסטה. תהליכי ← `toolkit/process/`; דומייני ← `toolkit/domain/`. הבדיקה התקופתית — במטא-ביקורת.
+
+## קשרי פרויקטים
+
+| פרויקט | יחס |
+|---|---|
+| `industrial-areas-report` | מקור מתודולוגי (משפחות מזהמים, מדד זיהום, ניסוח ייחוס זהיר); ה-toolkit הדומייני החי שם |
+| `water-knowledge-system` | פרויקט-אח — מערכת ידע ותשאול; אין תלות קוד |
+| `sessions-archive` | הבית הקנוני לכלים תהליכיים, תבניות ו-KB |
 
 ---
 
@@ -107,9 +77,12 @@ Key types: `BoreholeReading`, `FamilyReport`, `FingerprintResult`,
 my-first-project/
 ├── CLAUDE.md                 # קובץ זה
 ├── SUMMARY.md                # סיכום יכולות המערכת
+├── HANDOVER.md               # זיכרון בין-סשן
+├── PROCESS.md                # מעקב דרישות
 ├── geo-forensics/
 │   ├── generate_report.py    # סקריפט ראשי - יצירת דוחות HTML סטטיים
-│   ├── app.py                # אפליקציית Streamlit (דשבורד אינטראקטיבי)
+│   ├── generate_report_v2.py # גרסה 2
+│   ├── app.py / app_v2.py    # אפליקציית Streamlit (דשבורד אינטראקטיבי)
 │   ├── config.py             # הגדרות: מפה, קואורדינטות, UI
 │   ├── requirements.txt      # תלויות Python
 │   ├── src/
@@ -120,15 +93,11 @@ my-first-project/
 │   │   ├── contaminant_groups.py  # הגדרות קבוצות מזהמים
 │   │   └── generate_sample_data.py
 │   ├── data/sample/          # קבצי נתונים לדוגמה
-│   │   ├── דוגמה - חגית PFAS.xlsx
-│   │   ├── נתוני קישון.xlsx
-│   │   ├── העברת ידע למשרד הבריאות 28.9.25 - מלא.xlsx  # קובץ גדול (1.8MB)
-│   │   └── sample_pfas.xlsx
-│   ├── report_hagit.html     # דוח שנוצר עבור חגית
-│   ├── report_kishon.html    # דוח שנוצר עבור קישון
+│   ├── report_*.html         # דוחות שנוצרו (חגית, קישון; v1+v2)
 │   ├── tests/                # בדיקות pytest
 │   ├── .streamlit/config.toml # ערכת נושא (theme)
 │   └── REQUIREMENTS.md       # מפרט דרישות הדשבורד
+└── Industrial-Areas-Report/  # ⚠️ עותק מיושן — לא לפתח (ראה פתיח)
 ```
 
 ## פקודות הרצה
@@ -143,7 +112,6 @@ streamlit run app.py
 ### יצירת דוח HTML סטטי
 ```bash
 cd geo-forensics && python generate_report.py "data/sample/דוגמה - חגית PFAS.xlsx" -o report_hagit.html
-cd geo-forensics && python generate_report.py "data/sample/נתוני קישון.xlsx" -o report_kishon.html
 ```
 **חשוב:** תמיד להריץ מתוך תיקיית `geo-forensics/` — הסקריפט משתמש בנתיבים יחסיים.
 
@@ -168,135 +136,31 @@ cd geo-forensics && pytest
 - **קואורדינטות**: pyproj — המרה ITM (EPSG:2039) ↔ WGS84 (EPSG:4326)
 
 ## כללי עבודה
-- קבצי Excel בעברית — שמות עמודות ותחנות בעברית
-- ה-HTML שנוצר הוא self-contained — כל הנתונים מוטמעים כ-JSON
-- הדוח תומך ב-RTL (עברית)
-- קבצים גדולים מאוד (>1MB) — לוודא שהניתוח לא קורס על זיכרון
-- **מודל מומלץ**: Sonnet לכתיבה/עריכה של קוד; Opus לתכנון ארכיטקטורה
+- קבצי Excel בעברית — שמות עמודות ותחנות בעברית.
+- ה-HTML שנוצר self-contained — כל הנתונים מוטמעים כ-JSON.
+- הדוח תומך RTL (עברית); דוחות חדשים מיישרים לתקני ה-HTML שבקונבנציות השפה לעיל.
+- קבצים גדולים מאוד (>1MB) — לוודא שהניתוח לא קורס על זיכרון.
+- **ניסוח ייחוס זהיר** (קריטי משפטית): "מועמד ליבה" / "מועמד משני" / "רקע מקומי" — לעולם לא "המקור".
+- שינויים הרסניים (`reset --hard`, `force push`, מחיקת ענפים/תיקיות) — אישור מפורש בלבד.
 
----
+## מושגי דומיין
+- **Chemical Fingerprint**: מזהם מוביל + משניים + תוצרי-פירוק + יחסים פנים-קבוצתיים; מבחין בין plumes ומקשר קידוחים.
+- **7 משפחות מזהמים**: ממסים כלוריים, דלקים, מתכות, אנאורגני/מליחות, PFAS, מתעוררים, סמני-ביוב.
+- **Flow Direction Caution**: כיוון זרימה לבדו לעולם אינו מזהה מקור — חובה לשלב fingerprint כימי + מיקום מרחבי + ראיות פליטה.
 
-## Key Domain Concepts
+## כללי מימוש UI (Streamlit)
+- **פונטים**: `@import url(...)` בתוך `<style>` ב-`st.markdown` (לא `st.html()` — DOMPurify מסיר link tags).
+- **כרטיסים**: `st.container(border=True)` + `st.metric()` (לא HTML divs).
+- **מפה CSS**: `folium.DivIcon` עם inline styles (לא Tooltip permanent).
+- **Multiselect chips**: CSS ב-`st.markdown` מכוון ל-`[data-baseweb="tag"]` בתוך `section[data-testid="stSidebar"]`.
+- **ערכת נושא**: `.streamlit/config.toml`.
 
-- **Pollution Index 0-8**: logarithmic scale (ratio to drinking water standard).
-  Index = `f(concentration / standard)`. Group index = `max(member indices)`.
-- **7 Contaminant Families**: chlorinated solvents, fuels, metals, inorganic/salinity,
-  PFAS, emerging, sewage markers.
-- **7 Trend Types**: rising, falling, stable, volatile, pulse/event,
-  re-escalation (changepoint after decline), new appearance.
-- **Chemical Fingerprint**: leading contaminant + secondaries + degradation products
-  + intra-group ratios. Used to distinguish separate plumes and link wells.
-- **Dual-path Borehole Selection**: union of (historical report wells) ∪
-  (polygon-based wells via Shapely point-in-polygon).
-- **Cautious Attribution Phrasing**: legally critical in Israel. Vocabulary:
-  "מועמד ליבה" / "מועמד משני" / "רקע מקומי" — never "the source".
-- **Cumulative Knowledge**: each approved annual report becomes a formal context
-  layer for the next year (stored under `knowledge/contexts/{area}/{year}.json`).
-- **Flow Direction Caution**: flow direction alone never identifies a source —
-  must combine with chemical fingerprint + spatial position + emission evidence.
+## טבלת תפקידי מסמכים
 
----
-
-## Adding a New Plugin (Quick Guide)
-
-```
-plugins/forensics/pfas/
-├── __init__.py          # exposes PFASForensics class
-├── plugin.py            # implements ForensicsModule Protocol, @register_plugin
-├── contaminants.yaml    # PFAS compounds handled (PFOA, PFOS, GenX…)
-├── tests/
-│   └── test_plugin.py   # isolated unit tests
-└── README.md            # contract: input schema, output schema, dependencies
-```
-
-```python
-# plugin.py skeleton
-from core.interfaces import ForensicsModule
-from core.registry import register_plugin
-from core.contracts import FingerprintResult
-
-@register_plugin("forensics", name="pfas")
-class PFASForensics:
-    family = "pfas"
-    version = "1.0"
-
-    def fingerprint(self, well_data) -> FingerprintResult:
-        ...
-```
-
-Activate for a specific area in `config.py`:
-```python
-PIPELINE_CONFIG["emek_hefer"]["forensics"].append("pfas")
-```
-
----
-
-## Running the System
-
-```bash
-cd Industrial-Areas-Report
-pip install -r requirements.txt
-python demo/raanana_demo.py          # full pipeline, Raanana pilot
-pytest tests/ -v                     # unit + plugin isolation tests
-```
-
-Expected outputs in `reports/raanana/{year}/`:
-- `report_raanana_{year}.html` — interactive RTL report with Leaflet map
-- `report_raanana_{year}.pdf`  — official signed version
-- `report_raanana_{year}.json` — machine-readable
-- `map_raanana_{year}.html`    — standalone Leaflet map
-- `context_raanana_{year}.json`— feeds next year's cumulative context
-
----
-
-## Data Sources
-
-| Source | Type | Status |
-|---|---|---|
-| Israel Water Authority (data.gov.il) | CKAN API | Working connector |
-| PRTR / מפל"ס registry | Web / GIS | Placeholder → real scraper needed |
-| Mei Raanana wastewater monitoring | Web reports | Placeholder → real scraper needed |
-| Water Authority Excel consolidation | Excel | Working importer |
-| Historical reports 2008 + 2021 | JSON loaders | Planned |
-
----
-
-## Coordinate System
-
-All spatial operations use **Israel New Grid ITM (EPSG:2039)**  internally.
-Conversion to WGS84 (EPSG:4326) for Leaflet maps via `pyproj` in
-`plugins/data_sources/coordinate_engine/`.
-
----
-
-## Testing Guidelines
-
-- Each plugin must have isolated unit tests that do **not** import core pipeline.
-- Plugin contract tests in `tests/test_plugin_isolation.py` verify:
-  - New plugin registers correctly via `discover_plugins()`
-  - Pipeline runs with plugin disabled without error
-  - Data contracts (FingerprintResult etc.) validate correctly
-- Domain logic tests in `tests/test_analysis.py`.
-
----
-
-## דשבורד אינטראקטיבי — מצב נוכחי (app.py)
-
-דשבורד Streamlit שרץ מקומית ומאפשר ניתוח אינטראקטיבי של נתוני PFAS.
-
-### יכולות מומשות
-- ✅ טעינת קובצי Excel (כולל קבצים גדולים >1MB)
-- ✅ בחירת תחנות — multiselect בסרגל צד + ציור על מפה (polygon/circle/rectangle)
-- ✅ סינון לפי סוג מקור (source_type)
-- ✅ מפה אינטראקטיבית (Folium/Leaflet) עם DivIcon labels, צביעה לפי source_type
-- ✅ ניתוחים: PCA, MDS, Cosine Similarity, Hierarchical Clustering
-- ✅ גרפים: ריכוז סכומי (log Y), fingerprint מנורמל, heatmap דמיון
-- ✅ ממצאים אוטומטיים בעברית
-- ✅ ממשק RTL עם פונט Assistant, ערכת נושא ב-config.toml
-
-### כללי מימוש UI (ב-Streamlit)
-- **פונטים**: `@import url(...)` בתוך `<style>` ב-`st.markdown` (לא `st.html()` — DOMPurify מסיר link tags)
-- **כרטיסים**: `st.container(border=True)` + `st.metric()` (לא HTML divs — Streamlit עוטף ב-container משלו)
-- **מפה CSS**: `folium.DivIcon` עם inline styles (לא Tooltip permanent — Leaflet מחיל רקע לבן שלא ניתן לדרוס)
-- **Multiselect chips**: CSS ב-`st.markdown` מכוון ל-`[data-baseweb="tag"]` בתוך `section[data-testid="stSidebar"]`
-- **ערכת נושא**: `.streamlit/config.toml` עם `base`, `primaryColor`, `backgroundColor`, `textColor`, `font`
+| מסמך | השאלה שהוא עונה עליה |
+|------|----------------------|
+| **CLAUDE.md** | מהם הכללים הקבועים לעבודה בפרויקט? |
+| **PROCESS.md** | מה פתוח ומה נסגר (hash + אימות)? |
+| **HANDOVER.md** | מה הסשן האחרון הותיר שהבא צריך לדעת? |
+| **SUMMARY.md** | מה המערכת יודעת לעשות (יכולות)? |
+| **geo-forensics/REQUIREMENTS.md** | מהו מפרט הדשבורד? |
