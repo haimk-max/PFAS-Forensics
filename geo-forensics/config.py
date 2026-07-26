@@ -36,6 +36,12 @@ ITM_Y_RANGE = (350_000, 800_000)   # Northing
 # --- Data Directory ---
 DATA_DIR = os.environ.get("GEOFORENSICS_DATA_DIR", "data/sample")
 
+# --- Evidence thresholds (calibratable) ---
+# Stations with total concentration below this are near-LOD noise: their
+# normalized fingerprint is dominated by measurement noise and LOD zeros, so
+# they must not count as chemical-consistency evidence in attribution.
+MIN_SIGNAL_UG_L = 0.01
+
 # --- Data Defaults ---
 MAX_UPLOAD_SIZE_MB = 50
 SUPPORTED_EXTENSIONS = [".xlsx", ".xls", ".csv"]

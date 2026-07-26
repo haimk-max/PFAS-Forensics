@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from config import (
     APP_DESCRIPTION, APP_NAME, APP_VERSION, COMPOUND_COLORS, DATA_DIR,
-    DEFAULT_COLOR, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, PAGE_ICON,
-    PFAS_COMPOUND_ORDER, SOURCE_COLORS, SUPPORTED_EXTENSIONS,
+    DEFAULT_COLOR, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, MIN_SIGNAL_UG_L,
+    PAGE_ICON, PFAS_COMPOUND_ORDER, SOURCE_COLORS, SUPPORTED_EXTENSIONS,
 )
 from src.analytics import cosine_similarity_matrix, generate_findings_summary
 from src.contaminant_groups import list_groups
@@ -1503,7 +1503,7 @@ with tab_attr:
     else:
         _region = _loaded_regions.get(_region_choice)
 
-    # Flow assumption banner (mandatory transparency)
+    # Flow assumption + dataset-semantics banners (mandatory transparency)
     if _region is not None:
         _fl = flow_from_region(_region, "groundwater")
         st.markdown(_caveat(
@@ -1511,6 +1511,13 @@ with tab_attr:
             "כל עוד הכיוון מונח ולא מדוד — ציר הידרולוגי תומך בעקביות בלבד, "
             "ואף מועמד אינו עולה מעל \"מועמד משני\"."
         ), unsafe_allow_html=True)
+        _sem = _region.get("dataset_semantics")
+        if _sem:
+            st.markdown(_caveat(
+                f"<b>סמנטיקת החתך:</b> {html.escape(_sem.get('snapshot_rule', ''))} · "
+                f"טווח {html.escape(_sem.get('date_span', ''))} · "
+                "החתך אינו בו-זמני — ההשוואה מניחה מצב-יציב (הנחה מוצהרת)."
+            ), unsafe_allow_html=True)
 
         _cands = evaluate_candidates(df_filtered, fingerprint, max_event_filtered, _region)
         for _c in _cands:
@@ -1521,10 +1528,26 @@ with tab_attr:
                     f"<span style='font-size:12px; color:#7d8189;'>מיקום: {_c['location_quality']}</span>",
                     unsafe_allow_html=True,
                 )
-                _m1, _m2, _m3 = st.columns(3)
-                _m1.metric("תחנות פגועות במורד המשוער", _c["n_downgradient"])
-                _m2.metric("התאמה כימית במורד", f"{_c['chem_share']*100:.0f}%")
-                _m3.metric("ראיות פליטה", len(_c["emission_evidence"]))
+                _m1, _m2, _m3, _m4 = st.columns(4)
+                _m1.metric("תחנות במורד (מעל סף)", _c["n_downgradient"],
+                           help=f"סף-אות: {MIN_SIGNAL_UG_L} µg/L. "
+                                f"{len(_c.get('weak_downgradient', []))} תחנות קרובות-LOD לא נספרות.")
+                _m2.metric("התאמה כימית (משוקללת)",
+                           f"{_c['chem_share_weighted']*100:.0f}%",
+                           help=f"ספירה פשוטה: {_c['chem_share']*100:.0f}%. "
+                                "השקלול לפי log10 של העוצמה מעל הסף.")
+                _att = _c.get("attenuation", {})
+                _m3.metric("דעיכה במורד (r)",
+                           "—" if _att.get("r_conc") is None else f"{_att['r_conc']}",
+                           help=_att.get("note_he", "") + " · מרחק מוטל — גס עד DEM")
+                _m4.metric("ראיות פליטה", len(_c["emission_evidence"]))
+                if _c.get("weak_downgradient"):
+                    st.markdown(
+                        f"<div style='font-size:12px; color:#7d8189; direction:rtl;'>"
+                        f"קרוב ל-LOD (לא נספר כראיה): "
+                        f"{html.escape(', '.join(_c['weak_downgradient'][:6]))}"
+                        + ("…" if len(_c['weak_downgradient']) > 6 else "") + "</div>",
+                        unsafe_allow_html=True)
                 _ev_html = "<div style='direction:rtl; font-size:13px; line-height:1.7;'>"
                 _ev_html += "<b>בעד:</b><ul style='margin:4px 0;'>"
                 _ev_html += "".join(f"<li>{html.escape(e)}</li>" for e in _c["evidence_for"]) or "<li>—</li>"
@@ -1551,10 +1574,15 @@ with tab_attr:
     if not fingerprint.empty:
         _matches = match_profiles(fingerprint, top_n=2)
         if not _matches.empty:
-            _piv = _matches[_matches["rank"] == 1][["station", "profile_he", "score"]]
+            _totals_map = max_event_filtered.set_index("station_name")["total_concentration"]
+            _piv = _matches[_matches["rank"] == 1][["station", "profile_he", "score"]].copy()
+            _piv["Σ (µg/L)"] = _piv["station"].map(_totals_map).round(4)
+            _piv["מעמד אות"] = _piv["Σ (µg/L)"].apply(
+                lambda v: "✓" if pd.notna(v) and v >= MIN_SIGNAL_UG_L else f"⚠ מתחת לסף {MIN_SIGNAL_UG_L}")
             _piv = _piv.rename(columns={"station": "תחנה", "profile_he": "התאמה מובילה (עקבי עם)", "score": "ציון (%)"})
-            _piv = _piv.sort_values("ציון (%)", ascending=False)
+            _piv = _piv.sort_values("Σ (µg/L)", ascending=False)
             st.dataframe(_piv, use_container_width=True, hide_index=True)
+            st.caption(f"תחנות מתחת לסף-האות ({MIN_SIGNAL_UG_L} µg/L) — ההתאמה שלהן מוצגת אך אינה נספרת כראיה בהערכת מועמדים.")
 
         _flags = marker_flags(df_filtered)
         _precursor = _flags[_flags["flags"].apply(lambda fl: any("קדם-חומרים" in f for f in fl))]

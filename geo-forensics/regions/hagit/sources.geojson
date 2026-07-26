@@ -5,19 +5,22 @@
   "features": [
     {
       "type": "Feature",
-      "geometry": { "type": "Point", "coordinates": [35.045, 32.5765] },
+      "geometry": { "type": "Point", "coordinates": [35.03696, 32.61676] },
       "properties": {
         "id": "hagit_power_station",
         "name_he": "תחנת הכוח חגית",
-        "itm": [204485, 720260],
-        "location_quality": "approximate — לאימות מול GIS רשמי",
+        "itm": [203737, 724726],
+        "location_quality": "מעוגן לתחנת הדיגום המאושרת \"חגית - בריכה 1500\" (אזור-מקור מאושר משתמש 2026-07-23); הקואורדינטה הקודמת (204485,720260, ניחוש) סטתה ~4.5 ק\"מ — לאימות סופי מול GIS רשמי",
         "kind": "power_station",
         "expected_profiles": ["afff_ecf_fresh", "afff_ecf_weathered", "afff_ft_modern"],
+        "anchor_station": "חגית - בריכה 1500",
+        "anchor_provenance": "אישור משתמש 2026-07-23: הריכוז (ΣPFAS≈1,121 µg/L) אמיתי — אזור-מקור ידוע",
         "emission_evidence": [
           "חוות מכלי דלק נוזלי (גיבוי לגז) — עדות משתמש 2026-07-22",
-          "מערך כיבוי בקצף — עדות משתמש 2026-07-22"
+          "מערך כיבוי בקצף — עדות משתמש 2026-07-22",
+          "אזור-מקור מאושר בתחנת \"חגית - בריכה 1500\" — אישור משתמש 2026-07-23"
         ],
-        "evidence_tier": "user_testimony",
+        "evidence_tier": "user_confirmed_source_area",
         "hypothesis_origin": "המשתמש (החשוד המרכזי שלו) — נבדק כהשערה מול הסברים מתחרים, לא כהנחה",
         "since_year": null,
         "notes_he": "תחנת כוח מבוססת גז; הרלוונטיות ל-PFAS היא מערך כיבוי הקצף בחוות הדלק. יש לברר: סוג הקצף, אירועי שימוש/תרגולים, ניקוזי החווה."

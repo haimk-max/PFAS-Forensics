@@ -74,6 +74,158 @@ class TestSourceProfiles:
             assert p.name_he
 
 
+def _write_test_region(tmp_path, source_props=None):
+    """Helper: minimal region + single candidate source at ITM (204000, 720000)."""
+    import json
+
+    props = {"id": "s1", "name_he": "אתר בדיקה", "itm": [204000, 720000],
+             "kind": "test",
+             "expected_profiles": ["afff_ecf_weathered", "afff_ecf_fresh"],
+             "emission_evidence": ["עדות"],
+             "evidence_tier": "user_testimony"}
+    if source_props:
+        props.update(source_props)
+    region_dir = tmp_path / "test_region"
+    region_dir.mkdir()
+    (region_dir / "region.json").write_text(json.dumps({
+        "name": "test_region", "crs": "EPSG:2039",
+        "measurement_file": "x.xlsx",
+        "flow": {"groundwater": {"direction_deg": 270, "tier": "assumed"},
+                 "surface": {"direction_deg": 270, "tier": "assumed"}},
+        "layers": [{"path": "sources.geojson", "kind": "potential_sources",
+                    "quality": "test"}],
+    }), encoding="utf-8")
+    (region_dir / "sources.geojson").write_text(json.dumps({
+        "type": "FeatureCollection",
+        "features": [{"type": "Feature",
+                      "geometry": {"type": "Point", "coordinates": [35, 32.5]},
+                      "properties": props}],
+    }), encoding="utf-8")
+    return str(tmp_path)
+
+
+def _afff_fp_row():
+    return {"PFOS": 50, "PFHxS": 20, "PFHxA": 15, "PFOA": 15}
+
+
+class TestSignalThresholdAndWeighting:
+    def test_weak_stations_excluded_from_chem_share(self, tmp_path):
+        """Near-LOD stations (Σ < MIN_SIGNAL_UG_L) must not count as chemical
+        evidence, but must be listed separately as weak_downgradient."""
+        from src import attribution
+
+        old = attribution.REGIONS_DIR
+        attribution.REGIONS_DIR = _write_test_region(tmp_path)
+        try:
+            region = attribution.load_region("test_region")
+            fp = pd.DataFrame([_afff_fp_row(), _afff_fp_row()], index=["STRONG", "WEAK"])
+            max_event = pd.DataFrame([
+                {"station_name": "STRONG", "total_concentration": 0.5,
+                 "x_itm": 196000, "y_itm": 720000},
+                {"station_name": "WEAK", "total_concentration": 0.004,
+                 "x_itm": 195000, "y_itm": 720000},
+            ])
+            df = pd.DataFrame({"station_name": ["STRONG", "WEAK"],
+                               "compound": ["PFOS", "PFOS"],
+                               "concentration": [0.5, 0.004]})
+            res = attribution.evaluate_candidates(df, fp, max_event, region)[0]
+            assert res["n_downgradient"] == 1
+            assert res["downgradient"] == ["STRONG"]
+            assert res["weak_downgradient"] == ["WEAK"]
+            assert res["chem_share"] == 1.0  # computed on STRONG only
+        finally:
+            attribution.REGIONS_DIR = old
+
+    def test_weighted_share_favors_strong_stations(self, tmp_path):
+        """A matching 1.0 µg/L station must outweigh a non-matching 0.02 µg/L
+        station in the log-weighted score (weighted > plain share)."""
+        from src import attribution
+
+        old = attribution.REGIONS_DIR
+        attribution.REGIONS_DIR = _write_test_region(tmp_path)
+        try:
+            region = attribution.load_region("test_region")
+            # HOT matches AFFF; COLD is a carboxylate profile (won't match)
+            fp = pd.DataFrame(
+                [_afff_fp_row(),
+                 {"PFOA": 60, "PFNA": 20, "PFDA": 20}],
+                index=["HOT", "COLD"]).fillna(0)
+            max_event = pd.DataFrame([
+                {"station_name": "HOT", "total_concentration": 1.0,
+                 "x_itm": 196000, "y_itm": 720000},
+                {"station_name": "COLD", "total_concentration": 0.02,
+                 "x_itm": 195000, "y_itm": 720000},
+            ])
+            df = pd.DataFrame({"station_name": ["HOT", "COLD"],
+                               "compound": ["PFOS", "PFOA"],
+                               "concentration": [1.0, 0.02]})
+            res = attribution.evaluate_candidates(df, fp, max_event, region)[0]
+            assert res["chem_share"] == 0.5
+            assert res["chem_share_weighted"] > res["chem_share"]
+        finally:
+            attribution.REGIONS_DIR = old
+
+
+class TestAttenuationEvidence:
+    def _run(self, tmp_path, totals):
+        """Stations placed 1,2,3,4 km due west of the source with given Σ."""
+        from src import attribution
+
+        old = attribution.REGIONS_DIR
+        attribution.REGIONS_DIR = _write_test_region(tmp_path)
+        try:
+            region = attribution.load_region("test_region")
+            names = [f"W{i}" for i in range(len(totals))]
+            fp = pd.DataFrame([_afff_fp_row()] * len(totals), index=names)
+            max_event = pd.DataFrame([
+                {"station_name": n, "total_concentration": t,
+                 "x_itm": 204000 - 1000 * (i + 1), "y_itm": 720000}
+                for i, (n, t) in enumerate(zip(names, totals))
+            ])
+            df = pd.DataFrame({"station_name": names,
+                               "compound": ["PFOS"] * len(names),
+                               "concentration": totals})
+            return attribution.evaluate_candidates(df, fp, max_event, region)[0]
+        finally:
+            attribution.REGIONS_DIR = old
+
+    def test_decaying_concentrations_support_candidate(self, tmp_path):
+        res = self._run(tmp_path, [10.0, 1.0, 0.1, 0.05])
+        assert res["attenuation"]["r_conc"] is not None
+        assert res["attenuation"]["r_conc"] <= -0.4
+        assert any("דעיכת ריכוז" in e for e in res["evidence_for"])
+
+    def test_increasing_concentrations_flag_extra_source(self, tmp_path):
+        res = self._run(tmp_path, [0.05, 0.1, 1.0, 10.0])
+        assert res["attenuation"]["r_conc"] >= 0.4
+        assert any("מקור נוסף" in e for e in res["evidence_against"])
+
+
+class TestAnchorStation:
+    def test_confirmed_anchor_appears_in_evidence(self, tmp_path):
+        from src import attribution
+
+        old = attribution.REGIONS_DIR
+        attribution.REGIONS_DIR = _write_test_region(tmp_path, {
+            "anchor_station": "ANCHOR",
+            "anchor_provenance": "אישור בדיקה",
+            "evidence_tier": "user_confirmed_source_area",
+        })
+        try:
+            region = attribution.load_region("test_region")
+            fp = pd.DataFrame([_afff_fp_row()], index=["ANCHOR"])
+            max_event = pd.DataFrame([
+                {"station_name": "ANCHOR", "total_concentration": 1121.0,
+                 "x_itm": 203900, "y_itm": 720000},
+            ])
+            df = pd.DataFrame({"station_name": ["ANCHOR"],
+                               "compound": ["PFOS"], "concentration": [1121.0]})
+            res = attribution.evaluate_candidates(df, fp, max_event, region)[0]
+            assert any("תחנת עוגן" in e for e in res["evidence_for"])
+        finally:
+            attribution.REGIONS_DIR = old
+
+
 class TestAttributionTierCap:
     def test_assumed_flow_caps_tier(self, tmp_path):
         """With all three axes present but ASSUMED flow, the tier must stay

@@ -4,6 +4,13 @@
   "crs": "EPSG:2039",
   "bbox_itm": [190152, 711112, 203910, 724822],
   "measurement_file": "data/sample/אזור חגית מורחב - סינון של דוח העברת ידע למשרד הבריאות.xlsx",
+  "dataset_semantics": {
+    "snapshot_rule": "מדידה אחרונה לכל מקור מים (הצהרת משתמש 2026-07-23)",
+    "synchronous": false,
+    "date_span": "2021-12 עד 2026-04",
+    "steady_state_assumed": true,
+    "notes_he": "החתך משווה תחנות שנדגמו בתאריכים שונים כאילו בו-זמניות — הנחת מצב-יציב מוצהרת. סדרות זמן מלאות קיימות במערכת המקור וטרם יוצאו."
+  },
   "flow": {
     "surface": {
       "direction_deg": 270,

@@ -20,6 +20,11 @@ import numpy as np
 import pandas as pd
 
 
+# Precursor congeners: degrade along the transport path, so their presence
+# (as detections) or share (in the fingerprint) indicates a fresh/nearby input.
+PRECURSORS = ["FOSA", "82FTS", "6:2FT"]
+
+
 @dataclass
 class SourceProfile:
     key: str
@@ -142,7 +147,7 @@ def marker_flags(df: pd.DataFrame) -> pd.DataFrame:
     for station, g in df.groupby("station_name"):
         detected = set(g.loc[g["concentration"] > 0, "compound"].str.upper())
         flags = []
-        precursors = detected & {"FOSA", "82FTS", "6:2FT"}
+        precursors = detected & {p.upper() for p in PRECURSORS}
         if precursors:
             flags.append("סמני קדם-חומרים פעילים (" + ", ".join(sorted(precursors)) +
                          ") — עקביים עם מקור קרוב/טרי")
