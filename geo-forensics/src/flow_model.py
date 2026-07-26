@@ -148,6 +148,29 @@ class DemFlowModel:
             return self.fallback.downgradient_distance_m(station_xy, source_xy)
         return None
 
+    def near_path(self, source_xy, target_xy,
+                  max_offset_m: float) -> tuple[float, float] | None:
+        """Is target within max_offset_m of source's downstream path?
+        Returns (along-path distance to the nearest path point, offset) or
+        None. Used for declared water transfers (e.g., pond pumping from an
+        adjacent stream reach) — pathways the DEM cannot see."""
+        s = self._name_at(source_xy)
+        if s is None or "path_itm" not in self.points.get(s, {}):
+            return None
+        path = self.points[s]["path_itm"]
+        tx, ty = target_xy
+        best = None
+        cum = 0.0
+        prev = None
+        for x, y in path:
+            if prev is not None:
+                cum += math.hypot(x - prev[0], y - prev[1])
+            prev = (x, y)
+            off = math.hypot(x - tx, y - ty)
+            if off <= max_offset_m and (best is None or off < best[1]):
+                best = (cum, off)
+        return best
+
 
 def _azimuth_to_hebrew(deg: float) -> str:
     names = ["מצפון לדרום", "מצפון-מזרח לדרום-מערב", "ממזרח למערב",

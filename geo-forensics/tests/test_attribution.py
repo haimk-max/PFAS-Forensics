@@ -261,6 +261,66 @@ class TestDemFlowModel:
         assert self._model().tier == DERIVED_DEM
 
 
+class TestWaterTransfers:
+    def test_pumped_station_joins_downgradient_but_not_attenuation(self, tmp_path):
+        """A pond fed by declared pumping from a stream reach on the source's
+        runoff path counts as downgradient (marked), but stays out of the
+        attenuation regression."""
+        import json
+
+        from src import attribution
+
+        old = attribution.REGIONS_DIR
+        base = _write_test_region(tmp_path)
+        # region with a transfer + a fake DEM derived layer
+        region_dir = tmp_path / "test_region"
+        rj = json.loads((region_dir / "region.json").read_text(encoding="utf-8"))
+        rj["water_transfers"] = [{
+            "kind": "pumping", "to_stations": ["POND"], "max_reach_m": 2000,
+            "provenance": "בדיקה",
+        }]
+        (region_dir / "region.json").write_text(json.dumps(rj), encoding="utf-8")
+        derived = region_dir / "derived"
+        derived.mkdir()
+        # source path runs due west from the source; POND sits 1.5 km south
+        # of the path at km 5; STREAM sits on the path at km 4
+        path = [[204000 - i * 500, 720000] for i in range(21)]  # 0..10 km
+        (derived / "flow_paths.json").write_text(json.dumps({
+            "cell_m": 30, "near_path_m": 300,
+            "points": {
+                "s1": {"itm": [204000, 720000], "kind": "candidate_source",
+                       "path_itm": path, "path_len_m": 10000},
+                "STREAM": {"itm": [200000, 720000], "kind": "station",
+                           "source_type": "נקודה מזוהה בנחל", "path_itm": [], "path_len_m": 0},
+                "POND": {"itm": [199000, 718500], "kind": "station",
+                         "source_type": "מאגר", "path_itm": [], "path_len_m": 0},
+            },
+            "relations": [{"from": "s1", "to": "STREAM", "path_distance_m": 4000,
+                           "offset_m": 10}],
+        }), encoding="utf-8")
+
+        attribution.REGIONS_DIR = base
+        try:
+            region = attribution.load_region("test_region")
+            fp = pd.DataFrame([_afff_fp_row(), _afff_fp_row()],
+                              index=["STREAM", "POND"])
+            max_event = pd.DataFrame([
+                {"station_name": "STREAM", "total_concentration": 0.5,
+                 "x_itm": 200000, "y_itm": 720000, "source_type": "נקודה מזוהה בנחל"},
+                {"station_name": "POND", "total_concentration": 0.3,
+                 "x_itm": 199000, "y_itm": 718500, "source_type": "מאגר"},
+            ])
+            df = pd.DataFrame({"station_name": ["STREAM", "POND"],
+                               "compound": ["PFOS", "PFOS"],
+                               "concentration": [0.5, 0.3]})
+            res = attribution.evaluate_candidates(df, fp, max_event, region)[0]
+            assert "POND" in res["downgradient"]          # joined via transfer
+            assert "POND" in res["transfer_fed"]
+            assert any("מוזנות-שאיבה" in e for e in res["evidence_for"])
+        finally:
+            attribution.REGIONS_DIR = old
+
+
 class TestAttributionTierCap:
     def test_assumed_flow_caps_tier(self, tmp_path):
         """With all three axes present but ASSUMED flow, the tier must stay

@@ -114,6 +114,25 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
 
         down_all = [s for s, xy in stn_xy.items()
                     if _flow_for(s).upgradient_of(xy, (sx, sy))]
+
+        # Declared water transfers (pumping etc.): a station fed from a stream
+        # reach that lies on the candidate's runoff path inherits downgradient
+        # status. Anthropogenic pathway — invisible to the DEM, so it must be
+        # declared in region.json with provenance. Marked and kept out of the
+        # attenuation regression (pond residence time breaks transport decay).
+        transfer_fed = {}
+        if dem_active:
+            for tr in region.get("water_transfers", []):
+                reach = float(tr.get("max_reach_m", 2000))
+                for s in tr.get("to_stations", []):
+                    if s in stn_xy and s not in down_all:
+                        hit = flow_surface.near_path((sx, sy), stn_xy[s], reach)
+                        if hit is not None:
+                            transfer_fed[s] = {"path_distance_m": hit[0],
+                                               "offset_m": hit[1],
+                                               "kind": tr.get("kind", "transfer")}
+                            down_all.append(s)
+
         up_or_side = [s for s in stn_xy if s not in down_all]
 
         # --- signal threshold: near-LOD stations must not count as evidence ---
@@ -145,7 +164,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
         atten_pts = []
         if dem_active:
             for s in down:
-                if stn_domain.get(s) != "surface":
+                if stn_domain.get(s) != "surface" or s in transfer_fed:
                     continue
                 d = flow_surface.downgradient_distance_m(stn_xy[s], (sx, sy))
                 if d is not None and d > 0:
@@ -194,6 +213,12 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             evidence_for.append(
                 f"{len(down)} תחנות פגועות (מעל סף {MIN_SIGNAL_UG_L} µg/L) במורד — "
                 + " | ".join(_parts))
+        _tf_strong = [s for s in transfer_fed if s in down]
+        if _tf_strong:
+            evidence_for.append(
+                f"{len(_tf_strong)} תחנות מוזנות-שאיבה ממקטע נחל שבמורד האתר "
+                f"({', '.join(_tf_strong)}) — נתיב אנתרופוגני מוצהר "
+                f"(עדות משתמש); אינן ברגרסיית הדעיכה")
         if chem_hits:
             evidence_for.append(
                 f"התאמה כימית לפרופילים הצפויים ב-{len(chem_hits)}/{len(down)} "
@@ -273,6 +298,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             "tier": tier,
             "n_downgradient": len(down), "downgradient": down,
             "n_surface_down": n_surf_down, "n_gw_down": n_gw_down,
+            "transfer_fed": transfer_fed,
             "weak_downgradient": weak_down,
             "chem_share": round(chem_share, 2),
             "chem_share_weighted": round(chem_share_weighted, 2),

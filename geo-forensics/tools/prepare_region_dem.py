@@ -39,7 +39,12 @@ from src.dem_engine import (
 CELL_M = 30.0                 # target resolution (m) in EPSG:2039
 BBOX_BUFFER_M = 2000.0        # analysis buffer around the region bbox
 CHANNEL_MIN_CELLS = 556       # ≥ 0.5 km² drainage (556 cells × 900 m²)
-NEAR_PATH_M = 150.0           # a point is "on" a path within this distance
+# A point counts as "on" a path within this offset. Calibrated on Hagit
+# ground truth (2026-07-26): the Bat-Shlomo hydrometric station sits 153 m
+# from the modeled channel (30 m DSM + bank-side station coordinates), so
+# 150 m missed a station the user confirmed is ON the stream. 300 m captures
+# real bank stations while still excluding pumped ponds (~1,100 m off-path).
+NEAR_PATH_M = 300.0
 
 
 def _load_region(name):
