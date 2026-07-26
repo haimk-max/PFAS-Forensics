@@ -17,7 +17,7 @@
       "tier": "assumed",
       "declared_by": "משתמש (השירות ההידרולוגי)",
       "declared_on": "2026-07-22",
-      "notes_he": "הנחת עבודה לצורך הדגמה: זרימה עילית כללית ממזרח למערב. תוחלף בנגזרת DEM (S2)."
+      "notes_he": "הנחת בסיס בלבד — נגזרת DEM זמינה ב-derived/ (flow_paths.json) ונטענת אוטומטית; ההנחה משמשת fallback לנקודות מחוץ לכיסוי."
     },
     "groundwater": {
       "direction_deg": 270,

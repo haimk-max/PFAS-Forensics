@@ -1,0 +1,13 @@
+{
+  "source": "Copernicus GLO-30 DSM (AWS Open Data)",
+  "tiles": [
+    "N32_E034.tif",
+    "N32_E035.tif"
+  ],
+  "prepared_on": "2026-07-26",
+  "resolution_m": 30.0,
+  "method": "priority-flood fill + D8 + accumulation (src/dem_engine.py)",
+  "channel_threshold_km2": 0.5004,
+  "quality": "derived_dem",
+  "notes_he": "נגזרת עילית בלבד; DSM כולל צמחייה/מבנים — ערוצים אזוריים אמינים, מיקרו-ניקוז לא."
+}

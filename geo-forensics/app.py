@@ -1008,6 +1008,35 @@ with tab_map:
                 tooltip=tooltip,
             ).add_to(m)
 
+        # DEM-derived channel network overlay (if a matching region has one)
+        try:
+            import json as _json
+
+            _map_regions = os.path.join(os.path.dirname(__file__), "regions")
+            for _rn in (os.listdir(_map_regions) if os.path.isdir(_map_regions) else []):
+                _rj = os.path.join(_map_regions, _rn, "region.json")
+                _ch = os.path.join(_map_regions, _rn, "derived", "channels.geojson")
+                if not (os.path.isfile(_rj) and os.path.isfile(_ch)):
+                    continue
+                with open(_rj, encoding="utf-8") as _f:
+                    _rcfg = _json.load(_f)
+                if os.path.basename(_rcfg.get("measurement_file", "")) != os.path.basename(str(file_name)):
+                    continue
+                with open(_ch, encoding="utf-8") as _f:
+                    _chan = _json.load(_f)
+                _fg = folium.FeatureGroup(name="ערוצי זרימה (DEM)", show=True)
+                for _feat in _chan.get("features", []):
+                    _coords = [(c[1], c[0]) for c in _feat["geometry"]["coordinates"]]
+                    folium.PolyLine(
+                        _coords, color="#2a6f97", weight=2, opacity=0.55,
+                        tooltip="ערוץ זרימה — נגזרת DEM (Copernicus GLO-30)",
+                    ).add_to(_fg)
+                _fg.add_to(m)
+                folium.LayerControl(position="topright").add_to(m)
+                break
+        except (OSError, ValueError, KeyError):
+            pass  # channels are an optional overlay — never break the map
+
         lats = max_event_all["lat"].dropna()
         lons = max_event_all["lon"].dropna()
         if len(lats) > 0:

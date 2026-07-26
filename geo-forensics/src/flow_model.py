@@ -78,6 +78,77 @@ class UniformFlowAssumption:
         return dx * math.sin(rad) + dy * math.cos(rad)
 
 
+@dataclass
+class DemFlowModel:
+    """Surface-flow provider backed by DEM-derived downstream paths.
+
+    Built from regions/<name>/derived/flow_paths.json (see
+    tools/prepare_region_dem.py). Point lookup is by proximity: coordinates
+    are matched to the named station/source they belong to (same measurement
+    file → identical ITM), then relations answer upstream/downstream with
+    true along-path distances. Points without DEM coverage fall back to the
+    uniform assumption (and inherit its weaker tier for that answer).
+    """
+
+    points: dict
+    relations: dict          # (from_name, to_name) -> path_distance_m
+    fallback: "UniformFlowAssumption | None" = None
+    match_radius_m: float = 60.0
+    tier: str = DERIVED_DEM
+
+    @classmethod
+    def from_region_dir(cls, region_base: str,
+                        fallback: "UniformFlowAssumption | None" = None):
+        import json
+        import os
+        path = os.path.join(region_base, "derived", "flow_paths.json")
+        if not os.path.isfile(path):
+            return None
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        rels = {(r["from"], r["to"]): float(r["path_distance_m"])
+                for r in data.get("relations", [])}
+        return cls(points=data.get("points", {}), relations=rels,
+                   fallback=fallback)
+
+    @property
+    def tier_label_he(self) -> str:
+        return _TIER_LABELS_HE.get(self.tier, self.tier)
+
+    def describe_he(self) -> str:
+        return ("זרימה עילית לפי ערוצי DEM (Copernicus GLO-30, D8) · "
+                + self.tier_label_he)
+
+    def _name_at(self, xy: tuple[float, float]) -> str | None:
+        best, best_d = None, self.match_radius_m
+        for name, meta in self.points.items():
+            x, y = meta["itm"]
+            d = math.hypot(x - xy[0], y - xy[1])
+            if d <= best_d:
+                best, best_d = name, d
+        return best
+
+    def upgradient_of(self, station_xy, source_xy) -> bool:
+        s = self._name_at(source_xy)
+        t = self._name_at(station_xy)
+        if s is not None and t is not None:
+            return (s, t) in self.relations
+        if self.fallback is not None:
+            return self.fallback.upgradient_of(station_xy, source_xy)
+        return False
+
+    def downgradient_distance_m(self, station_xy, source_xy) -> float | None:
+        """True along-path distance if the relation exists, else fallback
+        projection (or None without a fallback)."""
+        s = self._name_at(source_xy)
+        t = self._name_at(station_xy)
+        if s is not None and t is not None and (s, t) in self.relations:
+            return self.relations[(s, t)]
+        if self.fallback is not None:
+            return self.fallback.downgradient_distance_m(station_xy, source_xy)
+        return None
+
+
 def _azimuth_to_hebrew(deg: float) -> str:
     names = ["מצפון לדרום", "מצפון-מזרח לדרום-מערב", "ממזרח למערב",
              "מדרום-מזרח לצפון-מערב", "מדרום לצפון", "מדרום-מערב לצפון-מזרח",

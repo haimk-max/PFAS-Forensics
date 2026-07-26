@@ -226,6 +226,41 @@ class TestAnchorStation:
             attribution.REGIONS_DIR = old
 
 
+class TestDemFlowModel:
+    def _model(self, fallback=None):
+        from src.flow_model import DemFlowModel
+        points = {
+            "SRC": {"itm": [204000, 720000], "kind": "candidate_source"},
+            "DOWN": {"itm": [200000, 719000], "kind": "station"},
+            "OFF": {"itm": [204000, 723000], "kind": "station"},
+        }
+        relations = {("SRC", "DOWN"): 5500.0}
+        return DemFlowModel(points=points, relations=relations, fallback=fallback)
+
+    def test_relation_answers_upgradient_and_distance(self):
+        m = self._model()
+        assert m.upgradient_of((200000, 719000), (204000, 720000))       # SRC→DOWN
+        assert not m.upgradient_of((204000, 723000), (204000, 720000))   # SRC→OFF: no relation
+        assert m.downgradient_distance_m((200000, 719000), (204000, 720000)) == 5500.0
+
+    def test_path_distance_beats_projection(self):
+        """The whole point of the DEM: along-path distance (5500 m) differs
+        from the aerial/projected distance (~4123 m)."""
+        m = self._model()
+        d = m.downgradient_distance_m((200000, 719000), (204000, 720000))
+        aerial = ((204000 - 200000) ** 2 + (720000 - 719000) ** 2) ** 0.5
+        assert d > aerial
+
+    def test_unknown_point_falls_back_to_uniform(self):
+        m = self._model(fallback=UniformFlowAssumption(direction_deg=270))
+        # (150000, 719000) is not a named point → uniform E→W logic applies
+        assert m.upgradient_of((150000, 719000), (204000, 720000))
+
+    def test_tier_is_derived_dem(self):
+        from src.flow_model import DERIVED_DEM
+        assert self._model().tier == DERIVED_DEM
+
+
 class TestAttributionTierCap:
     def test_assumed_flow_caps_tier(self, tmp_path):
         """With all three axes present but ASSUMED flow, the tier must stay
