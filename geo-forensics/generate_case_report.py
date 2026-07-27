@@ -43,7 +43,8 @@ def _esc(s):
 import re as _re
 
 _LATIN_TOKEN = _re.compile(
-    r"(?<![>\w&#])((?:[A-Za-z][\w:.\-/+]*|\d+(?:\.\d+)?\s*(?:µg/L|ng/L|%))"
+    r"(?<![>\w&#])((?:[A-Za-z][\w:.\-/+]*|\d+(?:\.\d+)?\s*(?:µg/L|ng/L|%)"
+    r"|\d+(?:\.\d+)?\s*–\s*\d+(?:\.\d+)?)"
     r"(?:=[-\d.]+)?)(?!;)")
 
 
@@ -489,8 +490,10 @@ th{background:#faf8f4;color:var(--ink2)}
 border-top:1px solid var(--line);padding-top:12px}
 @media print{
   .wrap{box-shadow:none;max-width:100%}body{background:#fff;font-size:12pt}
-  h2{page-break-after:avoid}.figure{page-break-inside:avoid}
+  h2{page-break-after:avoid}h3{page-break-after:avoid}
+  .figure{page-break-inside:avoid}
   .concl{page-break-inside:avoid}table{page-break-inside:avoid}
+  p{orphans:2;widows:2}
   .draft{display:none}
 }
 """
