@@ -22,7 +22,7 @@ import os
 
 import pandas as pd
 
-from config import MIN_SIGNAL_UG_L
+from config import GW_PLUME_K, MIN_SIGNAL_UG_L
 from src.flow_model import ASSUMED, DemFlowModel, UniformFlowAssumption
 from src.source_profiles import PRECURSORS, match_profiles
 
@@ -90,10 +90,17 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
     matches = match_profiles(fingerprint, top_n=3)
 
     impacted = max_event[max_event["total_concentration"] > 0]
+    # Case scope: only stations inside the region bbox belong to this case
+    # (cases may share a measurement file — the split is by bbox).
+    bbox = region.get("bbox_itm")
+    outfalls = region.get("outfalls", {})
     stn_xy, stn_total, stn_domain = {}, {}, {}
     for _, r in impacted.iterrows():
         if pd.notna(r.get("x_itm")) and pd.notna(r.get("y_itm")):
             name = r["station_name"]
+            if bbox and not (bbox[0] <= r["x_itm"] <= bbox[2]
+                             and bbox[1] <= r["y_itm"] <= bbox[3]):
+                continue
             stn_xy[name] = (r["x_itm"], r["y_itm"])
             stn_total[name] = float(r["total_concentration"])
             stn_domain[name] = ("surface"
@@ -102,6 +109,9 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
 
     def _flow_for(s):
         return flow_surface if stn_domain.get(s) == "surface" else flow_gw
+
+    def _outfall_to(s):
+        return outfalls.get(s, {}).get("to")
 
     # Precursor share (%) per station, from the fingerprint columns
     prec_cols = [c for c in fingerprint.columns if c.upper() in {p.upper() for p in PRECURSORS}]
@@ -112,8 +122,28 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
         sx, sy = src["itm"]
         expected = set(src.get("expected_profiles", []))
 
-        down_all = [s for s, xy in stn_xy.items()
-                    if _flow_for(s).upgradient_of(xy, (sx, sy))]
+        # Surface stations: on-path (DEM) or uniform-sector logic.
+        # Groundwater stations: graded plume-plausibility tiers (approved
+        # 2026-07-27) — tiers 1-2 count as downgradient support, tier 3 is
+        # listed as weak-fringe, tier 4/upgradient is NOT explained by this
+        # source (a contaminated tier-4 station is a finding, not noise).
+        gw_tiers = {}
+        down_all = []
+        for s, xy in stn_xy.items():
+            if stn_domain[s] == "surface":
+                if flow_surface.upgradient_of(xy, (sx, sy)) and \
+                        _outfall_to(s) != "sewer":
+                    down_all.append(s)
+            else:
+                w, t = flow_gw.plausibility(xy, (sx, sy), k=GW_PLUME_K) \
+                    if isinstance(flow_gw, UniformFlowAssumption) else (
+                        (1.0, "1") if flow_gw.upgradient_of(xy, (sx, sy))
+                        else (0.0, "4"))
+                gw_tiers[s] = {"w": round(w, 3), "tier": t}
+                if t in ("1", "2"):
+                    down_all.append(s)
+        gw_fringe = [s for s, v in gw_tiers.items() if v["tier"] == "3"
+                     and stn_total[s] >= MIN_SIGNAL_UG_L]
 
         # Declared water transfers (pumping etc.): a station fed from a stream
         # reach that lies on the candidate's runoff path inherits downgradient
@@ -121,19 +151,43 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
         # declared in region.json with provenance. Marked and kept out of the
         # attenuation regression (pond residence time breaks transport decay).
         transfer_fed = {}
-        if dem_active:
-            for tr in region.get("water_transfers", []):
-                reach = float(tr.get("max_reach_m", 2000))
-                for s in tr.get("to_stations", []):
-                    if s in stn_xy and s not in down_all:
-                        hit = flow_surface.near_path((sx, sy), stn_xy[s], reach)
-                        if hit is not None:
-                            transfer_fed[s] = {"path_distance_m": hit[0],
-                                               "offset_m": hit[1],
-                                               "kind": tr.get("kind", "transfer")}
-                            down_all.append(s)
+        for tr in region.get("water_transfers", []):
+            kind = tr.get("kind", "transfer")
+            for s in tr.get("to_stations", []):
+                if s not in stn_xy or s in down_all:
+                    continue
+                if kind == "pumping":
+                    # pumping draws from an adjacent stream reach — valid only
+                    # if that reach lies on the candidate's runoff path
+                    if not dem_active:
+                        continue
+                    reach = float(tr.get("max_reach_m", 2000))
+                    hit = flow_surface.near_path((sx, sy), stn_xy[s], reach)
+                    if hit is None:
+                        continue
+                    transfer_fed[s] = {"path_distance_m": hit[0],
+                                       "offset_m": hit[1], "kind": kind}
+                else:
+                    # piped/declared endpoint transfer (e.g. sewer→WWTP→
+                    # reservoirs): geometry-independent by nature
+                    transfer_fed[s] = {"path_distance_m": None,
+                                       "offset_m": None, "kind": kind}
+                down_all.append(s)
 
         up_or_side = [s for s in stn_xy if s not in down_all]
+
+        # Channel-adjacent stations (within 300 m of the candidate's runoff
+        # path) are CASCADE candidates (stream → bank infiltration → GW, the
+        # Tirli/D1 mechanism) — a similar profile there is a pathway question,
+        # not "elsewhere" counter-evidence. Listed separately.
+        cascade_candidates = []
+        if dem_active:
+            for s in up_or_side:
+                if stn_domain.get(s) == "groundwater" and \
+                        stn_total[s] >= MIN_SIGNAL_UG_L:
+                    hit = flow_surface.near_path((sx, sy), stn_xy[s], 300.0)
+                    if hit is not None:
+                        cascade_candidates.append(s)
 
         # --- signal threshold: near-LOD stations must not count as evidence ---
         down = [s for s in down_all if stn_total[s] >= MIN_SIGNAL_UG_L]
@@ -149,7 +203,13 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
         chem_share = len(chem_hits) / len(down) if down else 0.0
 
         def _w(s):  # evidence weight grows with orders of magnitude above threshold
-            return max(0.0, math.log10(stn_total[s] / MIN_SIGNAL_UG_L))
+            base = max(0.0, math.log10(stn_total[s] / MIN_SIGNAL_UG_L))
+            # groundwater stations: weight is further scaled by plume
+            # plausibility (approved 2026-07-27) — a flank station carries
+            # less chemical-evidence weight than an on-line station
+            if s in gw_tiers:
+                base *= gw_tiers[s]["w"]
+            return base
         w_total = sum(_w(s) for s in down)
         w_hits = sum(_w(s) for s in chem_hits)
         chem_share_weighted = (w_hits / w_total) if w_total > 0 else 0.0
@@ -162,16 +222,24 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
         attenuation = {"n": 0, "r_conc": None, "r_precursor": None,
                        "note_he": "", "basis": "projected"}
         atten_pts = []
+        _momentary = {s for s, o in outfalls.items() if o.get("momentary")}
         if dem_active:
             for s in down:
-                if stn_domain.get(s) != "surface" or s in transfer_fed:
+                if stn_domain.get(s) != "surface" or s in transfer_fed \
+                        or s in _momentary:
                     continue
                 d = flow_surface.downgradient_distance_m(stn_xy[s], (sx, sy))
                 if d is not None and d > 0:
                     atten_pts.append((d, s))
-            if anchor and anchor in stn_total and \
-                    anchor not in {s for _, s in atten_pts}:
-                atten_pts.append((1.0, anchor))  # at-site, ~zero path distance
+            # Stream-series head: at-site stations whose declared outfall is
+            # the STREAM (e.g. בריכה-200). A sewer-routed pond (בריכה-1500)
+            # must NOT head the stream series — its load leaves via the WWTP
+            # line (corrected per user 2026-07-27).
+            for s in stn_total:
+                if _outfall_to(s) == "stream" and s not in {x for _, x in atten_pts}:
+                    d0 = math.hypot(stn_xy[s][0] - sx, stn_xy[s][1] - sy)
+                    if d0 <= 1000:
+                        atten_pts.append((max(d0, 100.0), s))
             if len(atten_pts) >= _ATTEN_MIN_N:
                 attenuation["basis"] = "path_dem"
         if len(atten_pts) < _ATTEN_MIN_N:
@@ -209,16 +277,35 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             if n_surf_down:
                 _parts.append(f"עילי: {n_surf_down} ({flow_surface.describe_he()})")
             if n_gw_down:
-                _parts.append(f"תהום: {n_gw_down} ({flow_gw.describe_he()})")
+                _t1 = sum(1 for s in down if gw_tiers.get(s, {}).get("tier") == "1")
+                _t2 = n_gw_down - _t1
+                _parts.append(
+                    f"תהום: {n_gw_down} במדרגות 1-2 (ליבה {_t1}/אגף {_t2}, "
+                    f"k={GW_PLUME_K}) — {flow_gw.describe_he()}")
             evidence_for.append(
                 f"{len(down)} תחנות פגועות (מעל סף {MIN_SIGNAL_UG_L} µg/L) במורד — "
                 + " | ".join(_parts))
-        _tf_strong = [s for s in transfer_fed if s in down]
-        if _tf_strong:
+        if gw_fringe:
             evidence_for.append(
-                f"{len(_tf_strong)} תחנות מוזנות-שאיבה ממקטע נחל שבמורד האתר "
-                f"({', '.join(_tf_strong)}) — נתיב אנתרופוגני מוצהר "
-                f"(עדות משתמש); אינן ברגרסיית הדעיכה")
+                f"שולי-עננה (מדרגה 3, תמיכה חלשה בלבד): {', '.join(gw_fringe)}")
+        _tf_pump = [s for s in transfer_fed if s in down
+                    and transfer_fed[s]["kind"] == "pumping"]
+        _tf_pipe = [s for s in transfer_fed if s in down
+                    and transfer_fed[s]["kind"] != "pumping"]
+        if _tf_pump:
+            evidence_for.append(
+                f"{len(_tf_pump)} תחנות מוזנות-שאיבה ממקטע נחל שבמורד האתר "
+                f"({', '.join(_tf_pump)}) — נתיב אנתרופוגני מוצהר; "
+                f"אינן ברגרסיית הדעיכה")
+        if _tf_pipe:
+            evidence_for.append(
+                f"{len(_tf_pipe)} תחנות מוזנות-נתיב-מתועל (ביוב←מט\"ש←קולחים): "
+                f"{', '.join(_tf_pipe)} — הצהרת משתמש; ראו תחזית P1")
+        if cascade_candidates:
+            evidence_for.append(
+                f"מועמדי-שרשרת (קידוחים צמודי-ערוץ ≤300 מ' ממסלול הנגר): "
+                f"{', '.join(cascade_candidates)} — עקבי עם החדרת-גדות (מנגנון D1); "
+                f"לא נספרים כראיה ישירה ולא כראיית-נגד")
         if chem_hits:
             evidence_for.append(
                 f"התאמה כימית לפרופילים הצפויים ב-{len(chem_hits)}/{len(down)} "
@@ -263,6 +350,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
         strong_up = [s for s in up_or_side
                      if stn_total[s] >= MIN_SIGNAL_UG_L
                      and s != anchor and not _near_site(s)
+                     and s not in cascade_candidates
                      and s in set(matches[matches["rank"] == 1]["station"])
                      and set(matches[(matches["station"] == s)]["profile_key"]) & expected]
         # Stations under a declared transfer HYPOTHESIS (not yet confirmed)
@@ -312,6 +400,8 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             "n_surface_down": n_surf_down, "n_gw_down": n_gw_down,
             "transfer_fed": transfer_fed,
             "conditional_counter": conditional,
+            "gw_tiers": gw_tiers, "gw_fringe": gw_fringe,
+            "cascade_candidates": cascade_candidates,
             "weak_downgradient": weak_down,
             "chem_share": round(chem_share, 2),
             "chem_share_weighted": round(chem_share_weighted, 2),

@@ -226,6 +226,63 @@ class TestAnchorStation:
             attribution.REGIONS_DIR = old
 
 
+class TestGradedPlausibility:
+    """Approved 2026-07-27: Gaussian lateral decay, sigma=k*L, 4 tiers."""
+
+    flow = UniformFlowAssumption(direction_deg=270)
+
+    def test_on_flow_line_is_tier1(self):
+        w, t = self.flow.plausibility((196000, 720000), (204000, 720000), k=0.2)
+        assert t == "1" and w > 0.99
+
+    def test_large_lateral_offset_is_tier4(self):
+        # 12 km south at 10 km west — the Or-Akiva geometry: outside the plume
+        w, t = self.flow.plausibility((194000, 708000), (204000, 720000), k=0.2)
+        assert t == "4" and w < 0.01
+
+    def test_moderate_offset_tier_depends_on_k(self):
+        # Maayan-Zvi geometry: ~4.7 km lateral at ~10.6 km travel
+        _, t02 = self.flow.plausibility((193140, 720042), (203747, 724655), k=0.2)
+        _, t03 = self.flow.plausibility((193140, 720042), (203747, 724655), k=0.3)
+        assert t02 in ("3", "4")
+        assert t03 in ("2", "3")           # wider plume lifts the tier
+
+    def test_upgradient_is_up(self):
+        _, t = self.flow.plausibility((205000, 720000), (204000, 720000))
+        assert t == "up"
+
+
+class TestOutfallHandling:
+    def test_sewer_outfall_station_not_in_surface_down(self, tmp_path):
+        """A pond routed to the sewer must not count as surface-downgradient
+        (corrected per user 2026-07-27: בריכה-1500 case)."""
+        import json
+
+        from src import attribution
+
+        old = attribution.REGIONS_DIR
+        base = _write_test_region(tmp_path)
+        region_dir = tmp_path / "test_region"
+        rj = json.loads((region_dir / "region.json").read_text(encoding="utf-8"))
+        rj["outfalls"] = {"POND": {"to": "sewer"}}
+        (region_dir / "region.json").write_text(json.dumps(rj), encoding="utf-8")
+        attribution.REGIONS_DIR = base
+        try:
+            region = attribution.load_region("test_region")
+            fp = pd.DataFrame([_afff_fp_row()], index=["POND"])
+            max_event = pd.DataFrame([{
+                "station_name": "POND", "total_concentration": 5.0,
+                "x_itm": 200000, "y_itm": 720000,
+                "source_type": "נקודה מזוהה בנחל",
+            }])
+            df = pd.DataFrame({"station_name": ["POND"], "compound": ["PFOS"],
+                               "concentration": [5.0]})
+            res = attribution.evaluate_candidates(df, fp, max_event, region)[0]
+            assert "POND" not in res["downgradient"]
+        finally:
+            attribution.REGIONS_DIR = old
+
+
 class TestDemFlowModel:
     def _model(self, fallback=None):
         from src.flow_model import DemFlowModel

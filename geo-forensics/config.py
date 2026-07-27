@@ -42,6 +42,12 @@ DATA_DIR = os.environ.get("GEOFORENSICS_DATA_DIR", "data/sample")
 # they must not count as chemical-consistency evidence in attribution.
 MIN_SIGNAL_UG_L = 0.01
 
+# Relative plume half-width growth per unit travel distance (sigma = k*L) for
+# the graded groundwater-plausibility tiers. Declared calibration parameter
+# (claim A6, approved 2026-07-27): mid-range of field transverse
+# dispersivities; will be calibrated against measured heads (S3).
+GW_PLUME_K = 0.2
+
 # --- Data Defaults ---
 MAX_UPLOAD_SIZE_MB = 50
 SUPPORTED_EXTENSIONS = [".xlsx", ".xls", ".csv"]

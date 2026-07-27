@@ -1,0 +1,7 @@
+{
+ "domain": "pfas",
+ "units": "µg/L",
+ "min_signal": 0.01,
+ "gw_plume_k": 0.2,
+ "notes_he": "הבית הקנוני לפרמטרי-הדומיין (תפר core/domain, 2026-07-27). config.py קורא מכאן עם ברירות-מחדל."
+}

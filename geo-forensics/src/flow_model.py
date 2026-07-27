@@ -77,6 +77,44 @@ class UniformFlowAssumption:
         rad = math.radians(self.direction_deg)
         return dx * math.sin(rad) + dy * math.cos(rad)
 
+    def plausibility(self, station_xy, source_xy,
+                     k: float = 0.2) -> tuple[float, str]:
+        """Graded hydro-plausibility under transverse-dispersion physics.
+
+        A plume in uniform flow is narrow: Gaussian lateral decay
+        w = exp(−W²/2σ²) with σ = k·L (plume half-width grows ~linearly at
+        k≈0.15–0.3 of travel distance; Gelhar-scale transverse dispersivity).
+        Returns (w, tier) with 4 discrete tiers (approved 2026-07-27):
+          '1'  w≥0.6   — on the flow line (±~11° at k=0.2): strong
+          '2'  w≥0.2   — plume flank (±~20°): moderate
+          '3'  w≥0.05  — fringe (±~26°): weak
+          '4'  else    — outside the plume: this source does not explain it
+          'up' L≤0     — upgradient
+        k is a declared calibration parameter (claim A6) until measured heads.
+        """
+        # near-field: the Gaussian-plume geometry is meaningless within a
+        # couple hundred meters of the source — an at-site station is tier 1
+        if math.hypot(station_xy[0] - source_xy[0],
+                      station_xy[1] - source_xy[1]) <= 250.0:
+            return 1.0, "1"
+        L = self.downgradient_distance_m(station_xy, source_xy)
+        if L <= 0:
+            return 0.0, "up"
+        # lateral offset = component perpendicular to the flow axis
+        dx = station_xy[0] - source_xy[0]
+        dy = station_xy[1] - source_xy[1]
+        rad = math.radians(self.direction_deg)
+        W = abs(dx * math.cos(rad) - dy * math.sin(rad))
+        sigma = k * L
+        w = math.exp(-(W * W) / (2 * sigma * sigma)) if sigma > 0 else 0.0
+        if w >= 0.6:
+            return w, "1"
+        if w >= 0.2:
+            return w, "2"
+        if w >= 0.05:
+            return w, "3"
+        return w, "4"
+
 
 @dataclass
 class DemFlowModel:

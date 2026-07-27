@@ -20,6 +20,17 @@ import numpy as np
 import pandas as pd
 
 
+# Domain-pack seam (2026-07-27): the domain knowledge lives as DATA in
+# domains/pfas/source_profiles.json — reviewable by a chemist, replaceable by
+# another domain pack. This module keeps the engine (dataclass + matching) and
+# loads the pack; the in-code literals below are the committed fallback and
+# MUST stay in sync when the pack is edited (single source: the JSON).
+import json as _json
+import os as _os
+
+_PACK_PATH = _os.path.join(_os.path.dirname(__file__), "..",
+                           "domains", "pfas", "source_profiles.json")
+
 # Precursor congeners: degrade along the transport path, so their presence
 # (as detections) or share (in the fingerprint) indicates a fresh/nearby input.
 PRECURSORS = ["FOSA", "82FTS", "6:2FT"]
@@ -97,6 +108,25 @@ PROFILES: list[SourceProfile] = [
         notes_he="פיזור רחב ללא דומיננט חד — שקיעה אטמוספרית, בוצה, השקיה בקולחים.",
     ),
 ]
+
+
+def _load_pack():
+    """Prefer the domain-pack JSON; fall back to the in-code literals."""
+    global PRECURSORS, PROFILES
+    try:
+        with open(_PACK_PATH, encoding="utf-8") as f:
+            pack = _json.load(f)
+        PRECURSORS = pack["precursors"]
+        PROFILES = [SourceProfile(key=p["key"], name_he=p["name_he"],
+                                  state=p["state"], weights=p["weights"],
+                                  markers=p.get("markers", []),
+                                  notes_he=p.get("notes_he", ""))
+                    for p in pack["profiles"]]
+    except (OSError, ValueError, KeyError):
+        pass  # keep in-code fallback
+
+
+_load_pack()
 
 
 def _unit(vec: np.ndarray) -> np.ndarray:
