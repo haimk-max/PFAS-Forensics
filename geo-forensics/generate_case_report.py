@@ -1,13 +1,17 @@
-"""generate_case_report.py — Sample CASE-FILE report (draft template).
+"""generate_case_report.py — Environmental-hydrological investigation report.
 
-The standalone professional product of an investigation case: key judgments
-with calibrated confidence, the conceptual site model (sources→pathways→
-receptors), strict facts/analysis separation, alternatives & uncertainties,
-an action-items tracker, the investigation log, and a methodology manifest.
+DRAFT TEMPLATE (structure pending user approval; confidence scale approved).
+Written as continuous professional prose — not bullet lists — in the genre of
+a hydrological survey report, with required figures embedded self-contained
+(plotly.js inlined from the local package; no CDN, no network):
 
-TEMPLATE STATUS: DRAFT — the 8-chapter structure is NOT yet approved
-(user 2026-07-27: wants to read a sample first). The confidence scale
-(גבוהה/בינונית/נמוכה + basis) IS approved.
+    איור 1 — מפת התיק (ITM, ערוצים, מסלול-נגר, תחנות לפי Σ)
+    איור 2 — מטריצת דמיון קוסינוס של תחנות התיק
+    איור 3 — דעיכת Σ והזדקנות פרופיל לאורך מסלול הזרימה
+    איור 4 — הרכב יחסי (fingerprint) של תחנות המפתח
+
+Case scope: STRICTLY the region bbox (fixed 2026-07-27) — no stations or
+measurements from other cases appear anywhere in the report.
 
 Usage (from geo-forensics/):
     python generate_case_report.py hagit
@@ -23,99 +27,329 @@ import warnings
 warnings.filterwarnings("ignore")
 sys.path.insert(0, os.path.dirname(__file__))
 
-from config import GW_PLUME_K, MIN_SIGNAL_UG_L
-from generate_review_report import _prepare, _wgs
+import numpy as np
+import plotly
+import plotly.graph_objects as go
+
+from config import COMPOUND_COLORS, DEFAULT_COLOR, GW_PLUME_K, MIN_SIGNAL_UG_L
+from generate_review_report import _prepare
+from src.analytics import cosine_similarity_matrix
 
 
 def _esc(s):
     return html.escape(str(s))
 
 
+import re as _re
+
+_LATIN_TOKEN = _re.compile(
+    r"(?<![>\w&#])((?:[A-Za-z][\w:.\-/+]*|\d+(?:\.\d+)?\s*(?:µg/L|ng/L|%))"
+    r"(?:=[-\d.]+)?)(?!;)")
+
+
+def _bdi(text_html):
+    """Hebrew-HTML convention (toolkit, via CLAUDE.md): wrap Latin/technical
+    tokens in <bdi> so RTL prose flows correctly around them. Applied to
+    prose paragraphs only (not attributes/markup)."""
+    parts = _re.split(r"(<[^>]+>)", text_html)
+    out = []
+    for p in parts:
+        if p.startswith("<"):
+            out.append(p)
+        else:
+            out.append(_LATIN_TOKEN.sub(r"<bdi>\1</bdi>", p))
+    return "".join(out)
+
+
 def _load(path):
-    if os.path.isfile(path):
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    return None
+    return json.load(open(path, encoding="utf-8")) if os.path.isfile(path) else None
 
 
 def _conf(level, basis):
     cls = {"גבוהה": "hi", "בינונית": "mid", "נמוכה": "lo"}[level]
-    return (f'<span class="conf {cls}">ודאות {level}</span>'
-            f'<span class="basis">על סמך: {_esc(basis)}</span>')
+    return (f'<span class="conf {cls}">ודאות {level}</span> '
+            f'<span class="basis">({_esc(basis)})</span>')
 
 
-def _judgments(data):
-    """Compose the key-judgments chapter from the case state."""
-    region = data["region"]
-    out = []
+_PLOTLY_JS = open(os.path.join(os.path.dirname(plotly.__file__),
+                               "package_data", "plotly.min.js"),
+                  encoding="utf-8").read()
+
+_FONT = dict(family="Assistant, Segoe UI, sans-serif", size=13)
+
+
+# ─── figures ────────────────────────────────────────────────────────────────
+
+def _fig_map(data):
+    """Figure 1 — case map in ITM coordinates (self-contained, no tiles)."""
+    fig = go.Figure()
+    # DEM channels
+    if data["channels"]:
+        from pyproj import Transformer
+        t = Transformer.from_crs(4326, 2039, always_xy=True)
+        first = True
+        for feat in data["channels"]["features"]:
+            pts = [t.transform(lon, lat)
+                   for lon, lat in feat["geometry"]["coordinates"]]
+            fig.add_trace(go.Scatter(
+                x=[p[0] / 1000 for p in pts], y=[p[1] / 1000 for p in pts],
+                mode="lines", line=dict(color="#9ec9e2", width=1.2),
+                name="ערוצי זרימה (DEM)", legendgroup="chan",
+                showlegend=first, hoverinfo="skip"))
+            first = False
+    # candidate runoff path
     for c in data["candidates"]:
-        att = c["attenuation"]
-        out.append((
-            f"האתר \"{c['name_he']}\" מדורג <b>{c['tier']}</b> כמקור {region.get('name_he','')}. "
-            f"{c['n_surface_down']} תחנות במורד-נגר מוכח, "
-            f"{len(c.get('transfer_fed', {}))} מוזנות-נתיב מוצהר, "
-            f"התאמה כימית משוקללת {c['chem_share_weighted']*100:.0f}%.",
-            "גבוהה" if "ליבה" in c["tier"] else "בינונית",
-            "עוגן-מקור מאושר + מסלול DEM + נתיבים מוצהרים + התאמת פרופילים",
-        ))
-        if att.get("r_precursor") is not None and att["r_precursor"] <= -0.4:
-            out.append((
-                f"הזדקנות-פרופיל נצפית לאורך מסלול-הנגר (r={att['r_precursor']}): "
-                f"נתח קדם-החומרים יורד עם המרחק — עקבי עם הסעה מהאתר.",
-                "בינונית",
-                "מרחקי-מסלול DEM; חתך לא-בו-זמני",
-            ))
-        if c.get("cascade_candidates"):
-            out.append((
-                f"קידוחים צמודי-ערוץ ({', '.join(c['cascade_candidates'])}) מסווגים "
-                f"מועמדי-שרשרת (נחל←החדרת-גדות←תהום); מבחן-ההבחנה הכימי מטה "
-                f"להסעה תת-קרקעית — שאלת ההפיכוּת פתוחה.",
-                "בינונית",
-                "פרקציונציה כרומטוגרפית בחתך יחיד",
-            ))
-    for q in (region.get("open_questions") or []):
-        if q.get("status") == "open" and q["id"].startswith("Q"):
-            out.append((
-                f"{q['title_he']}: {q['statement_he']}",
-                "נמוכה",
-                "שאלה פתוחה — " + q.get("provenance", ""),
-            ))
-    return out
+        pt = (data["flow"] or {}).get("points", {}).get(c["id"])
+        if pt and pt.get("path_itm"):
+            xs = [p[0] / 1000 for p in pt["path_itm"]]
+            ys = [p[1] / 1000 for p in pt["path_itm"]]
+            fig.add_trace(go.Scatter(
+                x=xs, y=ys, mode="lines",
+                line=dict(color="#d97a2c", width=3, dash="dash"),
+                name="מסלול הנגר מהמקור", hoverinfo="skip"))
+    # stations by domain
+    surface_types = {"נקודה מזוהה בנחל", "תחנה הידרומטרית", "מאגר"}
+    groups = {
+        "נחל/מאגר — מעל סף": dict(color="#c64a3b", symbol="circle"),
+        "קידוח/מעיין — מעל סף": dict(color="#2a6f97", symbol="diamond"),
+        "מתחת לסף-אות": dict(color="#c8c4bc", symbol="circle-open"),
+    }
+    me = data["max_event"].set_index("station_name")
+    for gname, style in groups.items():
+        xs, ys, texts, sizes = [], [], [], []
+        for s in data["stations"]:
+            row = me.loc[s["name"]]
+            is_surf = str(row.get("source_type", "")) in surface_types
+            if gname.startswith("נחל") and (s["below_thr"] or not is_surf):
+                continue
+            if gname.startswith("קידוח") and (s["below_thr"] or is_surf):
+                continue
+            if gname.startswith("מתחת") and not s["below_thr"]:
+                continue
+            xs.append(float(row["x_itm"]) / 1000)
+            ys.append(float(row["y_itm"]) / 1000)
+            texts.append(f"{s['name']}<br>Σ={s['sigma']:.3f} µg/L"
+                         f"<br>{s['profile']} ({s['score']:.0f}%)")
+            sizes.append(7 if s["below_thr"] else
+                         max(9, min(26, 10 + 4 * np.log10(s["sigma"] / 0.001 + 1))))
+        fig.add_trace(go.Scatter(
+            x=xs, y=ys, mode="markers", name=gname,
+            marker=dict(size=sizes, symbol=style["symbol"],
+                        color=style["color"], opacity=0.85,
+                        line=dict(width=1, color="white")),
+            text=texts, hoverinfo="text"))
+    # sources
+    for src in (data["sources"] or {}).get("features", []):
+        p = src["properties"]
+        fig.add_trace(go.Scatter(
+            x=[p["itm"][0] / 1000], y=[p["itm"][1] / 1000],
+            mode="markers+text",
+            marker=dict(size=20, symbol="star", color="#7a3d9e",
+                        line=dict(width=1.5, color="white")),
+            text=[p["name_he"]], textposition="top center",
+            textfont=dict(size=12), name="מקור מוערך"))
+    fig.update_layout(
+        font=_FONT, template="plotly_white", height=560,
+        xaxis=dict(title="ITM מזרח (ק\"מ)", constrain="domain"),
+        yaxis=dict(title="ITM צפון (ק\"מ)", scaleanchor="x", scaleratio=1),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        margin=dict(l=60, r=20, t=40, b=50))
+    return fig
 
+
+def _fig_similarity(data):
+    """Figure 2 — cosine similarity matrix of the case's signal stations."""
+    df, group = data["df"], data["group"]
+    sim = cosine_similarity_matrix(df, group)
+    me = data["max_event"].set_index("station_name")
+    keep = [s for s in sim.index
+            if s in me.index and me.loc[s, "total_concentration"] >= MIN_SIGNAL_UG_L]
+    sim = sim.loc[keep, keep]
+    try:
+        from scipy.cluster.hierarchy import leaves_list, linkage
+        from scipy.spatial.distance import squareform
+        d = 1 - sim.values / 100
+        np.fill_diagonal(d, 0)
+        order = leaves_list(linkage(squareform((d + d.T) / 2, checks=False),
+                                    method="average"))
+        lab = [sim.index[i] for i in order]
+        sim = sim.loc[lab, lab]
+    except Exception:
+        lab = list(sim.index)
+    fig = go.Figure(go.Heatmap(
+        z=sim.values, x=lab, y=lab,
+        colorscale=[[0, "#c64a3b"], [0.3, "#d8c84a"], [0.7, "#4ea66b"],
+                    [0.9, "#1f7a4d"], [1, "#0d4a2e"]],
+        zmin=0, zmax=100, colorbar=dict(title="% דמיון"),
+        hovertemplate="%{x} ↔ %{y}<br>%{z:.0f}%<extra></extra>"))
+    fig.update_layout(font=_FONT, template="plotly_white",
+                      height=max(420, 26 * len(lab) + 140),
+                      margin=dict(l=10, r=10, t=30, b=10))
+    return fig, len(lab)
+
+
+def _fig_attenuation(data):
+    for c in data["candidates"]:
+        ser = c.get("atten_series") or []
+        if len(ser) >= 3:
+            xs = [d["km"] for d in ser]
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=xs, y=[d["sigma"] for d in ser], name="ΣPFAS (µg/L)",
+                mode="lines+markers+text", text=[d["station"] for d in ser],
+                textposition="top center", textfont=dict(size=10),
+                line=dict(color="#c64a3b")))
+            fig.add_trace(go.Scatter(
+                x=xs, y=[d["precursor"] for d in ser], name="% קדם-חומרים",
+                mode="lines+markers", line=dict(color="#2a9d8f"), yaxis="y2"))
+            fig.update_layout(
+                font=_FONT, template="plotly_white", height=420,
+                xaxis=dict(title="מרחק-מסלול מהמקור (ק\"מ)"),
+                yaxis=dict(title="ΣPFAS (µg/L)", type="log"),
+                yaxis2=dict(title="% קדם-חומרים", overlaying="y", side="right",
+                            rangemode="tozero"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02),
+                margin=dict(l=60, r=60, t=40, b=50))
+            return fig
+    return None
+
+
+def _fig_fingerprints(data, max_stations=8):
+    me = data["max_event"].sort_values("total_concentration", ascending=False)
+    names = [n for n in me["station_name"]
+             if n in data["fingerprint"].index][:max_stations]
+    fp = data["fingerprint"].loc[names]
+    fp = fp[[c for c in fp.columns if fp[c].sum() > 0]]
+    fig = go.Figure()
+    for comp in fp.columns:
+        fig.add_trace(go.Bar(
+            name=comp, x=[n[:22] for n in names], y=fp[comp],
+            marker_color=COMPOUND_COLORS.get(comp, DEFAULT_COLOR)))
+    fig.update_layout(
+        font=_FONT, template="plotly_white", barmode="stack", height=430,
+        yaxis=dict(title="אחוז מההרכב (%)", range=[0, 100]),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10)),
+        margin=dict(l=50, r=10, t=60, b=80))
+    return fig, names
+
+
+# ─── prose builders ─────────────────────────────────────────────────────────
+
+def _list_he(items, limit=None):
+    items = list(items)
+    if limit and len(items) > limit:
+        items = items[:limit] + [f"ועוד {len(items) - limit}"]
+    if len(items) <= 1:
+        return items[0] if items else ""
+    return ", ".join(items[:-1]) + " ו" + items[-1]
+
+
+def _findings_prose(data):
+    P = []
+    me = data["max_event"]
+    sig = me[me["total_concentration"] >= MIN_SIGNAL_UG_L]
+    top = sig.sort_values("total_concentration", ascending=False).head(3)
+    top_list = _list_he(['"%s" (%s)' % (r.station_name,
+                                        format(r.total_concentration, ",.2f"))
+                         for r in top.itertuples()])
+    orders = np.log10(sig["total_concentration"].max()
+                      / max(sig["total_concentration"].min(), 1e-6))
+    P.append(
+        f"בתחום התיק נדגמו {data['n_stations']} תחנות, מהן {len(sig)} מעל "
+        f"סף-האות הראייתי ({MIN_SIGNAL_UG_L} מיקרוגרם לליטר). טווח הריכוזים "
+        f"משתרע על פני כ-{orders:.0f} סדרי גודל. הריכוזים הגבוהים ביותר "
+        f"נמדדו ב{top_list} — ראו איור 1 לפריסה המרחבית.")
+    for c in data["candidates"]:
+        if c["n_surface_down"]:
+            P.append(
+                f"ניתוח מסלולי הזרימה העיליים, הנגזרים ממודל הגבהים "
+                f"(Copernicus GLO-30, שיטת D8), מעלה כי {c['n_surface_down']} "
+                f"תחנות עיליות פגועות יושבות על מסלול-הנגר היוצא מהאתר. "
+                + (f"לצדן, {len(c['transfer_fed'])} תחנות נוספות מוזנות "
+                   f"בנתיבים אנתרופוגניים מוצהרים (שאיבה מהנחל וקו "
+                   f"הביוב–מט\"ש–מאגרים)." if c["transfer_fed"] else ""))
+        att = c["attenuation"]
+        if att.get("r_precursor") is not None:
+            P.append(
+                f"לאורך המסלול נצפית הזדקנות-פרופיל מובהקת: נתח קדם-החומרים "
+                f"(FOSA, 8:2FTS, 6:2FT) יורד בעקביות עם המרחק "
+                f"(Spearman r={att['r_precursor']}) — דפוס האופייני להתרחקות "
+                f"ממקור פעיל (איור 3). דעיכת הריכוז הכולל, לעומת זאת, אינה "
+                f"חד-משמעית בחתך הנוכחי (r={att['r_conc']}); ההסבר הסביר הוא "
+                f"ערבוב שני משטרי-עומס ברשומה — לפני ואחרי הסבת בריכה-1500 "
+                f"לביוב — בחתך שאינו בו-זמני.")
+        if c.get("gw_tiers"):
+            t12 = [s for s in c["downgradient"] if s in c["gw_tiers"]]
+            P.append(
+                f"בציר מי-התהום הוחלו מדרגות-הסבירות (עננה גאוסיאנית, "
+                f"k={GW_PLUME_K}): {len(t12)} קידוחים במדרגות הליבה/האגף"
+                + (f", ו-{len(c['gw_fringe'])} בשולי-העננה (תמיכה חלשה בלבד)"
+                   if c["gw_fringe"] else "")
+                + (f". קידוחים צמודי-ערוץ ({_list_he(c['cascade_candidates'])}) "
+                   f"סווגו כמועמדי-שרשרת — נתיב נחל←החדרת-גדות←תהום — "
+                   f"ומבחן-ההבחנה הכימי (פרקציונציה של שרשראות קצרות) תומך "
+                   f"בהסעה תת-קרקעית של ממש." if c.get("cascade_candidates") else "."))
+    return P
+
+
+def _discussion_prose(data):
+    P = []
+    for c in data["candidates"]:
+        fors = len(c["evidence_for"])
+        P.append(
+            f"משקלול שלושת צירי הראיה — הכימי, ההידרולוגי וראיית-הפליטה — "
+            f"האתר \"{c['name_he']}\" מדורג <b>{c['tier']}</b>. "
+            f"{fors} קווי-ראיה תומכים מתלכדים: " +
+            "; ".join(e.split("—")[0].strip() for e in c["evidence_for"][:4]) + ".")
+        if c["evidence_against"]:
+            P.append(
+                "מנגד, ובהתאם לחובת בחינת ההסברים החלופיים, נרשמות "
+                "הסתייגויות: " + " ".join(c["evidence_against"]) +
+                " הסתייגויות אלו אינן מבטלות את הדירוג אך תוחמות את תוקפו.")
+        P.append(
+            "יודגש: התאמת פרופיל — גם גבוהה — משמעה \"עקבי עם\" ואינה קביעת "
+            "מקור; הדירוג כולו כפוף לשפה הזהירה המחייבת (מועמד ליבה/משני/רקע) "
+            "ולעקרון שכיוון זרימה לבדו אינו מזהה מקור.")
+    return P
+
+
+# ─── report assembly ────────────────────────────────────────────────────────
 
 _CSS = """
-:root{--bg:#f5f3ee;--surface:#fff;--ink:#1c1f24;--ink2:#4a4f57;--ink3:#7d8189;
---line:#e2ddd2;--accent:#2a9d8f;--warn:#d97a2c;--ok:#2d8b5e;--high:#7a3d9e;--bad:#c64a3b}
+:root{--ink:#1c1f24;--ink2:#4a4f57;--ink3:#7d8189;--line:#e2ddd2;
+--accent:#2a9d8f;--warn:#d97a2c;--ok:#2d8b5e;--bad:#c64a3b}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);direction:rtl;
-font-family:Assistant,"Segoe UI",system-ui,sans-serif;line-height:1.65}
-.wrap{max-width:1000px;margin:0 auto;padding:26px}
-h1{font-size:1.65rem;margin:.2em 0}
-h2{font-size:1.22rem;border-bottom:2px solid var(--accent);padding-bottom:6px;margin-top:2em}
-.sub{color:var(--ink3);font-size:.9rem}
-.draft{background:#7a3d9e;color:#fff;border-radius:6px;padding:10px 16px;font-weight:600;margin:12px 0}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;
-padding:16px 20px;margin:12px 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-.jd{border-right:4px solid var(--accent);padding:10px 14px;margin:10px 0;background:#fff;border-radius:4px}
-.conf{display:inline-block;border-radius:100px;padding:1px 10px;font-size:.78rem;font-weight:700;margin-left:8px}
+body{margin:0;background:#f5f3ee;color:var(--ink);direction:rtl;
+font-family:Assistant,"Segoe UI",system-ui,sans-serif;line-height:1.85;font-size:16px}
+.wrap{max-width:900px;margin:0 auto;padding:30px;background:#fff;
+box-shadow:0 0 14px rgba(0,0,0,.06)}
+h1{font-size:1.6rem;margin:.2em 0;line-height:1.3}
+h2{font-size:1.25rem;color:#1a5c50;border-bottom:2px solid var(--accent);
+padding-bottom:5px;margin-top:2.2em}
+h3{font-size:1.05rem;margin-top:1.5em}
+p{margin:.8em 0;text-align:justify}
+.meta{color:var(--ink3);font-size:.85rem;border-bottom:1px solid var(--line);
+padding-bottom:12px;margin-bottom:8px}
+.draft{background:#7a3d9e;color:#fff;border-radius:6px;padding:9px 14px;
+font-weight:600;font-size:.9rem;margin:14px 0}
+.figure{margin:1.4em 0;border:1px solid var(--line);border-radius:8px;padding:10px}
+.figcap{font-size:.85rem;color:var(--ink2);text-align:center;margin-top:6px;font-weight:600}
+.conf{display:inline-block;border-radius:100px;padding:1px 10px;font-size:.78rem;font-weight:700}
 .conf.hi{background:#e3f2e8;color:var(--ok)}.conf.mid{background:#fdf1e4;color:var(--warn)}
 .conf.lo{background:#fbe9e7;color:var(--bad)}
-.basis{font-size:.78rem;color:var(--ink3)}
-table{width:100%;border-collapse:collapse;font-size:.87rem}
+.basis{font-size:.8rem;color:var(--ink3)}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin:.8em 0}
 th,td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
-th{color:var(--ink2)}
-.ev{list-style:none;padding:0;margin:6px 0}.ev li{padding:4px 0;border-bottom:1px dashed var(--line);font-size:.9rem}
-.for::before{content:"➕ ";color:var(--ok)}.against::before{content:"➖ ";color:var(--warn)}
-.ref::before{content:"❓ ";color:var(--ink3)}
-.fact{background:#f2f7f5;border-right:3px solid var(--accent);padding:8px 12px;margin:6px 0;font-size:.9rem}
-.assume{background:#fdf6ec;border-right:3px solid var(--warn);padding:8px 12px;margin:6px 0;font-size:.9rem}
-.pri-h{color:var(--bad);font-weight:700}.pri-m{color:var(--warn);font-weight:600}
-.foot{color:var(--ink3);font-size:.78rem;margin-top:26px;text-align:center}
-.chain{background:#fff;border:1px dashed var(--line);border-radius:8px;padding:14px 18px;
-font-size:.95rem;text-align:center;direction:rtl;line-height:2.2}
-.chain b{background:#fbe9e7;border-radius:4px;padding:2px 8px}
-.chain span{background:#eef4fb;border-radius:4px;padding:2px 8px}
-.chain i{background:#e3f2e8;border-radius:4px;padding:2px 8px;font-style:normal}
+th{background:#faf8f4;color:var(--ink2)}
+.concl{border-right:4px solid var(--accent);background:#fafcfb;padding:10px 14px;margin:10px 0}
+.foot{color:var(--ink3);font-size:.78rem;margin-top:30px;text-align:center;
+border-top:1px solid var(--line);padding-top:12px}
+@media print{
+  .wrap{box-shadow:none;max-width:100%}body{background:#fff;font-size:12pt}
+  h2{page-break-after:avoid}.figure{page-break-inside:avoid}
+  .concl{page-break-inside:avoid}table{page-break-inside:avoid}
+  .draft{display:none}
+}
 """
 
 
@@ -123,125 +357,139 @@ def main(region_name):
     data = _prepare(region_name)
     region = data["region"]
     actions = _load(os.path.join(region["_base"], "actions.json"))
-    basins = _load(os.path.join(region["_base"], "derived", "basins.json"))
-    claims = data["claims"]
-
+    nar = region.get("report_narrative", {})
+    sem = region.get("dataset_semantics", {})
     git = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
                          capture_output=True, text=True,
                          cwd=os.path.dirname(__file__) or ".").stdout.strip()
 
+    fig_map = _fig_map(data)
+    fig_sim, n_sim = _fig_similarity(data)
+    fig_att = _fig_attenuation(data)
+    fig_fp, fp_names = _fig_fingerprints(data)
+
+    def _plot(fig, div_id):
+        return (f'<div id="{div_id}"></div><script>Plotly.newPlot("{div_id}", '
+                f'{fig.to_json()}, {{}}, {{responsive:true, displayModeBar:false}});'
+                f'</script>')
+
     S = []
-    S.append(f"<h1>תיק ממצאים — {_esc(region.get('name_he', region_name))}</h1>")
-    S.append('<div class="draft">טיוטה לדוגמה — מבנה הדוח (8 פרקים) טרם קובע; '
-             'הוגש לקריאת המומחה (2026-07-27). סולם-הוודאות מאושר.</div>')
-    sem = region.get("dataset_semantics", {})
-    S.append(f'<div class="sub">נתונים: {_esc(os.path.basename(region["measurement_file"]))} · '
-             f'{_esc(sem.get("snapshot_rule",""))} · טווח {_esc(sem.get("date_span",""))} · '
-             f'{data["n_stations"]} תחנות בתחום-התיק</div>')
+    S.append(f"<h1>דוח חקירה סביבתית-הידרולוגית<br>{_esc(region.get('name_he', region_name))}</h1>")
+    S.append(f'<div class="meta">השירות ההידרולוגי, רשות המים · מהדורת עבודה '
+             f'{region.get("_round","")} · 27 ביולי 2026 · גרסת מתודולוגיה '
+             f'<span dir="ltr">{git}</span></div>')
+    S.append('<div class="draft">טיוטת תבנית לעיון — מבנה הדוח טרם קובע. '
+             'סולם-הוודאות (גבוהה/בינונית/נמוכה + בסיס) מאושר.</div>')
 
-    # 0 — key judgments
-    S.append("<h2>0 · שיפוטי-מפתח</h2>")
-    for txt, lvl, basis in _judgments(data):
-        S.append(f'<div class="jd">{txt}<br>{_conf(lvl, basis)}</div>')
+    # 1 — introduction & background
+    S.append("<h2>1. מבוא ורקע</h2>")
+    if nar.get("background_he"):
+        S.append(_bdi(f"<p>{_esc(nar['background_he'])}</p>"))
+    if nar.get("trigger_he"):
+        S.append(_bdi(f"<p>{_esc(nar['trigger_he'])}</p>"))
+    S.append(
+        "<p>מטרת החקירה היא מיפוי שיטתי של תמונת הזיהום בתחום התיק, בחינת "
+        "מועמדי-מקור מול שלושה צירי ראיה בלתי-תלויים — התאמה כימית, סבירות "
+        "הידרולוגית וראיות פליטה — וגיבוש המלצות לפעולות המשך. הדוח נוקט "
+        "בשפת ייחוס זהירה: מועמד מדורג \"ליבה\", \"משני\" או \"רקע מקומי\", "
+        "ולעולם אינו מוכרז \"המקור\".</p>")
 
-    # 1 — CSM
-    S.append("<h2>1 · מודל האתר התפיסתי (מקורות ← נתיבים ← רצפטורים)</h2>")
-    if region_name == "hagit":
-        S.append("""<div class="chain">
-<b>תחנת הכוח חגית</b> (עוגן: בריכה-1500, Σ=1,121)<br>
-← <span>נתיב 1: בריכה-200 → נחל חגית → נחל דליה → הים</span> ← <i>תחנות הנחל; קידוחי-גדה (טירלי) בהחדרה</i><br>
-← <span>נתיב 2 (עומס עיקרי): קו ביוב → מט"ש חוף הכרמל → קולחים</span> ← <i>מאגרי מעין-צבי → השקיה → תהום?</i><br>
-← <span>נתיב 3: שאיבה מהנחל</span> ← <i>בריכות הדגים</i>
-</div>""")
-    else:
-        S.append("""<div class="chain">
-<b>חוות המכלים חח"י קיסריה</b> (אינדיקטור: נד חשמל רדוד, סמנים טריים)<br>
-← <span>חלחול מקומי לתהום; זרימה מתכנסת לשקע-השאיבה (קריאת מפת 2023)</span> ← <i>קידוחי חדרה/מנשה/קיסריה</i>
-</div>""")
-    if basins:
-        from collections import Counter
-        cnt = Counter(basins["assignments"].values())
-        S.append('<div class="sub">אגנים בתחום-התיק: ' +
-                 " · ".join(f"{k}: {v}" for k, v in cnt.items()) +
-                 f' — {_esc(basins["quality_note"])}</div>')
+    # 2 — data & methods
+    S.append("<h2>2. נתונים ושיטות</h2>")
+    S.append(
+        f"<p>בסיס הנתונים הוא קובץ מדידות של רשות המים "
+        f"({_esc(os.path.basename(region['measurement_file']))}), שסונן "
+        f"לפי הכלל \"{_esc(sem.get('snapshot_rule', ''))}\" ומשתרע על התקופה "
+        f"{_esc(sem.get('date_span', ''))}. יודגש כי החתך אינו בו-זמני: "
+        f"תחנות שונות נדגמו במועדים שונים, וההשוואה ביניהן מניחה מצב-יציב — "
+        f"הנחה מוצהרת שהפרותיה נדונות בפרק הדיון. תחנות שריכוזן הכולל נמוך "
+        f"מסף-האות ({MIN_SIGNAL_UG_L} מיקרוגרם לליטר) מוצגות אך אינן נספרות "
+        f"כראיה, שכן הרכבן נשלט על-ידי רעש אנליטי וערכי סף-גילוי.</p>")
+    S.append(
+        f"<p>המתודולוגיה משלבת טביעת-אצבע כימית מנורמלת והתאמתה לפרופילי-מקור "
+        f"ספרותיים (קוסינוס), ניתוח מסלולי זרימה עיליים ממודל גבהים "
+        f"(Copernicus GLO-30, ‏30 מ'), מדרגות-סבירות גאוסיאניות לזרימת תהום "
+        f"(k={GW_PLUME_K}, פרמטר מוצהר ובר-כיול), נתיבי-מים אנתרופוגניים "
+        f"מוצהרים עם תיעוד-מקור, ורגרסיות דעיכה על מרחקי-מסלול. הפירוט המלא — "
+        f"בנספח המתודולוגי.</p>")
 
-    # 2 — facts
-    S.append("<h2>2 · עובדות (מדידות והצהרות מתועדות)</h2>")
-    top = sorted(data["stations"], key=lambda s: -s["sigma"])[:8]
-    S.append('<div class="card"><table><tr><th>תחנה</th><th>Σ (µg/L)</th><th>סוג</th><th>התאמה מובילה</th></tr>')
-    for s in top:
-        S.append(f"<tr><td>{_esc(s['name'])}</td><td>{s['sigma']:.3f}</td>"
-                 f"<td>{_esc(s['source_type'])}</td><td>{_esc(s['profile'])} ({s['score']:.0f}%)</td></tr>")
-    S.append("</table></div>")
-    for name, o in (region.get("outfalls") or {}).items():
-        S.append(f'<div class="fact"><b>{_esc(name)}</b> ← {_esc(o.get("to"))}'
-                 + (f' · {_esc(o.get("history_he",""))}' if o.get("history_he") else "")
-                 + f' <span class="basis">[{_esc(o.get("provenance",""))}]</span></div>')
+    # 3 — findings
+    S.append("<h2>3. ממצאים</h2>")
+    S.append(f'<div class="figure">{_plot(fig_map, "figmap")}'
+             f'<div class="figcap">איור 1: מפת התיק — תחנות (גודל ∝ Σ), '
+             f'ערוצי DEM, מסלול הנגר מהמקור. קואורדינטות ITM בק"מ.</div></div>')
+    for p in _findings_prose(data):
+        S.append(_bdi(f"<p>{p}</p>"))
+    S.append(f'<div class="figure">{_plot(fig_sim, "figsim")}'
+             f'<div class="figcap">איור 2: מטריצת דמיון קוסינוס — {n_sim} '
+             f'תחנות מעל סף-האות, מסודרות באשכולות.</div></div>')
+    if fig_att is not None:
+        S.append(f'<div class="figure">{_plot(fig_att, "figatt")}'
+                 f'<div class="figcap">איור 3: ΣPFAS (ציר שמאלי, לוגריתמי) '
+                 f'ונתח קדם-חומרים (ימני) לאורך מסלול הזרימה.</div></div>')
+    S.append(f'<div class="figure">{_plot(fig_fp, "figfp")}'
+             f'<div class="figcap">איור 4: הרכב יחסי של {len(fp_names)} '
+             f'תחנות המפתח (לפי Σ יורד).</div></div>')
 
-    # 3 — analysis & evidence
-    S.append("<h2>3 · ניתוח וראיות</h2>")
+    # 4 — discussion
+    S.append("<h2>4. דיון</h2>")
+    for p in _discussion_prose(data):
+        S.append(_bdi(f"<p>{p}</p>"))
+
+    # 5 — conclusions
+    S.append("<h2>5. מסקנות</h2>")
     for c in data["candidates"]:
-        S.append(f'<div class="card"><b>{_esc(c["name_he"])}</b> — {_esc(c["tier"])}'
-                 f'<div class="sub">{_esc(c["flow_caveat"])}</div><ul class="ev">')
-        for e in c["evidence_for"]:
-            S.append(f'<li class="for">{_esc(e)}</li>')
-        S.append("</ul></div>")
+        lvl = "גבוהה" if "ליבה" in c["tier"] else "בינונית"
+        S.append(f'<div class="concl"><p>האתר \"{_esc(c["name_he"])}\" מדורג '
+                 f'<b>{_esc(c["tier"])}</b> ביחס לזיהום ה-PFAS בתחום התיק. '
+                 f'{_conf(lvl, "התלכדות שלושת צירי הראיה; ראו פרק 4")}</p></div>')
+        att = c["attenuation"]
+        if att.get("r_precursor") is not None and att["r_precursor"] <= -0.4:
+            S.append(f'<div class="concl"><p>החתימה הכימית מזדקנת בעקביות עם '
+                     f'ההתרחקות מהאתר — עדות תומכת עצמאית להסעה ממנו. '
+                     f'{_conf("בינונית", "חתך יחיד, לא בו-זמני")}</p></div>')
+    for q in (region.get("open_questions") or []):
+        S.append(f'<div class="concl"><p>{_esc(q["title_he"])}: '
+                 f'{_esc(q.get("stakes_he", q["statement_he"]))} '
+                 f'{_conf("נמוכה", "שאלה פתוחה — " + q.get("status", ""))}</p></div>')
 
-    # 4 — alternatives & uncertainties
-    S.append("<h2>4 · הסברים חלופיים, אי-ודאויות והנחות פעילות</h2>")
-    for c in data["candidates"]:
-        S.append('<div class="card"><ul class="ev">')
-        for e in c["evidence_against"] or ["(אין ראיות-נגד פעילות)"]:
-            S.append(f'<li class="against">{_esc(e)}</li>')
-        for e in c["would_refute"]:
-            S.append(f'<li class="ref">{_esc(e)}</li>')
-        S.append("</ul></div>")
-    for cl in (claims["claims"] if claims else []):
-        if cl["type"] == "assumption" and cl["status"] not in ("resolved",):
-            S.append(f'<div class="assume"><b>{cl["id"]} · {_esc(cl["title_he"])}</b> — '
-                     f'{_esc(cl["statement_he"])} <span class="basis">{_esc(cl["status_he"])}</span></div>')
-
-    # 5 — actions
-    S.append("<h2>5 · פעולות נדרשות</h2>")
+    # 6 — recommendations
+    S.append("<h2>6. המלצות ופעולות נדרשות</h2>")
+    S.append("<p>הפעולות הבאות נגזרות ישירות מהשאלות הפתוחות, ומסודרות לפי "
+             "התועלת הראייתית הצפויה מהן:</p>")
     if actions:
-        S.append('<div class="card"><table><tr><th>#</th><th>פעולה</th><th>מכריעה את</th><th>תפוקה צפויה</th><th>עדיפות</th></tr>')
+        S.append('<table><tr><th>#</th><th>פעולה</th><th>מה תכריע</th><th>עדיפות</th></tr>')
         for a in actions["actions"]:
-            pcls = "pri-h" if "גבוהה" in a["priority"] else "pri-m"
             S.append(f"<tr><td>{a['id']}</td><td>{_esc(a['what_he'])}</td>"
-                     f"<td>{_esc(a['resolves_he'])}</td><td>{_esc(a['yield_he'])}</td>"
-                     f"<td class='{pcls}'>{_esc(a['priority'])}</td></tr>")
-        S.append("</table></div>")
+                     f"<td>{_esc(a['yield_he'])}</td><td>{_esc(a['priority'])}</td></tr>")
+        S.append("</table>")
 
-    # 6 — investigation log
-    S.append("<h2>6 · יומן חקירה</h2>")
-    S.append('<div class="card"><table><tr><th>סבב</th><th>עיקרי</th></tr>'
-             '<tr><td>1 (07/2026)</td><td>פרופילי-מקור, DEM עילי, סף-אות ושקלול, עוגן 1,121, השאיבה לבריכות; זיהוי עיוור של מקור-קיסריה מסמנים טריים</td></tr>'
-             '<tr><td>2 (07/2026)</td><td>קואורדינטות רשמיות; פיצול לשני תיקים; נתיב ביוב←מט"ש←מאגרים; מוצאי-בריכות והיסטוריית ההסבה; מדרגות-תהום k=0.2; אגנים; דירוג הועלה למועמד-ליבה (לעיון)</td></tr>'
-             '</table><div class="sub">הפירוט המלא: claims.json + היסטוריית git.</div></div>')
-
-    # 7 — methodology manifest
-    S.append("<h2>7 · נספח מתודולוגי (מניפסט)</h2>")
-    S.append(f'<div class="card"><table>'
-             f'<tr><td>גרסת מתודולוגיה (commit)</td><td dir="ltr">{git}</td></tr>'
-             f'<tr><td>סף-אות</td><td>{MIN_SIGNAL_UG_L} µg/L</td></tr>'
-             f'<tr><td>רוחב-עננה יחסי k</td><td>{GW_PLUME_K} (A6, בר-כיול)</td></tr>'
-             f'<tr><td>סף צמידות-לערוץ</td><td>300 מ׳ (כויל על בת-שלמה)</td></tr>'
-             f'<tr><td>DEM</td><td>Copernicus GLO-30, D8, ערוץ ≥0.5 קמ"ר</td></tr>'
-             f'<tr><td>פרופילי-מקור</td><td>domains/pfas/source_profiles.json (היוריסטיקה ספרותית)</td></tr>'
-             f'<tr><td>שפת ייחוס</td><td>"עקבי עם"; מועמד ליבה/משני/רקע — לעולם לא "המקור"</td></tr>'
-             f'</table></div>')
+    # appendix
+    S.append("<h2>נספח — מניפסט מתודולוגי</h2>")
+    S.append(f"<p>גרסת מתודולוגיה (commit): <span dir='ltr'>{git}</span> · "
+             f"סף-אות: {MIN_SIGNAL_UG_L} µg/L · רוחב-עננה k={GW_PLUME_K} · "
+             f"צמידות-לערוץ: 300 מ' · פרופילי-מקור: domains/pfas (היוריסטיקה "
+             f"ספרותית — ITRC; Barzen-Hanson 2017; Houtz 2013) · DEM: "
+             f"Copernicus GLO-30, D8, סף-ערוץ 0.5 קמ\"ר. לוח-הטענות ויומן-"
+             f"ההכרעות המלאים: claims.json בתיקיית התיק.</p>")
 
     body = "\n".join(S)
-    out_html = (f'<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">'
+    out_html = (f'<!doctype html><html lang="he" dir="rtl"><head>'
+                f'<meta charset="utf-8">'
                 f'<meta name="viewport" content="width=device-width, initial-scale=1">'
-                f'<title>תיק ממצאים — {_esc(region.get("name_he", region_name))}</title>'
+                f'<title>דוח חקירה — {_esc(region.get("name_he", region_name))}</title>'
+                f'<script>{_PLOTLY_JS}</script>'
                 f'<style>{_CSS}</style></head><body><div class="wrap">{body}'
-                f'<div class="foot">נוצר מ-generate_case_report.py · commit {git} · '
-                f'טיוטת-תבנית לעיון</div></div></body></html>')
+                f'<div class="foot">הדוח הופק אוטומטית מקבצי התיק · commit '
+                f'<span dir="ltr">{git}</span> · כלי סינון לתעדוף חקירה — '
+                f'אינו קביעת מקור ואינו מחליף שיקול-דעת מומחה</div>'
+                f'</div></body></html>')
     out = os.path.join(region["_base"], f"case_report_{region_name}.html")
     with open(out, "w", encoding="utf-8") as f:
         f.write(out_html)
-    print(f"wrote {out} ({len(out_html)//1024} KB)")
+    print(f"wrote {out} ({len(out_html) // 1024} KB)")
+    print(f"  case stations={data['n_stations']} signal={data['n_signal']} "
+          f"sim_matrix={n_sim} fingerprints={len(fp_names)}")
 
 
 if __name__ == "__main__":

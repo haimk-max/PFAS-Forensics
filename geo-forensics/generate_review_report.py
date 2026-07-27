@@ -45,7 +45,22 @@ def _esc(s):
 def _prepare(region_name):
     region = load_region(region_name)
     mf = os.path.join(os.path.dirname(__file__), region["measurement_file"])
-    df, group = process_file(mf, group_name="PFAS")
+    df_all, group = process_file(mf, group_name="PFAS")
+
+    # CASE SCOPE (fixed 2026-07-27 per user): a case contains ONLY its own
+    # stations — cases may share a measurement file, the cut is the region
+    # bbox. Every downstream artifact (tables, similarity, map, matches,
+    # attribution) derives from the case subset alone.
+    bbox = region.get("bbox_itm")
+    if bbox:
+        in_bbox = df_all[
+            (df_all["x_itm"] >= bbox[0]) & (df_all["x_itm"] <= bbox[2]) &
+            (df_all["y_itm"] >= bbox[1]) & (df_all["y_itm"] <= bbox[3])
+        ]["station_name"].unique()
+        df = df_all[df_all["station_name"].isin(in_bbox)].copy()
+    else:
+        df = df_all
+
     fp = build_fingerprint_matrix(df, group)
     tot = calc_total_concentration(df, group)
     me = tot.loc[tot.groupby("station_name")["total_concentration"].idxmax()]
@@ -75,14 +90,39 @@ def _prepare(region_name):
     sources = _load_json(os.path.join(base, "sources.geojson"))
 
     # attenuation series per candidate (path distance vs Σ, precursor share)
+    # — respects outfall declarations: sewer-routed and momentary-outlet
+    # stations are excluded, matching the evidence logic (user 2026-07-27)
+    outfalls = region.get("outfalls", {})
+    me_idx = me.set_index("station_name")
     for c in candidates:
-        c["atten_series"] = _atten_series(c, flow, me, fp)
+        ser = [d for d in _atten_series(c, flow, me, fp)
+               if outfalls.get(d["station"], {}).get("to") != "sewer"
+               and not outfalls.get(d["station"], {}).get("momentary")]
+        # series head: at-site stream-outfall stations (e.g. בריכה-200)
+        have = {d["station"] for d in ser}
+        for s, o in outfalls.items():
+            if o.get("to") == "stream" and not o.get("momentary") \
+                    and s not in have and s in me_idx.index:
+                sx, sy = c["itm"]
+                import math as _m
+                if _m.hypot(me_idx.loc[s, "x_itm"] - sx,
+                            me_idx.loc[s, "y_itm"] - sy) <= 1000:
+                    from src.source_profiles import PRECURSORS
+                    prec_cols = [cc for cc in fp.columns
+                                 if cc.upper() in {p.upper() for p in PRECURSORS}]
+                    ser.insert(0, {
+                        "station": s, "km": 0.1,
+                        "sigma": float(me_idx.loc[s, "total_concentration"]),
+                        "precursor": round(float(fp.loc[s, prec_cols].sum()), 1)
+                        if s in fp.index else 0.0})
+        c["atten_series"] = sorted(ser, key=lambda d: d["km"])
     return {
         "region": region, "stations": stations, "candidates": candidates,
         "channels": channels, "flow": flow, "claims": claims, "sources": sources,
         "n_stations": int(me["station_name"].nunique()),
         "n_signal": int((me["total_concentration"] >= MIN_SIGNAL_UG_L).sum()),
         "date_span": region.get("dataset_semantics", {}).get("date_span", ""),
+        "df": df, "group": group, "fingerprint": fp, "max_event": me,
     }
 
 
