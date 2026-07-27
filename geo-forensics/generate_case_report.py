@@ -157,35 +157,67 @@ def _fig_map(data):
     return fig
 
 
-def _fig_similarity(data):
-    """Figure 2 — cosine similarity matrix of the case's signal stations."""
+def _similarity(data):
+    """Cosine similarity matrix of the case's signal stations, clustered.
+    Returns (sim_ordered_df, ordered_labels, clusters, top_pairs)."""
     df, group = data["df"], data["group"]
     sim = cosine_similarity_matrix(df, group)
     me = data["max_event"].set_index("station_name")
     keep = [s for s in sim.index
             if s in me.index and me.loc[s, "total_concentration"] >= MIN_SIGNAL_UG_L]
     sim = sim.loc[keep, keep]
+    clusters = []
     try:
-        from scipy.cluster.hierarchy import leaves_list, linkage
+        from scipy.cluster.hierarchy import fcluster, leaves_list, linkage
         from scipy.spatial.distance import squareform
         d = 1 - sim.values / 100
         np.fill_diagonal(d, 0)
-        order = leaves_list(linkage(squareform((d + d.T) / 2, checks=False),
-                                    method="average"))
-        lab = [sim.index[i] for i in order]
+        Z = linkage(squareform((d + d.T) / 2, checks=False), method="average")
+        lab = [sim.index[i] for i in leaves_list(Z)]
         sim = sim.loc[lab, lab]
+        # clusters at 70% similarity (distance 0.30)
+        cl = fcluster(Z, t=0.30, criterion="distance")
+        by = {}
+        for name, c in zip(keep, cl):
+            by.setdefault(c, []).append(name)
+        clusters = sorted((m for m in by.values() if len(m) >= 2),
+                          key=len, reverse=True)
     except Exception:
         lab = list(sim.index)
+    # top off-diagonal pairs
+    pairs = []
+    for i in range(len(lab)):
+        for j in range(i + 1, len(lab)):
+            pairs.append((sim.iloc[i, j], lab[i], lab[j]))
+    pairs.sort(reverse=True)
+    return sim, lab, clusters, pairs
+
+
+def _fig_similarity(sim, lab):
+    """Figure 2 — numbered heatmap (station names go in a legend table, so the
+    axes stay legible even at 25+ stations). Cell values shown."""
+    n = len(lab)
+    nums = [str(i + 1) for i in range(n)]
+    show_text = n <= 30
     fig = go.Figure(go.Heatmap(
-        z=sim.values, x=lab, y=lab,
+        z=sim.values, x=nums, y=nums,
         colorscale=[[0, "#c64a3b"], [0.3, "#d8c84a"], [0.7, "#4ea66b"],
                     [0.9, "#1f7a4d"], [1, "#0d4a2e"]],
-        zmin=0, zmax=100, colorbar=dict(title="% דמיון"),
-        hovertemplate="%{x} ↔ %{y}<br>%{z:.0f}%<extra></extra>"))
-    fig.update_layout(font=_FONT, template="plotly_white",
-                      height=max(420, 26 * len(lab) + 140),
-                      margin=dict(l=10, r=10, t=30, b=10))
-    return fig, len(lab)
+        zmin=0, zmax=100, xgap=1, ygap=1,
+        colorbar=dict(title="% דמיון"),
+        text=sim.values.round(0).astype(int) if show_text else None,
+        texttemplate="%{text}" if show_text else None,
+        textfont=dict(size=9, color="rgba(20,20,20,0.75)"),
+        customdata=[[f"{lab[i]} ↔ {lab[j]}" for j in range(n)] for i in range(n)],
+        hovertemplate="%{customdata}<br>%{z:.0f}%<extra></extra>"))
+    fig.update_layout(
+        font=_FONT, template="plotly_white",
+        height=max(460, 24 * n + 150),
+        xaxis=dict(title="מס' תחנה (ראו מקרא)", side="bottom", dtick=1,
+                   tickfont=dict(size=10)),
+        yaxis=dict(autorange="reversed", dtick=1, tickfont=dict(size=10)),
+        margin=dict(l=40, r=10, t=30, b=50))
+    return fig
 
 
 def _fig_attenuation(data):
@@ -364,7 +396,9 @@ def main(region_name):
                          cwd=os.path.dirname(__file__) or ".").stdout.strip()
 
     fig_map = _fig_map(data)
-    fig_sim, n_sim = _fig_similarity(data)
+    sim_df, sim_lab, sim_clusters, sim_pairs = _similarity(data)
+    fig_sim = _fig_similarity(sim_df, sim_lab)
+    n_sim = len(sim_lab)
     fig_att = _fig_attenuation(data)
     fig_fp, fp_names = _fig_fingerprints(data)
 
@@ -420,9 +454,34 @@ def main(region_name):
              f'ערוצי DEM, מסלול הנגר מהמקור. קואורדינטות ITM בק"מ.</div></div>')
     for p in _findings_prose(data):
         S.append(_bdi(f"<p>{p}</p>"))
-    S.append(f'<div class="figure">{_plot(fig_sim, "figsim")}'
-             f'<div class="figcap">איור 2: מטריצת דמיון קוסינוס — {n_sim} '
-             f'תחנות מעל סף-האות, מסודרות באשכולות.</div></div>')
+    me_idx = data["max_event"].set_index("station_name")
+    legend_rows = "".join(
+        f"<tr><td>{i + 1}</td><td>{_esc(s)}</td>"
+        f"<td>{me_idx.loc[s, 'total_concentration']:.3f}</td></tr>"
+        for i, s in enumerate(sim_lab))
+    S.append(
+        f'<div class="figure">{_plot(fig_sim, "figsim")}'
+        f'<div class="figcap">איור 2: מטריצת דמיון קוסינוס — {n_sim} '
+        f'תחנות מעל סף-האות, ממוספרות ומסודרות באשכולות (המספרים מפוענחים '
+        f'במקרא למטה).</div>'
+        f'<details style="margin-top:8px"><summary style="cursor:pointer;'
+        f'font-size:.85rem;color:#4a4f57">מקרא מספור התחנות (לחצו להרחבה)</summary>'
+        f'<table style="font-size:.8rem"><tr><th>#</th><th>תחנה</th>'
+        f'<th>Σ (µg/L)</th></tr>{legend_rows}</table></details></div>')
+    # cluster interpretation prose
+    if sim_clusters:
+        cl_txt = "; ".join(
+            f"אשכול של {len(c)} תחנות ({_list_he([_esc(x) for x in c], 4)})"
+            for c in sim_clusters[:3])
+        top = sim_pairs[0] if sim_pairs else None
+        S.append(_bdi(
+            f"<p>מבנה הדמיון (איור 2) מגלה {len(sim_clusters)} אשכולות "
+            f"כימיים מובחנים ברמת דמיון של 70% ומעלה: {cl_txt}. "
+            + (f"הזוג הדומה ביותר, {_esc(top[1])} ו{_esc(top[2])} "
+               f"({top[0]:.0f}%), " if top else "")
+            + "התלכדות תחנות לאשכול חזק עקבית עם מקור או נתיב-הסעה משותף, "
+            "אך אינה מוכיחה אותו — היא מגדירה קבוצות-חשד להמשך בחינה "
+            "מול צירי הזרימה והפליטה.</p>"))
     if fig_att is not None:
         S.append(f'<div class="figure">{_plot(fig_att, "figatt")}'
                  f'<div class="figcap">איור 3: ΣPFAS (ציר שמאלי, לוגריתמי) '
