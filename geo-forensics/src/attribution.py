@@ -265,11 +265,23 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                      and s != anchor and not _near_site(s)
                      and s in set(matches[matches["rank"] == 1]["station"])
                      and set(matches[(matches["station"] == s)]["profile_key"]) & expected]
+        # Stations under a declared transfer HYPOTHESIS (not yet confirmed)
+        # are conditional counter-evidence: similar profile off-gradient, but
+        # a pending explanation exists. Reported separately — not silenced,
+        # not counted as resolved.
+        _hyp_stations = {s for h in region.get("transfer_hypotheses", [])
+                         for s in h.get("to_stations", [])}
+        conditional = [s for s in strong_up if s in _hyp_stations]
+        strong_up = [s for s in strong_up if s not in _hyp_stations]
         if strong_up:
             evidence_against.append(
                 f"תחנות שאינן במורד האתר מציגות פרופיל דומה ({', '.join(strong_up[:3])}"
                 + ("..." if len(strong_up) > 3 else "")
                 + ") — עקבי גם עם מקור אחר/נוסף")
+        if conditional:
+            evidence_against.append(
+                f"ראיית-נגד מותנית: {', '.join(conditional)} — פרופיל דומה שלא במורד, "
+                f"אך קיים חשד מוצהר להזנת-שאיבה (בבדיקה); אם יאושר — יעברו למורד")
 
         # Tier suggestion with the assumed-flow cap. The cap is keyed to the
         # weakest flow tier the evidence relies on: surface may be DEM-derived,
@@ -299,6 +311,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             "n_downgradient": len(down), "downgradient": down,
             "n_surface_down": n_surf_down, "n_gw_down": n_gw_down,
             "transfer_fed": transfer_fed,
+            "conditional_counter": conditional,
             "weak_downgradient": weak_down,
             "chem_share": round(chem_share, 2),
             "chem_share_weighted": round(chem_share_weighted, 2),
