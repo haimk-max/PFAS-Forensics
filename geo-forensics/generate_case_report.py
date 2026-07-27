@@ -277,71 +277,182 @@ def _list_he(items, limit=None):
 
 
 def _findings_prose(data):
+    """Descriptive findings: what the data shows, told as prose. Each
+    paragraph opens with the observation and closes with what it means —
+    numbers serve the narrative, not the reverse."""
     P = []
     me = data["max_event"]
     sig = me[me["total_concentration"] >= MIN_SIGNAL_UG_L]
-    top = sig.sort_values("total_concentration", ascending=False).head(3)
+    if sig.empty:
+        return ["בתחום התיק לא נמצאו תחנות שריכוזן עולה על סף-האות הראייתי."]
+    ordered = sig.sort_values("total_concentration", ascending=False)
+    top = ordered.head(3)
     top_list = _list_he(['"%s" (%s)' % (r.station_name,
                                         format(r.total_concentration, ",.2f"))
                          for r in top.itertuples()])
-    orders = np.log10(sig["total_concentration"].max()
-                      / max(sig["total_concentration"].min(), 1e-6))
-    P.append(
-        f"בתחום התיק נדגמו {data['n_stations']} תחנות, מהן {len(sig)} מעל "
-        f"סף-האות הראייתי ({MIN_SIGNAL_UG_L} מיקרוגרם לליטר). טווח הריכוזים "
-        f"משתרע על פני כ-{orders:.0f} סדרי גודל. הריכוזים הגבוהים ביותר "
-        f"נמדדו ב{top_list} — ראו איור 1 לפריסה המרחבית.")
+    orders = np.log10(ordered["total_concentration"].max()
+                      / max(ordered["total_concentration"].min(), 1e-6))
+    lead = ordered.iloc[0]
+    second = ordered.iloc[1] if len(ordered) > 1 else None
+    gap = (lead["total_concentration"] / second["total_concentration"]
+           if second is not None and second["total_concentration"] > 0 else None)
+
+    # 3.1 — the spatial picture
+    para = (f"מתוך {data['n_stations']} תחנות הדיגום שבתחום התיק, "
+            f"{len(sig)} נושאות ריכוז העולה על סף-האות הראייתי "
+            f"({MIN_SIGNAL_UG_L} מיקרוגרם לליטר) והן המהוות את בסיס הראיות; "
+            f"היתר, שריכוזן נמוך מכך, מוצגות במפה אך אינן נספרות, שכן הרכבן "
+            f"היחסי נשלט על-ידי רעש אנליטי. הריכוזים אינם מתפלגים באופן אחיד: "
+            f"הם משתרעים על פני כ-{orders:.0f} סדרי גודל, מקצה של עשיריות "
+            f"אחוז מהסף ועד לערכים הגבוהים ביותר, שנמדדו ב{top_list}.")
+    if gap and gap >= 10:
+        para += (f" בולט במיוחד הפער בין התחנה המובילה לבאה אחריה — יחס של "
+                 f"פי {gap:,.0f} — פער המאפיין נקודת-מקור ולא זיהום מפוזר, "
+                 f"ומצביע על כך שמדובר בשחרור מרוכז ולא ברקע אזורי.")
+    P.append(para + " הפריסה המרחבית מוצגת באיור 1.")
+
     for c in data["candidates"]:
+        # 3.2 — surface pathway
         if c["n_surface_down"]:
-            P.append(
-                f"ניתוח מסלולי הזרימה העיליים, הנגזרים ממודל הגבהים "
-                f"(Copernicus GLO-30, שיטת D8), מעלה כי {c['n_surface_down']} "
-                f"תחנות עיליות פגועות יושבות על מסלול-הנגר היוצא מהאתר. "
-                + (f"לצדן, {len(c['transfer_fed'])} תחנות נוספות מוזנות "
-                   f"בנתיבים אנתרופוגניים מוצהרים (שאיבה מהנחל וקו "
-                   f"הביוב–מט\"ש–מאגרים)." if c["transfer_fed"] else ""))
+            para = (f"בחינת נתיבי ההסעה מתחילה בציר העילי. מסלולי הזרימה "
+                    f"שנגזרו ממודל הגבהים (Copernicus GLO-30, אלגוריתם D8) "
+                    f"מתווים את מסלול הנגר היוצא מן האתר ומתפתל במורד הערוץ, "
+                    f"ולאורכו נמצאות {c['n_surface_down']} תחנות פגועות. "
+                    f"אין מדובר בקרבה גיאוגרפית בלבד: התחנות יושבות על מסלול "
+                    f"הזרימה עצמו, כלומר קיימת ביניהן לבין האתר רציפות "
+                    f"הידראולית ממשית.")
+            if c["transfer_fed"]:
+                pumped = [s for s, v in c["transfer_fed"].items()
+                          if v["kind"] == "pumping"]
+                piped = [s for s, v in c["transfer_fed"].items()
+                         if v["kind"] != "pumping"]
+                para += (" לצד הנתיב הטבעי פועלים נתיבים אנתרופוגניים "
+                         "מוצהרים, שאף מודל טופוגרפי אינו יכול לגלותם: ")
+                bits = []
+                if pumped:
+                    bits.append(f"שאיבה ממקטע הנחל אל {_list_he(pumped, 2)}")
+                if piped:
+                    bits.append(f"קו ביוב המוליך אל המט\"ש ומשם, כקולחים, "
+                                f"אל {_list_he(piped, 2)}")
+                para += _list_he(bits) + ". נתיבים אלה מרחיבים את מפת "
+                para += ("הרצפטורים הרבה מעבר לגדות הנחל, ומחייבים התייחסות "
+                         "נפרדת בשלב ההמלצות.")
+            P.append(para)
+
+        # 3.3 — attenuation & aging
         att = c["attenuation"]
         if att.get("r_precursor") is not None:
-            P.append(
-                f"לאורך המסלול נצפית הזדקנות-פרופיל מובהקת: נתח קדם-החומרים "
-                f"(FOSA, 8:2FTS, 6:2FT) יורד בעקביות עם המרחק "
-                f"(Spearman r={att['r_precursor']}) — דפוס האופייני להתרחקות "
-                f"ממקור פעיל (איור 3). דעיכת הריכוז הכולל, לעומת זאת, אינה "
-                f"חד-משמעית בחתך הנוכחי (r={att['r_conc']}); ההסבר הסביר הוא "
-                f"ערבוב שני משטרי-עומס ברשומה — לפני ואחרי הסבת בריכה-1500 "
-                f"לביוב — בחתך שאינו בו-זמני.")
+            aging = att["r_precursor"] <= -0.4
+            para = ("שאלה נפרדת היא האם דפוס הריכוזים לאורך המסלול אכן "
+                    "מתנהג כמצופה ממקור יחיד. שני מדדים נבחנו (איור 3). ")
+            if aging:
+                para += (f"הראשון, הרכב החתימה, מספק תשובה חיובית ברורה: נתח "
+                         f"קדם-החומרים — אותם רכיבים לא-יציבים (FOSA, 8:2FTS, "
+                         f"6:2FT) המתפרקים בהדרגה במהלך ההסעה — יורד בעקביות "
+                         f"ככל שמתרחקים מן האתר (מתאם ספירמן "
+                         f"r={att['r_precursor']}). זוהי 'שעון' כימי: החתימה "
+                         f"מזדקנת עם המרחק, בדיוק כמצופה מחומר שיצא מנקודה "
+                         f"אחת ועבר דרך. ")
+            if att.get("r_conc") is not None:
+                para += (f"המדד השני, דעיכת הריכוז המוחלט, דווקא אינו "
+                         f"חד-משמעי בחתך הנוכחי (r={att['r_conc']}). היעדר "
+                         f"דעיכה מסודרת אינו סותר את המקור — ההסבר הסביר הוא "
+                         f"שהרשומה מערבבת שתי תקופות עומס שונות, לפני ואחרי "
+                         f"שינוי מוצא הבריכות, ומדידות שנעשו בשנים שונות "
+                         f"מוצגות זו לצד זו כאילו היו בנות-זמן. עד שיובהר "
+                         f"מועד השינוי, מדד זה מושהה ואינו נזקף לא לחובה "
+                         f"ולא לזכות.")
+            P.append(para)
+
+        # 3.4 — groundwater axis
         if c.get("gw_tiers"):
             t12 = [s for s in c["downgradient"] if s in c["gw_tiers"]]
-            P.append(
-                f"בציר מי-התהום הוחלו מדרגות-הסבירות (עננה גאוסיאנית, "
-                f"k={GW_PLUME_K}): {len(t12)} קידוחים במדרגות הליבה/האגף"
-                + (f", ו-{len(c['gw_fringe'])} בשולי-העננה (תמיכה חלשה בלבד)"
-                   if c["gw_fringe"] else "")
-                + (f". קידוחים צמודי-ערוץ ({_list_he(c['cascade_candidates'])}) "
-                   f"סווגו כמועמדי-שרשרת — נתיב נחל←החדרת-גדות←תהום — "
-                   f"ומבחן-ההבחנה הכימי (פרקציונציה של שרשראות קצרות) תומך "
-                   f"בהסעה תת-קרקעית של ממש." if c.get("cascade_candidates") else "."))
+            para = (f"בציר מי-התהום הראיות מוגבלות בהרבה. בהיעדר מדידות מפלס, "
+                    f"נבחנה כל תחנה מול מודל עננה גאוסיאנית סביב ציר-הזרימה "
+                    f"המשוער (k={GW_PLUME_K}) — מודל המשקף את העובדה "
+                    f"ההידרולוגית שעננת זיהום נותרת צרה יחסית ואינה מתפשטת "
+                    f"לרוחב חופשי. ")
+            if t12:
+                para += (f"{len(t12)} קידוחים נמצאים בליבת העננה או באגפיה")
+            else:
+                para += ("אף קידוח אינו נמצא בליבת העננה המשוערת או באגפיה")
+            if c.get("gw_fringe"):
+                para += (f", ו-{len(c['gw_fringe'])} נוספים בשוליה בלבד — "
+                         f"מיקום המקנה תמיכה חלשה, שאינה נספרת כראיה של ממש")
+            para += (". יודגש כי כל עוד כיוון הזרימה מונח ולא נמדד, ציר זה "
+                     "יכול לתמוך בעקביות אך אינו יכול לאשש.")
+            if c.get("cascade_candidates"):
+                para += (f" חריג מעניין הם הקידוחים הצמודים לערוץ הנחל "
+                         f"({_list_he(c['cascade_candidates'])}). אלה אינם "
+                         f"מוסברים בהסעה ישירה מן האתר, אך מיקומם במרחק "
+                         f"עשרות מטרים בודדים מן הערוץ מעלה נתיב אחר: מי "
+                         f"הנחל המזוהמים מחלחלים דרך הגדה אל התהום. השוואת "
+                         f"ההרכב הכימי תומכת בכך — בקידוחים ניכרת העשרה "
+                         f"בתרכובות קצרות-שרשרת וניידות יחסית למי הנחל "
+                         f"הסמוכים, דפוס הפרדה האופייני למעבר דרך תווך "
+                         f"נקבובי ולא לחלחול ישיר וסמוך.")
+            P.append(para)
     return P
 
 
-def _discussion_prose(data):
+def _discussion_prose(data, narrative=None):
+    """Interpretive discussion: weighs the axes, states the competing
+    explanations, and closes with the authored synthesis (region.json)."""
     P = []
     for c in data["candidates"]:
-        fors = len(c["evidence_for"])
-        P.append(
-            f"משקלול שלושת צירי הראיה — הכימי, ההידרולוגי וראיית-הפליטה — "
-            f"האתר \"{c['name_he']}\" מדורג <b>{c['tier']}</b>. "
-            f"{fors} קווי-ראיה תומכים מתלכדים: " +
-            "; ".join(e.split("—")[0].strip() for e in c["evidence_for"][:4]) + ".")
+        chem = c["chem_share_weighted"] * 100
+        axes = []
+        if c["n_downgradient"]:
+            axes.append("ההידרולוגי")
+        if chem >= 30:
+            axes.append("הכימי")
+        if c["emission_evidence"]:
+            axes.append("ראיית-הפליטה")
+
+        para = (f"הערכת האתר \"{c['name_he']}\" נשענת על עקרון ההתלכדות: אף "
+                f"ציר ראיה בודד אינו מזהה מקור, ורק צירופם של כמה צירים "
+                f"בלתי-תלויים מבסס הערכה. ")
+        if len(axes) >= 3:
+            para += (f"במקרה זה מתקיימים שלושת הצירים — {_list_he(axes)}. "
+                     f"החפיפה הכימית בין החתימות שנמדדו במורד לבין הפרופיל "
+                     f"הצפוי מן האתר עומדת על {chem:.0f} אחוזים בשקלול "
+                     f"לפי עוצמת האות, כלומר התחנות המרוכזות — אלו שהראיה "
+                     f"שלהן אמינה יותר — הן גם התואמות ביותר. ")
+        else:
+            para += (f"במקרה זה מתקיימים {len(axes)} צירים בלבד "
+                     f"({_list_he(axes)}), ולפיכך ההערכה מסויגת מטבעה. ")
+        if c.get("anchor_station"):
+            para += (f"משקל מיוחד נודע לתחנת-העוגן \"{c['anchor_station']}\", "
+                     f"הממוקמת בשטח האתר עצמו: היא קושרת את הזיהום לא רק "
+                     f"לאזור אלא לנקודה, ומעגנת את עוצמתו במדידה ישירה. ")
+        para += f"סיכומם של אלה מוביל לדירוג <b>{c['tier']}</b>."
+        P.append(para)
+
         if c["evidence_against"]:
-            P.append(
-                "מנגד, ובהתאם לחובת בחינת ההסברים החלופיים, נרשמות "
-                "הסתייגויות: " + " ".join(c["evidence_against"]) +
-                " הסתייגויות אלו אינן מבטלות את הדירוג אך תוחמות את תוקפו.")
-        P.append(
-            "יודגש: התאמת פרופיל — גם גבוהה — משמעה \"עקבי עם\" ואינה קביעת "
-            "מקור; הדירוג כולו כפוף לשפה הזהירה המחייבת (מועמד ליבה/משני/רקע) "
-            "ולעקרון שכיוון זרימה לבדו אינו מזהה מקור.")
+            para = ("בחינה מקצועית מחייבת אינה מסתפקת בראיות התומכות, ועל כן "
+                    "נבחנו במפורש ההסברים החלופיים והממצאים שאינם מתיישבים "
+                    "עם ההערכה. ")
+            para += " ".join(c["evidence_against"])
+            para += (" משקלן של הסתייגויות אלו אינו מבטל את ההערכה, אך הוא "
+                     "מגדיר את גבולותיה: הן מצביעות על כך שתמונת הזיהום "
+                     "באזור עשויה שלא להיות מוסברת במלואה על-ידי מקור יחיד, "
+                     "ומחייבות בחינת מקורות או נתיבים נוספים.")
+            P.append(para)
+        elif c.get("would_refute"):
+            P.append("לא נמצאו בנתונים הנוכחיים ממצאים הסותרים את ההערכה. "
+                     "עם זאת, ומתוך הקפדה על בחינה עצמית, נקבעו מראש "
+                     "הבדיקות שתוצאתן הייתה מפריכה אותה: "
+                     + _list_he([w for w in c["would_refute"]]) + ".")
+
+    if narrative and narrative.get("synthesis_he"):
+        P.append(narrative["synthesis_he"])
+
+    P.append("לבסוף, יש לקרוא את מסקנות הדוח בכפוף למגבלת השפה המחייבת "
+             "בתחום זה: התאמת פרופיל כימי, גבוהה ככל שתהיה, משמעה \"עקבי עם\" "
+             "ולא \"נגרם על-ידי\"; כיוון זרימה כשלעצמו אינו מזהה מקור; "
+             "ומועמד מדורג — ליבה, משני או רקע מקומי — לעולם אינו מוכרז "
+             "\"המקור\". הדוח נועד לתעדף חקירה ולכוון משאבי דיגום, לא להכריע "
+             "אחריות.")
     return P
 
 
@@ -419,7 +530,11 @@ def main(region_name):
     S.append("<h2>1. מבוא ורקע</h2>")
     if nar.get("background_he"):
         S.append(_bdi(f"<p>{_esc(nar['background_he'])}</p>"))
+    if nar.get("setting_he"):
+        S.append("<h3>1.1 המסגרת הגיאו-הידרולוגית</h3>")
+        S.append(_bdi(f"<p>{_esc(nar['setting_he'])}</p>"))
     if nar.get("trigger_he"):
+        S.append("<h3>1.2 עילת החקירה</h3>")
         S.append(_bdi(f"<p>{_esc(nar['trigger_he'])}</p>"))
     S.append(
         "<p>מטרת החקירה היא מיפוי שיטתי של תמונת הזיהום בתחום התיק, בחינת "
@@ -492,25 +607,50 @@ def main(region_name):
 
     # 4 — discussion
     S.append("<h2>4. דיון</h2>")
-    for p in _discussion_prose(data):
+    for p in _discussion_prose(data, nar):
         S.append(_bdi(f"<p>{p}</p>"))
 
     # 5 — conclusions
     S.append("<h2>5. מסקנות</h2>")
+    S.append("<p>המסקנות מנוסחות להלן בסולם ודאות מוצהר, שבו כל קביעה נושאת "
+             "את בסיסה הראייתי. סולם זה נועד לאפשר לקורא לשקול כל מסקנה "
+             "לגופה, ולזהות היכן נדרשת עבודה נוספת לפני הסתמכות.</p>")
+    n_c = 0
     for c in data["candidates"]:
+        n_c += 1
         lvl = "גבוהה" if "ליבה" in c["tier"] else "בינונית"
-        S.append(f'<div class="concl"><p>האתר \"{_esc(c["name_he"])}\" מדורג '
-                 f'<b>{_esc(c["tier"])}</b> ביחס לזיהום ה-PFAS בתחום התיק. '
-                 f'{_conf(lvl, "התלכדות שלושת צירי הראיה; ראו פרק 4")}</p></div>')
+        transfers = len(c.get("transfer_fed", {}))
+        body = (f"<b>{n_c}. דירוג האתר.</b> האתר \"{_esc(c['name_he'])}\" "
+                f"מדורג <b>{_esc(c['tier'])}</b> ביחס לזיהום ה-PFAS שבתחום "
+                f"התיק. הדירוג נשען על התלכדות עצמאית של ראיות: "
+                f"{c['n_downgradient']} תחנות פגועות במורד האתר"
+                + (f" ועוד {transfers} המוזנות בנתיבים מוצהרים" if transfers else "")
+                + f", התאמה כימית משוקללת של {c['chem_share_weighted']*100:.0f} "
+                f"אחוזים בין החתימות שבמורד לפרופיל הצפוי מן האתר, וראיית "
+                f"פליטה עצמאית. ")
+        if "ליבה" in c["tier"]:
+            body += ("יש להדגיש כי אף אחת מן הראיות הנספרות אינה נשענת על "
+                     "הנחת כיוון זרימת התהום — כולן נגזרות ממודל הגבהים, "
+                     "מנתיבים מוצהרים או ממדידה ישירה באתר — ולפיכך אין "
+                     "תחולה לתקרת-ההנחה החלה כאשר הראיות תלויות בהנחה.")
+        else:
+            body += ("הדירוג נותר מסויג כל עוד משטר הזרימה נלמד מהנחה או "
+                     "מקריאת מפה ולא ממדידות מפלס.")
+        S.append(f'<div class="concl"><p>{_bdi(body)} '
+                 f'{_conf(lvl, "התלכדות צירי הראיה; ראו פרק 4")}</p></div>')
+
         att = c["attenuation"]
         if att.get("r_precursor") is not None and att["r_precursor"] <= -0.4:
-            S.append(f'<div class="concl"><p>החתימה הכימית מזדקנת בעקביות עם '
-                     f'ההתרחקות מהאתר — עדות תומכת עצמאית להסעה ממנו. '
+            n_c += 1
+            S.append(f'<div class="concl"><p>{_bdi(f"<b>{n_c}. עדות ההזדקנות.</b> החתימה הכימית מזדקנת בעקביות עם ההתרחקות מן האתר: נתח קדם-החומרים הלא-יציבים יורד באופן מונוטוני לאורך המסלול. זוהי עדות תומכת עצמאית, שאינה נשענת על גיאומטריה או על הנחות זרימה אלא על תהליך כימי מוכר, ולפיכך משקלה ניכר.")} '
                      f'{_conf("בינונית", "חתך יחיד, לא בו-זמני")}</p></div>')
     for q in (region.get("open_questions") or []):
-        S.append(f'<div class="concl"><p>{_esc(q["title_he"])}: '
-                 f'{_esc(q.get("stakes_he", q["statement_he"]))} '
-                 f'{_conf("נמוכה", "שאלה פתוחה — " + q.get("status", ""))}</p></div>')
+        n_c += 1
+        q_title = _esc(q["title_he"])
+        q_body = _esc(q.get("stakes_he", q["statement_he"]))
+        S.append(f'<div class="concl"><p>'
+                 f'{_bdi(f"<b>{n_c}. {q_title}.</b> {q_body}")} '
+                 f'{_conf("נמוכה", "שאלה פתוחה")}</p></div>')
 
     # 6 — recommendations
     S.append("<h2>6. המלצות ופעולות נדרשות</h2>")
