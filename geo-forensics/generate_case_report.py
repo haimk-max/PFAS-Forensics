@@ -19,6 +19,7 @@ Usage (from geo-forensics/):
 
 import html
 import json
+import math
 import os
 import subprocess
 import sys
@@ -34,6 +35,7 @@ import plotly.graph_objects as go
 from config import COMPOUND_COLORS, DEFAULT_COLOR, GW_PLUME_K, MIN_SIGNAL_UG_L
 from generate_review_report import _prepare
 from src.analytics import cosine_similarity_matrix
+from src.attribution import SURFACE_TYPES
 
 
 def _esc(s):
@@ -42,9 +44,13 @@ def _esc(s):
 
 import re as _re
 
+# numbers may carry thousands-commas (1,121.11) — without covering them the
+# comma splits the bidi run and the digits reorder in RTL prose
+_NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
 _LATIN_TOKEN = _re.compile(
-    r"(?<![>\w&#])((?:[A-Za-z][\w:.\-/+]*|\d+(?:\.\d+)?\s*(?:µg/L|ng/L|%)"
-    r"|\d+(?:\.\d+)?\s*–\s*\d+(?:\.\d+)?)"
+    r"(?<![>\w&#])((?:[A-Za-z][\w:.\-/+]*"
+    rf"|{_NUM}\s*(?:µg/L|ng/L|%)"
+    rf"|{_NUM}\s*–\s*{_NUM})"
     r"(?:=[-\d.]+)?)(?!;)")
 
 
@@ -66,6 +72,148 @@ def _load(path):
     return json.load(open(path, encoding="utf-8")) if os.path.isfile(path) else None
 
 
+# ─── transport families ─────────────────────────────────────────────────────
+# Six evidence families (approved verbally 2026-08-11) + two display-only
+# groups ("other" = stations not assigned to any candidate pathway, "below" =
+# under the signal threshold). Order = narrative order: source outward.
+
+FAMILY_ORDER = ["focus", "stream", "pumped", "piped", "cascade", "gw",
+                "other", "below"]
+
+FAMILIES = {
+    "focus":   dict(name_he="מוקד — מתקן וניקוז צמוד", short_he="מוקד",
+                    color="#7a3d9e", symbol="star", time_he="—"),
+    "stream":  dict(name_he="נתיב הנחל (עילי)", short_he="נחל",
+                    color="#c64a3b", symbol="circle", time_he="שעות–ימים"),
+    "pumped":  dict(name_he="מוזנות-שאיבה (בריכות דגים)", short_he="שאיבה",
+                    color="#d97a2c", symbol="triangle-up",
+                    time_he="ימים–שבועות (שהות בבריכה)"),
+    "piped":   dict(name_he="נתיב מתועל (ביוב←מט\"ש←מאגרים)", short_he="מתועל",
+                    color="#8a5a44", symbol="square", time_he="ימים (מתועל)"),
+    "cascade": dict(name_he="החדרת-גדות (קידוחי גדה)", short_he="גדות",
+                    color="#2a9d8f", symbol="diamond-wide",
+                    time_he="שבועות–חודשים"),
+    "gw":      dict(name_he="תהום (מדרגות-עננה)", short_he="תהום",
+                    color="#2a6f97", symbol="diamond", time_he="שנים"),
+    "other":   dict(name_he="לא משויך לנתיב (בבדיקה)", short_he="לא-משויך",
+                    color="#8d8d8d", symbol="circle-x", time_he="—"),
+    "below":   dict(name_he="מתחת לסף-אות", short_he="מתחת-סף",
+                    color="#c8c4bc", symbol="circle-open", time_he="—"),
+}
+
+# Evidence status per family: computed HERE (not narrative data) so the
+# mechanism text can never overstate the evidence tier. (level, css, label)
+def _family_status(key, c):
+    if key == "focus":
+        return ("hi", "עוגן מאושר-מקור") if c.get("anchor_station") \
+            else ("mid", "מוצהר")
+    if key == "stream":
+        basis = c.get("attenuation", {}).get("basis")
+        return ("hi", "נגזר-DEM") if basis == "path_dem" \
+            else ("lo", "הנחת-כיוון")
+    if key == "pumped":
+        return ("mid", "נתיב מוצהר (עדות)")
+    if key == "piped":
+        return ("mid", "נתיב מוצהר; חתימת מט\"ש טרם נדגמה — ACT-1")
+    if key == "cascade":
+        return ("lo", "השערת-מנגנון (D1) — יוכרע בדיגום מזווג ACT-4")
+    if key == "gw":
+        return ("lo", "הנחת-כיוון (A1) — ממתין למפלסים ACT-2")
+    if key == "other":
+        return ("lo", "בבדיקה (A2 / השערות-העברה)")
+    return ("lo", "")
+
+
+def _classify_families(data):
+    """Assign each case station to one transport family, using only facts
+    already established by the attribution layer (no new judgement here)."""
+    fam = {}
+    c = data["candidates"][0] if data["candidates"] else None
+    me = data["max_event"].set_index("station_name")
+    region = data["region"]
+    outfalls = region.get("outfalls", {})
+    if c is None:
+        return {s["name"]: ("below" if s["below_thr"] else "other")
+                for s in data["stations"]}
+    sx, sy = c["itm"]
+    down = set(c.get("downgradient", []))
+    tf = c.get("transfer_fed", {})
+    cascade = set(c.get("cascade_candidates", []))
+    gw_tiers = c.get("gw_tiers", {})
+    anchor = c.get("anchor_station")
+    for s in data["stations"]:
+        name = s["name"]
+        if s["below_thr"]:
+            fam[name] = "below"
+            continue
+        row = me.loc[name]
+        near = math.hypot(float(row["x_itm"]) - sx,
+                          float(row["y_itm"]) - sy) <= 1000.0
+        if name == anchor or name in outfalls or near:
+            fam[name] = "focus"
+        elif name in tf:
+            fam[name] = "pumped" if tf[name].get("kind") == "pumping" else "piped"
+        elif name in cascade:
+            fam[name] = "cascade"
+        elif str(row.get("source_type", "")) in SURFACE_TYPES:
+            fam[name] = "stream" if name in down else "other"
+        elif name in gw_tiers:
+            fam[name] = "gw"
+        else:
+            fam[name] = "other"
+    return fam
+
+
+def _fam_members(data, fam_of, key):
+    """Family members sorted by Σ descending."""
+    rows = [s for s in data["stations"] if fam_of.get(s["name"]) == key]
+    return sorted(rows, key=lambda s: -s["sigma"])
+
+
+def _csm_html(data, fam_of, nar_families):
+    """Figure 2 — conceptual site model: source → pathways → receptor
+    families, each carrying mechanism, timescale, expected weathering and a
+    computed evidence-status chip. Pure HTML/CSS (print-safe, RTL)."""
+    c = data["candidates"][0] if data["candidates"] else None
+    if c is None:
+        return ""
+    me = data["max_event"].set_index("station_name")
+    anchor = c.get("anchor_station")
+    anchor_sig = (float(me.loc[anchor, "total_concentration"])
+                  if anchor and anchor in me.index else None)
+    cards = []
+    for key in ["stream", "pumped", "piped", "cascade", "gw"]:
+        members = _fam_members(data, fam_of, key)
+        if not members:
+            continue
+        f = FAMILIES[key]
+        lvl, label = _family_status(key, c)
+        nf = (nar_families or {}).get(key, {})
+        weather = nf.get("weathering_he", "")
+        names = ", ".join(m["name"] for m in members[:3])
+        if len(members) > 3:
+            names += f" ועוד {len(members) - 3}"
+        cards.append(
+            f'<div class="csm-card" style="border-right-color:{f["color"]}">'
+            f'<div class="csm-head"><span class="csm-dot" '
+            f'style="background:{f["color"]}"></span>'
+            f'<b>{_esc(f["name_he"])}</b>'
+            f'<span class="conf {lvl}">{_esc(label)}</span></div>'
+            f'<div class="csm-row">קצב-הסעה אופייני: {_esc(f["time_he"])} · '
+            f'{len(members)} תחנות</div>'
+            + (f'<div class="csm-row">בליה צפויה: {_bdi(_esc(weather))}</div>'
+               if weather else "")
+            + f'<div class="csm-row csm-rec">רצפטורים: {_bdi(_esc(names))}</div>'
+            f'</div>')
+    src_line = f'<b>{_esc(c["name_he"])}</b>'
+    if anchor_sig:
+        src_line += (f' · עוגן מאושר "{_esc(anchor)}" '
+                     f'(<span dir="ltr">Σ={anchor_sig:,.0f} µg/L</span>)')
+    return (f'<div class="csm"><div class="csm-src">{_bdi(src_line)}</div>'
+            f'<div class="csm-flow">⬐ נתיבי ההסעה ⬎</div>'
+            f'<div class="csm-grid">{"".join(cards)}</div></div>')
+
+
 def _conf(level, basis):
     cls = {"גבוהה": "hi", "בינונית": "mid", "נמוכה": "lo"}[level]
     return (f'<span class="conf {cls}">ודאות {level}</span> '
@@ -81,8 +229,12 @@ _FONT = dict(family="Assistant, Segoe UI, sans-serif", size=13)
 
 # ─── figures ────────────────────────────────────────────────────────────────
 
-def _fig_map(data):
-    """Figure 1 — case map in ITM coordinates (self-contained, no tiles)."""
+def _fig_map(data, fam_of):
+    """Figure 1 — case map in ITM coordinates (self-contained, no tiles).
+    Stations are colored by transport family; declared anthropogenic
+    pathways (pumping, piped) are drawn as connectors — the DEM path alone
+    tells only half the transport story. Returns (fig, family→trace-index)
+    so the family filter bar can toggle visibility client-side."""
     fig = go.Figure()
     # DEM channels
     if data["channels"]:
@@ -98,43 +250,72 @@ def _fig_map(data):
                 name="ערוצי זרימה (DEM)", legendgroup="chan",
                 showlegend=first, hoverinfo="skip"))
             first = False
-    # candidate runoff path
+    # candidate runoff path + declared transfer connectors
+    me = data["max_event"].set_index("station_name")
     for c in data["candidates"]:
         pt = (data["flow"] or {}).get("points", {}).get(c["id"])
-        if pt and pt.get("path_itm"):
-            xs = [p[0] / 1000 for p in pt["path_itm"]]
-            ys = [p[1] / 1000 for p in pt["path_itm"]]
+        path = pt.get("path_itm") if pt else None
+        if path:
             fig.add_trace(go.Scatter(
-                x=xs, y=ys, mode="lines",
+                x=[p[0] / 1000 for p in path], y=[p[1] / 1000 for p in path],
+                mode="lines",
                 line=dict(color="#d97a2c", width=3, dash="dash"),
                 name="מסלול הנגר מהמקור", hoverinfo="skip"))
-    # stations by domain
-    surface_types = {"נקודה מזוהה בנחל", "תחנה הידרומטרית", "מאגר"}
-    groups = {
-        "נחל/מאגר — מעל סף": dict(color="#c64a3b", symbol="circle"),
-        "קידוח/מעיין — מעל סף": dict(color="#2a6f97", symbol="diamond"),
-        "מתחת לסף-אות": dict(color="#c8c4bc", symbol="circle-open"),
-    }
-    me = data["max_event"].set_index("station_name")
-    for gname, style in groups.items():
+        sx, sy = c["itm"]
+        first_pump, first_pipe = True, True
+        for s, tfv in (c.get("transfer_fed") or {}).items():
+            if s not in me.index:
+                continue
+            tx = float(me.loc[s, "x_itm"]) / 1000
+            ty = float(me.loc[s, "y_itm"]) / 1000
+            if tfv.get("kind") == "pumping" and path:
+                # connector from the nearest runoff-path vertex (the pump
+                # draws from the adjacent stream reach, not from the site)
+                near = min(path, key=lambda p: (p[0] / 1000 - tx) ** 2
+                           + (p[1] / 1000 - ty) ** 2)
+                fig.add_trace(go.Scatter(
+                    x=[near[0] / 1000, tx], y=[near[1] / 1000, ty],
+                    mode="lines",
+                    line=dict(color=FAMILIES["pumped"]["color"], width=2,
+                              dash="dot"),
+                    name="שאיבה מהנחל (מוצהר)", legendgroup="tfpump",
+                    showlegend=first_pump, hoverinfo="skip"))
+                first_pump = False
+            elif tfv.get("kind") != "pumping":
+                # piped endpoint declaration — schematic, not a geometry
+                fig.add_trace(go.Scatter(
+                    x=[sx / 1000, tx], y=[sy / 1000, ty], mode="lines",
+                    line=dict(color=FAMILIES["piped"]["color"], width=2,
+                              dash="dashdot"),
+                    name="נתיב מתועל ביוב←מט\"ש (מוצהר, סכמטי)",
+                    legendgroup="tfpipe",
+                    showlegend=first_pipe, hoverinfo="skip"))
+                first_pipe = False
+    # stations by transport family
+    fam_trace_idx = {}
+    gw_tiers = (data["candidates"][0].get("gw_tiers", {})
+                if data["candidates"] else {})
+    for fk in FAMILY_ORDER:
+        members = [s for s in data["stations"] if fam_of.get(s["name"]) == fk]
+        if not members:
+            continue
+        style = FAMILIES[fk]
         xs, ys, texts, sizes = [], [], [], []
-        for s in data["stations"]:
+        for s in members:
             row = me.loc[s["name"]]
-            is_surf = str(row.get("source_type", "")) in surface_types
-            if gname.startswith("נחל") and (s["below_thr"] or not is_surf):
-                continue
-            if gname.startswith("קידוח") and (s["below_thr"] or is_surf):
-                continue
-            if gname.startswith("מתחת") and not s["below_thr"]:
-                continue
             xs.append(float(row["x_itm"]) / 1000)
             ys.append(float(row["y_itm"]) / 1000)
+            extra = ""
+            if fk == "gw" and s["name"] in gw_tiers:
+                extra = f"<br>מדרגת-עננה: {gw_tiers[s['name']]['tier']}"
             texts.append(f"{s['name']}<br>Σ={s['sigma']:.3f} µg/L"
-                         f"<br>{s['profile']} ({s['score']:.0f}%)")
+                         f"<br>{s['profile']} ({s['score']:.0f}%)"
+                         f"<br>{style['name_he']}{extra}")
             sizes.append(7 if s["below_thr"] else
                          max(9, min(26, 10 + 4 * np.log10(s["sigma"] / 0.001 + 1))))
+        fam_trace_idx[fk] = len(fig.data)
         fig.add_trace(go.Scatter(
-            x=xs, y=ys, mode="markers", name=gname,
+            x=xs, y=ys, mode="markers", name=style["name_he"],
             marker=dict(size=sizes, symbol=style["symbol"],
                         color=style["color"], opacity=0.85,
                         line=dict(width=1, color="white")),
@@ -153,9 +334,10 @@ def _fig_map(data):
         font=_FONT, template="plotly_white", height=560,
         xaxis=dict(title="ITM מזרח (ק\"מ)", constrain="domain"),
         yaxis=dict(title="ITM צפון (ק\"מ)", scaleanchor="x", scaleratio=1),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                    font=dict(size=10)),
         margin=dict(l=60, r=20, t=40, b=50))
-    return fig
+    return fig, fam_trace_idx
 
 
 def _similarity(data):
@@ -194,14 +376,17 @@ def _similarity(data):
     return sim, lab, clusters, pairs
 
 
-def _fig_similarity(sim, lab):
-    """Figure 2 — numbered heatmap (station names go in a legend table, so the
-    axes stay legible even at 25+ stations). Cell values shown."""
+def _fig_similarity(sim, lab, fam_of):
+    """Figure 3 — numbered heatmap (station names go in a legend table, so the
+    axes stay legible even at 25+ stations). Cell values shown. A family
+    color strip runs along the right axis: the forensic question is whether
+    the CHEMICAL clusters coincide with the TRANSPORT families."""
     n = len(lab)
+    pos = list(range(1, n + 1))
     nums = [str(i + 1) for i in range(n)]
     show_text = n <= 30
     fig = go.Figure(go.Heatmap(
-        z=sim.values, x=nums, y=nums,
+        z=sim.values, x=pos, y=pos,
         colorscale=[[0, "#c64a3b"], [0.3, "#d8c84a"], [0.7, "#4ea66b"],
                     [0.9, "#1f7a4d"], [1, "#0d4a2e"]],
         zmin=0, zmax=100, xgap=1, ygap=1,
@@ -211,17 +396,33 @@ def _fig_similarity(sim, lab):
         textfont=dict(size=9, color="rgba(20,20,20,0.75)"),
         customdata=[[f"{lab[i]} ↔ {lab[j]}" for j in range(n)] for i in range(n)],
         hovertemplate="%{customdata}<br>%{z:.0f}%<extra></extra>"))
+    # family strip along the right axis (x=0 column)
+    fig.add_trace(go.Scatter(
+        x=[0.2] * n, y=pos, mode="markers",
+        marker=dict(symbol="square", size=11,
+                    color=[FAMILIES[fam_of.get(s, "other")]["color"]
+                           for s in lab]),
+        text=[f"{s} — {FAMILIES[fam_of.get(s, 'other')]['name_he']}"
+              for s in lab],
+        hoverinfo="text", showlegend=False))
     fig.update_layout(
         font=_FONT, template="plotly_white",
         height=max(460, 24 * n + 150),
-        xaxis=dict(title="מס' תחנה (ראו מקרא)", side="bottom", dtick=1,
+        xaxis=dict(title="מס' תחנה (ראו מקרא; פס-הצבע = משפחת-הסעה)",
+                   side="bottom", tickvals=pos, ticktext=nums,
+                   range=[-0.4, n + 0.6], tickfont=dict(size=10)),
+        yaxis=dict(autorange="reversed", tickvals=pos, ticktext=nums,
                    tickfont=dict(size=10)),
-        yaxis=dict(autorange="reversed", dtick=1, tickfont=dict(size=10)),
         margin=dict(l=40, r=10, t=30, b=50))
     return fig
 
 
 def _fig_attenuation(data):
+    """Figure 4 — attenuation & aging along the runoff path. Excluded
+    stations (pumping-fed: pond residence breaks transport decay) are shown
+    as grey markers with the exclusion reason on hover — exclusions should
+    be visible, not merely declared."""
+    me = data["max_event"].set_index("station_name")
     for c in data["candidates"]:
         ser = c.get("atten_series") or []
         if len(ser) >= 3:
@@ -235,22 +436,44 @@ def _fig_attenuation(data):
             fig.add_trace(go.Scatter(
                 x=xs, y=[d["precursor"] for d in ser], name="% קדם-חומרים",
                 mode="lines+markers", line=dict(color="#2a9d8f"), yaxis="y2"))
+            ex_x, ex_y, ex_t = [], [], []
+            for s, tfv in (c.get("transfer_fed") or {}).items():
+                if tfv.get("kind") == "pumping" and \
+                        tfv.get("path_distance_m") and s in me.index:
+                    sig = float(me.loc[s, "total_concentration"])
+                    if sig > 0:
+                        ex_x.append(round(tfv["path_distance_m"] / 1000, 2))
+                        ex_y.append(sig)
+                        ex_t.append(f"{s}<br>מוזנת-שאיבה — מוחרגת מהרגרסיה "
+                                    f"(שהות/אידוי בבריכה)")
+            if ex_x:
+                fig.add_trace(go.Scatter(
+                    x=ex_x, y=ex_y, mode="markers",
+                    name="מוחרגות מהרגרסיה (מוזנות-שאיבה)",
+                    marker=dict(size=10, color="#b9b5ad", symbol="triangle-up",
+                                line=dict(width=1, color="#8d8a83")),
+                    text=ex_t, hoverinfo="text"))
             fig.update_layout(
                 font=_FONT, template="plotly_white", height=420,
                 xaxis=dict(title="מרחק-מסלול מהמקור (ק\"מ)"),
                 yaxis=dict(title="ΣPFAS (µg/L)", type="log"),
                 yaxis2=dict(title="% קדם-חומרים", overlaying="y", side="right",
                             rangemode="tozero"),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                            font=dict(size=10)),
                 margin=dict(l=60, r=60, t=40, b=50))
             return fig
     return None
 
 
-def _fig_fingerprints(data, max_stations=8):
+def _fig_fingerprints(data, fam_of, max_stations=10):
+    """Figure 5 — relative composition of the key stations, ordered by
+    transport family (source outward) with family separators, so the eye
+    reads the weathering story along the pathways, not just by magnitude."""
     me = data["max_event"].sort_values("total_concentration", ascending=False)
-    names = [n for n in me["station_name"]
-             if n in data["fingerprint"].index][:max_stations]
+    top = [n for n in me["station_name"]
+           if n in data["fingerprint"].index][:max_stations]
+    names = [n for fk in FAMILY_ORDER for n in top if fam_of.get(n) == fk]
     fp = data["fingerprint"].loc[names]
     fp = fp[[c for c in fp.columns if fp[c].sum() > 0]]
     fig = go.Figure()
@@ -258,11 +481,30 @@ def _fig_fingerprints(data, max_stations=8):
         fig.add_trace(go.Bar(
             name=comp, x=[n[:22] for n in names], y=fp[comp],
             marker_color=COMPOUND_COLORS.get(comp, DEFAULT_COLOR)))
+    # family group separators + labels
+    bounds, i = [], 0
+    while i < len(names):
+        fk = fam_of.get(names[i], "other")
+        j = i
+        while j < len(names) and fam_of.get(names[j], "other") == fk:
+            j += 1
+        bounds.append((fk, i, j - 1))
+        i = j
+    for fk, a, b in bounds:
+        fig.add_annotation(
+            x=(a + b) / 2, y=1.06, yref="paper", showarrow=False,
+            text=f'<span style="color:{FAMILIES[fk]["color"]}">'
+                 f'{FAMILIES[fk]["short_he"]}</span>',
+            font=dict(size=10))
+        if b + 1 < len(names):
+            fig.add_shape(type="line", x0=b + 0.5, x1=b + 0.5,
+                          y0=0, y1=1, yref="paper",
+                          line=dict(color="#b9b5ad", width=1, dash="dot"))
     fig.update_layout(
-        font=_FONT, template="plotly_white", barmode="stack", height=430,
+        font=_FONT, template="plotly_white", barmode="stack", height=460,
         yaxis=dict(title="אחוז מההרכב (%)", range=[0, 100]),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10)),
-        margin=dict(l=50, r=10, t=60, b=80))
+        legend=dict(orientation="h", yanchor="bottom", y=1.12, font=dict(size=10)),
+        margin=dict(l=50, r=10, t=90, b=80))
     return fig, names
 
 
@@ -277,15 +519,12 @@ def _list_he(items, limit=None):
     return ", ".join(items[:-1]) + " ו" + items[-1]
 
 
-def _findings_prose(data):
-    """Descriptive findings: what the data shows, told as prose. Each
-    paragraph opens with the observation and closes with what it means —
-    numbers serve the narrative, not the reverse."""
-    P = []
+def _findings_overview(data):
+    """3.1 — the spatial picture (opening paragraph of the findings)."""
     me = data["max_event"]
     sig = me[me["total_concentration"] >= MIN_SIGNAL_UG_L]
     if sig.empty:
-        return ["בתחום התיק לא נמצאו תחנות שריכוזן עולה על סף-האות הראייתי."]
+        return "בתחום התיק לא נמצאו תחנות שריכוזן עולה על סף-האות הראייתי."
     ordered = sig.sort_values("total_concentration", ascending=False)
     top = ordered.head(3)
     top_list = _list_he(['"%s" (%s)' % (r.station_name,
@@ -297,8 +536,6 @@ def _findings_prose(data):
     second = ordered.iloc[1] if len(ordered) > 1 else None
     gap = (lead["total_concentration"] / second["total_concentration"]
            if second is not None and second["total_concentration"] > 0 else None)
-
-    # 3.1 — the spatial picture
     para = (f"מתוך {data['n_stations']} תחנות הדיגום שבתחום התיק, "
             f"{len(sig)} נושאות ריכוז העולה על סף-האות הראייתי "
             f"({MIN_SIGNAL_UG_L} מיקרוגרם לליטר) והן המהוות את בסיס הראיות; "
@@ -310,90 +547,121 @@ def _findings_prose(data):
         para += (f" בולט במיוחד הפער בין התחנה המובילה לבאה אחריה — יחס של "
                  f"פי {gap:,.0f} — פער המאפיין נקודת-מקור ולא זיהום מפוזר, "
                  f"ומצביע על כך שמדובר בשחרור מרוכז ולא ברקע אזורי.")
-    P.append(para + " הפריסה המרחבית מוצגת באיור 1.")
+    return para + " הפריסה המרחבית מוצגת באיור 1."
 
-    for c in data["candidates"]:
-        # 3.2 — surface pathway
-        if c["n_surface_down"]:
-            para = (f"בחינת נתיבי ההסעה מתחילה בציר העילי. מסלולי הזרימה "
-                    f"שנגזרו ממודל הגבהים (Copernicus GLO-30, אלגוריתם D8) "
-                    f"מתווים את מסלול הנגר היוצא מן האתר ומתפתל במורד הערוץ, "
-                    f"ולאורכו נמצאות {c['n_surface_down']} תחנות פגועות. "
-                    f"אין מדובר בקרבה גיאוגרפית בלבד: התחנות יושבות על מסלול "
-                    f"הזרימה עצמו, כלומר קיימת ביניהן לבין האתר רציפות "
-                    f"הידראולית ממשית.")
-            if c["transfer_fed"]:
-                pumped = [s for s, v in c["transfer_fed"].items()
-                          if v["kind"] == "pumping"]
-                piped = [s for s, v in c["transfer_fed"].items()
-                         if v["kind"] != "pumping"]
-                para += (" לצד הנתיב הטבעי פועלים נתיבים אנתרופוגניים "
-                         "מוצהרים, שאף מודל טופוגרפי אינו יכול לגלותם: ")
-                bits = []
-                if pumped:
-                    bits.append(f"שאיבה ממקטע הנחל אל {_list_he(pumped, 2)}")
-                if piped:
-                    bits.append(f"קו ביוב המוליך אל המט\"ש ומשם, כקולחים, "
-                                f"אל {_list_he(piped, 2)}")
-                para += _list_he(bits) + ". נתיבים אלה מרחיבים את מפת "
-                para += ("הרצפטורים הרבה מעבר לגדות הנחל, ומחייבים התייחסות "
-                         "נפרדת בשלב ההמלצות.")
-            P.append(para)
 
-        # 3.3 — attenuation & aging
-        att = c["attenuation"]
-        if att.get("r_precursor") is not None:
-            aging = att["r_precursor"] <= -0.4
-            para = ("שאלה נפרדת היא האם דפוס הריכוזים לאורך המסלול אכן "
-                    "מתנהג כמצופה ממקור יחיד. שני מדדים נבחנו (איור 3). ")
-            if aging:
-                para += (f"הראשון, הרכב החתימה, מספק תשובה חיובית ברורה: נתח "
-                         f"קדם-החומרים — אותם רכיבים לא-יציבים (FOSA, 8:2FTS, "
-                         f"6:2FT) המתפרקים בהדרגה במהלך ההסעה — יורד בעקביות "
-                         f"ככל שמתרחקים מן האתר (מתאם ספירמן "
-                         f"r={att['r_precursor']}). זוהי 'שעון' כימי: החתימה "
-                         f"מזדקנת עם המרחק, בדיוק כמצופה מחומר שיצא מנקודה "
-                         f"אחת ועבר דרך. ")
+def _sigma_range_he(members):
+    if not members:
+        return ""
+    lo, hi = members[-1]["sigma"], members[0]["sigma"]
+    if len(members) == 1:
+        return f"Σ={hi:,.2f}"
+    return f"Σ בין {lo:,.2f} ל-{hi:,.2f}"
+
+
+def _findings_family_sections(data, fam_of, nar_families):
+    """§3 per-family subsections: mechanism → observed → what would decide.
+    The status chip is computed from the case data; the mechanism paragraph
+    comes from region.json narrative (expert-reviewable data, not code)."""
+    S = []
+    c = data["candidates"][0] if data["candidates"] else None
+    if c is None:
+        return S
+    me = data["max_event"].set_index("station_name")
+    att = c.get("attenuation", {})
+    gw_tiers = c.get("gw_tiers", {})
+    decide = {
+        "focus": "המוקד מעוגן במדידה ישירה — אינו תלוי בפעולה נוספת.",
+        "stream": "יוכרע/יחודד ב: תאריך הסבת בריכה-1500 (ACT-3) ודיגום מזווג עוקב (ACT-4).",
+        "pumped": "יוכרע ב: בירור סטטוס השאיבה והיקפה (ACT-5).",
+        "piped": "יוכרע ב: דיגום קולחי מט\"ש חוף הכרמל (ACT-1) — תחזית P1: חתימת AFFF בקולחים.",
+        "cascade": "יוכרע ב: דיגום מזווג נחל–קידוח באותו חלון-זמן (ACT-4).",
+        "gw": "יוכרע ב: קובץ מפלסי תהום (ACT-2) — יחליף את ההנחה בגרדיאנטים מדודים ויכייל את k.",
+        "other": "יוכרע ב: אישור/דחיית השערות ההזנה (A2) — אישור יעבירן למורד; דחייה תותיר ראיית-נגד.",
+    }
+    sub = 1
+    for key in ["focus", "stream", "pumped", "piped", "cascade", "gw", "other"]:
+        members = _fam_members(data, fam_of, key)
+        if not members:
+            continue
+        sub += 1
+        f = FAMILIES[key]
+        lvl, label = _family_status(key, c)
+        S.append(f'<h3><span class="famdot" style="background:{f["color"]}">'
+                 f'</span> 3.{sub} {_esc(f["name_he"])} '
+                 f'<span class="conf {lvl}">{_esc(label)}</span></h3>')
+        nf = (nar_families or {}).get(key, {})
+        if nf.get("mechanism_he"):
+            S.append(_bdi(f'<p>{_esc(nf["mechanism_he"])}</p>'))
+
+        names3 = _list_he([f'"{m["name"]}"' for m in members], 3)
+        obs = f"בתיק זה נמנות עם המשפחה {len(members)} תחנות ({names3}; {_sigma_range_he(members)} µg/L). "
+        if key == "focus":
+            anchor = c.get("anchor_station")
+            if anchor and anchor in me.index:
+                obs += (f'העוצמה המרבית נמדדה בתחנת-העוגן "{_esc(anchor)}" — '
+                        f'{float(me.loc[anchor, "total_concentration"]):,.0f} '
+                        f"מיקרוגרם לליטר, מדידה שאושרה כמייצגת אזור-מקור ידוע. ")
+            obs += ("מדידות-המוצא הרגעיות שבמשפחה מוצגות אך מוחרגות "
+                    "מרגרסיות-העומס — מדידת הבריכה היא המייצגת.")
+        elif key == "stream":
+            obs += ("התחנות יושבות על מסלול הנגר שנגזר ממודל הגבהים — רציפות "
+                    "הידראולית ממשית, לא קרבה גיאוגרפית. ")
+            if att.get("r_precursor") is not None and att["r_precursor"] <= -0.4:
+                obs += (f"מבחן-הבליה של המשפחה מתקיים: נתח קדם-החומרים יורד "
+                        f"בעקביות לאורך המסלול (ספירמן r={att['r_precursor']}, "
+                        f"איור 4) — החתימה מזדקנת עם המרחק, כמצופה מהסעה "
+                        f"עילית ממקור נקודתי. ")
             if att.get("r_conc") is not None:
-                para += (f"המדד השני, דעיכת הריכוז המוחלט, דווקא אינו "
-                         f"חד-משמעי בחתך הנוכחי (r={att['r_conc']}). היעדר "
-                         f"דעיכה מסודרת אינו סותר את המקור — ההסבר הסביר הוא "
-                         f"שהרשומה מערבבת שתי תקופות עומס שונות, לפני ואחרי "
-                         f"שינוי מוצא הבריכות, ומדידות שנעשו בשנים שונות "
-                         f"מוצגות זו לצד זו כאילו היו בנות-זמן. עד שיובהר "
-                         f"מועד השינוי, מדד זה מושהה ואינו נזקף לא לחובה "
-                         f"ולא לזכות.")
-            P.append(para)
-
-        # 3.4 — groundwater axis
-        if c.get("gw_tiers"):
-            t12 = [s for s in c["downgradient"] if s in c["gw_tiers"]]
-            para = (f"בציר מי-התהום הראיות מוגבלות בהרבה. בהיעדר מדידות מפלס, "
-                    f"נבחנה כל תחנה מול מודל עננה גאוסיאנית סביב ציר-הזרימה "
-                    f"המשוער (k={GW_PLUME_K}) — מודל המשקף את העובדה "
-                    f"ההידרולוגית שעננת זיהום נותרת צרה יחסית ואינה מתפשטת "
-                    f"לרוחב חופשי. ")
-            if t12:
-                para += (f"{len(t12)} קידוחים נמצאים בליבת העננה או באגפיה")
-            else:
-                para += ("אף קידוח אינו נמצא בליבת העננה המשוערת או באגפיה")
-            if c.get("gw_fringe"):
-                para += (f", ו-{len(c['gw_fringe'])} נוספים בשוליה בלבד — "
-                         f"מיקום המקנה תמיכה חלשה, שאינה נספרת כראיה של ממש")
-            para += (". יודגש כי כל עוד כיוון הזרימה מונח ולא נמדד, ציר זה "
-                     "יכול לתמוך בעקביות אך אינו יכול לאשש.")
-            if c.get("cascade_candidates"):
-                para += (f" חריג מעניין הם הקידוחים הצמודים לערוץ הנחל "
-                         f"({_list_he(c['cascade_candidates'])}). אלה אינם "
-                         f"מוסברים בהסעה ישירה מן האתר, אך מיקומם במרחק "
-                         f"עשרות מטרים בודדים מן הערוץ מעלה נתיב אחר: מי "
-                         f"הנחל המזוהמים מחלחלים דרך הגדה אל התהום. השוואת "
-                         f"ההרכב הכימי תומכת בכך — בקידוחים ניכרת העשרה "
-                         f"בתרכובות קצרות-שרשרת וניידות יחסית למי הנחל "
-                         f"הסמוכים, דפוס הפרדה האופייני למעבר דרך תווך "
-                         f"נקבובי ולא לחלחול ישיר וסמוך.")
-            P.append(para)
-    return P
+                obs += (f"דעיכת הריכוז המוחלט, לעומת זאת, אינה חד-משמעית "
+                        f"בחתך הנוכחי (r={att['r_conc']}) — ההסבר הסביר הוא "
+                        f"ערבוב שני משטרי-עומס סביב הסבת בריכה-1500, ומדד זה "
+                        f"מושהה ביושר עד לבירור התאריך.")
+        elif key == "pumped":
+            scores = ", ".join(f"{m['score']:.0f}%" for m in members)
+            obs += (f"התחנות אינן על הערוץ אך יורשות את מי הנחל דרך שאיבה "
+                    f"מוצהרת; התאמת הפרופיל שלהן לפרופילי-המקור הצפויים "
+                    f"({scores}) עקבית עם ירושה כזו. בהתאם למנגנון — הן "
+                    f"נספרות במורד אך מוחרגות מרגרסיית הדעיכה (מסומנות "
+                    f"באפור באיור 4).")
+        elif key == "piped":
+            anchor = c.get("anchor_station")
+            if anchor and anchor in me.index:
+                a_sig = float(me.loc[anchor, "total_concentration"])
+                lo, hi = members[-1]["sigma"], members[0]["sigma"]
+                obs += (f"שרשרת-המיהול הנצפית עקבית עם המנגנון: "
+                        f"{a_sig:,.0f} µg/L במוצא ← {lo:,.2f}–{hi:,.2f} "
+                        f"במאגרים — ירידה של כ-"
+                        f"{np.log10(a_sig / max(hi, 1e-9)):,.1f} סדרי גודל "
+                        f"ללא תלות במרחק גיאוגרפי, כמצופה מנתיב מתועל. ")
+            obs += ("החוליה האמצעית — קולחי המט\"ש עצמם — טרם נדגמה, ולכן "
+                    "השרשרת מוצהרת אך לא סגורה מדידתית.")
+        elif key == "cascade":
+            obs += ("בקידוחים ניכרת העשרה יחסית בתרכובות קצרות-שרשרת "
+                    "וניידות לעומת מי הנחל הסמוכים — דפוס-המיון הצפוי ממעבר "
+                    "דרך תווך נקבובי (מבחן-ההבחנה של D1). זהו נתיב מועמד: "
+                    "אינו נספר כראיה ישירה ואינו ראיית-נגד.")
+        elif key == "gw":
+            comp = {}
+            for m in members:
+                t = gw_tiers.get(m["name"], {}).get("tier", "?")
+                comp[t] = comp.get(t, 0) + 1
+            comp_he = ", ".join(f"מדרגה {t}: {n}" for t, n in
+                                sorted(comp.items()) if t not in ("up",))
+            if comp.get("up"):
+                comp_he += f", במעלה: {comp['up']}"
+            obs += (f"פילוח המדרגות (k={GW_PLUME_K}): {comp_he}. "
+                    f"תחנות מדרגות 1–2 נספרות; מדרגה 3 — תמיכה חלשה בלבד; "
+                    f"מדרגה 4 עם זיהום היא ממצא המחייב הסבר אחר — כך אותר "
+                    f"בשעתו המקור הנפרד בקיסריה.")
+        elif key == "other":
+            obs += ("תחנות אלו אינן משויכות לאף נתיב-הסעה של המועמד: פרופיל "
+                    "דומה בהן אינו נספר לזכות המועמד — הוא נרשם כראיית-נגד "
+                    "מותנית (עקבי גם עם מקור אחר), בחלקן תלוי בהשערות-הזנה "
+                    "שבבדיקה.")
+        S.append(_bdi(f"<p>{obs}</p>"))
+        S.append(f'<p class="decide">{_bdi(_esc(decide[key]))}</p>')
+    return S
 
 
 def _discussion_prose(data, narrative=None):
@@ -459,6 +727,124 @@ def _discussion_prose(data, narrative=None):
 
 # ─── report assembly ────────────────────────────────────────────────────────
 
+# Family filter: chips toggle families; map traces flip visibility, the
+# similarity matrix and fingerprint bars are rebuilt from the plain-JSON
+# copies in __famData. Print always shows the full (all-on) state.
+_FAM_JS = r"""
+(function(){
+  var D = window.__famData;
+  var active = {};
+  var chips = document.querySelectorAll(".famchip[data-fam]");
+  chips.forEach(function(ch){ active[ch.dataset.fam] = true; });
+
+  function famOf(n){ return D.byStation[n] || "other"; }
+
+  function applyMap(){
+    if (!document.getElementById("figmap") || !D.mapTraces) return;
+    Object.keys(D.mapTraces).forEach(function(fk){
+      Plotly.restyle("figmap",
+        {visible: active[fk] ? true : "legendonly"}, [D.mapTraces[fk]]);
+    });
+  }
+
+  function applySim(){
+    var el = document.getElementById("figsim");
+    if (!el) return;
+    var idx = [];
+    D.simLabels.forEach(function(n, i){ if (active[famOf(n)]) idx.push(i); });
+    var k = idx.length;
+    if (!k) return;
+    var pos = []; for (var q = 1; q <= k; q++) pos.push(q);
+    var nums = idx.map(function(i){ return String(i + 1); });
+    var z = idx.map(function(i){
+      return idx.map(function(j){ return D.simZ[i][j]; }); });
+    var cust = idx.map(function(i){
+      return idx.map(function(j){
+        return D.simLabels[i] + " ↔ " + D.simLabels[j]; }); });
+    var heat = {type:"heatmap", z:z, x:pos, y:pos, zmin:0, zmax:100,
+      xgap:1, ygap:1,
+      colorscale:[[0,"#c64a3b"],[0.3,"#d8c84a"],[0.7,"#4ea66b"],
+                  [0.9,"#1f7a4d"],[1,"#0d4a2e"]],
+      colorbar:{title:"% דמיון"},
+      texttemplate:(k <= 30 ? "%{z:.0f}" : ""),
+      textfont:{size:9, color:"rgba(20,20,20,0.75)"},
+      customdata:cust,
+      hovertemplate:"%{customdata}<br>%{z:.0f}%<extra></extra>"};
+    var strip = {type:"scatter", mode:"markers",
+      x:pos.map(function(){ return 0.2; }), y:pos,
+      marker:{symbol:"square", size:11,
+        color:idx.map(function(i){ return D.famColors[famOf(D.simLabels[i])]; })},
+      text:idx.map(function(i){
+        return D.simLabels[i] + " — " + D.famNames[famOf(D.simLabels[i])]; }),
+      hoverinfo:"text", showlegend:false};
+    var lay = JSON.parse(JSON.stringify(el.layout || {}));
+    lay.xaxis = lay.xaxis || {};  lay.yaxis = lay.yaxis || {};
+    lay.xaxis.tickvals = pos; lay.xaxis.ticktext = nums;
+    lay.xaxis.range = [-0.4, k + 0.6];
+    lay.yaxis.tickvals = pos; lay.yaxis.ticktext = nums;
+    lay.yaxis.autorange = "reversed";
+    lay.height = Math.max(380, 24 * k + 150);
+    Plotly.react("figsim", [heat, strip], lay,
+      {responsive:true, displayModeBar:false});
+  }
+
+  function applyFp(){
+    var el = document.getElementById("figfp");
+    if (!el) return;
+    var keep = [];
+    D.fpStations.forEach(function(n, i){ if (active[famOf(n)]) keep.push(i); });
+    var xs = keep.map(function(i){ return D.fpStations[i].slice(0, 22); });
+    var traces = D.fpCompounds.map(function(c){
+      return {type:"bar", name:c, x:xs,
+        y:keep.map(function(i){ return D.fpValues[c][i]; }),
+        marker:{color:D.fpColors[c]}};
+    });
+    var lay = JSON.parse(JSON.stringify(el.layout || {}));
+    lay.shapes = []; lay.annotations = [];
+    // regenerate family separators for the kept subset
+    var i = 0, groups = [];
+    while (i < keep.length){
+      var fk = famOf(D.fpStations[keep[i]]), j = i;
+      while (j < keep.length && famOf(D.fpStations[keep[j]]) === fk) j++;
+      groups.push([fk, i, j - 1]); i = j;
+    }
+    groups.forEach(function(g){
+      lay.annotations.push({x:(g[1] + g[2]) / 2, y:1.06, yref:"paper",
+        showarrow:false, font:{size:10},
+        text:'<span style="color:' + D.famColors[g[0]] + '">' +
+             D.famShort[g[0]] + "</span>"});
+      if (g[2] + 1 < keep.length)
+        lay.shapes.push({type:"line", x0:g[2] + 0.5, x1:g[2] + 0.5,
+          y0:0, y1:1, yref:"paper",
+          line:{color:"#b9b5ad", width:1, dash:"dot"}});
+    });
+    Plotly.react("figfp", traces, lay,
+      {responsive:true, displayModeBar:false});
+  }
+
+  function apply(){ applyMap(); applySim(); applyFp(); }
+
+  chips.forEach(function(ch){
+    ch.addEventListener("click", function(){
+      active[ch.dataset.fam] = !active[ch.dataset.fam];
+      ch.classList.toggle("on", active[ch.dataset.fam]);
+      apply();
+    });
+  });
+  var allBtn = document.getElementById("famall");
+  if (allBtn) allBtn.addEventListener("click", function(){
+    chips.forEach(function(ch){
+      active[ch.dataset.fam] = true; ch.classList.add("on"); });
+    apply();
+  });
+  window.addEventListener("beforeprint", function(){
+    chips.forEach(function(ch){
+      active[ch.dataset.fam] = true; ch.classList.add("on"); });
+    apply();
+  });
+})();
+"""
+
 _CSS = """
 :root{--ink:#1c1f24;--ink2:#4a4f57;--ink3:#7d8189;--line:#e2ddd2;
 --accent:#2a9d8f;--warn:#d97a2c;--ok:#2d8b5e;--bad:#c64a3b}
@@ -488,13 +874,40 @@ th{background:#faf8f4;color:var(--ink2)}
 .concl{border-right:4px solid var(--accent);background:#fafcfb;padding:10px 14px;margin:10px 0}
 .foot{color:var(--ink3);font-size:.78rem;margin-top:30px;text-align:center;
 border-top:1px solid var(--line);padding-top:12px}
+.famdot{display:inline-block;width:10px;height:10px;border-radius:50%;
+margin-left:6px;vertical-align:baseline}
+.fambar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;
+background:#faf8f4;border:1px solid var(--line);border-radius:10px;
+padding:10px 14px;margin:12px 0 18px}
+.fambar-t{font-size:.85rem;color:var(--ink2);font-weight:600}
+.famchip{border:1.5px solid var(--line);background:#fff;color:var(--ink3);
+border-radius:100px;padding:4px 12px;font-size:.82rem;cursor:pointer;
+font-family:inherit;opacity:.55}
+.famchip.on{color:var(--ink);border-color:#b9b5ad;opacity:1}
+.famchip.all{opacity:1;font-weight:600}
+.decide{font-size:.88rem;color:var(--ink2);background:#faf8f4;
+border-right:3px solid var(--warn);padding:7px 12px;margin:6px 0 18px}
+.provnote{font-size:.78rem;color:var(--ink3);font-style:italic;margin:4px 0 14px}
+.csm{padding:6px 2px}
+.csm-src{background:#f3ecf7;border:1.5px solid #7a3d9e;border-radius:9px;
+padding:10px 14px;font-size:.95rem;text-align:center}
+.csm-flow{text-align:center;color:var(--ink3);font-size:.85rem;margin:6px 0}
+.csm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.csm-card{border:1px solid var(--line);border-right:4px solid;
+border-radius:8px;padding:9px 12px;background:#fff}
+.csm-head{display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+font-size:.9rem;margin-bottom:5px}
+.csm-head .famdot{margin-left:0}
+.csm-row{font-size:.8rem;color:var(--ink2);margin:3px 0}
+.csm-rec{color:var(--ink3)}
 @media print{
   .wrap{box-shadow:none;max-width:100%}body{background:#fff;font-size:12pt}
   h2{page-break-after:avoid}h3{page-break-after:avoid}
   .figure{page-break-inside:avoid}
   .concl{page-break-inside:avoid}table{page-break-inside:avoid}
+  .csm-card{page-break-inside:avoid}.decide{page-break-inside:avoid}
   p{orphans:2;widows:2}
-  .draft{display:none}
+  .draft{display:none}.fambar{display:none}
 }
 """
 
@@ -509,16 +922,19 @@ def main(region_name):
                          capture_output=True, text=True,
                          cwd=os.path.dirname(__file__) or ".").stdout.strip()
 
-    fig_map = _fig_map(data)
+    fam_of = _classify_families(data)
+    fig_map, fam_trace_idx = _fig_map(data, fam_of)
     sim_df, sim_lab, sim_clusters, sim_pairs = _similarity(data)
-    fig_sim = _fig_similarity(sim_df, sim_lab)
+    fig_sim = _fig_similarity(sim_df, sim_lab, fam_of)
     n_sim = len(sim_lab)
     fig_att = _fig_attenuation(data)
-    fig_fp, fp_names = _fig_fingerprints(data)
+    fig_fp, fp_names = _fig_fingerprints(data, fam_of)
 
     def _plot(fig, div_id):
-        return (f'<div id="{div_id}"></div><script>Plotly.newPlot("{div_id}", '
-                f'{fig.to_json()}, {{}}, {{responsive:true, displayModeBar:false}});'
+        return (f'<div id="{div_id}"></div><script>window.__figs=window.__figs||{{}};'
+                f'window.__figs["{div_id}"]={fig.to_json()};'
+                f'Plotly.newPlot("{div_id}", window.__figs["{div_id}"], '
+                f'{{}}, {{responsive:true, displayModeBar:false}});'
                 f'</script>')
 
     S = []
@@ -565,48 +981,99 @@ def main(region_name):
         f"מוצהרים עם תיעוד-מקור, ורגרסיות דעיכה על מרחקי-מסלול. הפירוט המלא — "
         f"בנספח המתודולוגי.</p>")
 
-    # 3 — findings
+    # 3 — findings (organized by transport family)
     S.append("<h2>3. ממצאים</h2>")
+    # family filter bar (interactive HTML only; hidden in print)
+    present = [fk for fk in FAMILY_ORDER
+               if any(fam_of.get(s["name"]) == fk for s in data["stations"])]
+    chips = "".join(
+        f'<button class="famchip on" data-fam="{fk}">'
+        f'<span class="famdot" style="background:{FAMILIES[fk]["color"]}">'
+        f'</span>{_esc(FAMILIES[fk]["name_he"])}</button>'
+        for fk in present)
+    S.append(f'<div class="fambar"><span class="fambar-t">סינון לפי '
+             f'משפחת-הסעה:</span>{chips}'
+             f'<button class="famchip all" id="famall">הכל</button></div>')
+    S.append(_bdi(f"<p>{_findings_overview(data)}</p>"))
     S.append(f'<div class="figure">{_plot(fig_map, "figmap")}'
-             f'<div class="figcap">איור 1: מפת התיק — תחנות (גודל ∝ Σ), '
-             f'ערוצי DEM, מסלול הנגר מהמקור. קואורדינטות ITM בק"מ.</div></div>')
-    for p in _findings_prose(data):
-        S.append(_bdi(f"<p>{p}</p>"))
+             f'<div class="figcap">איור 1: מפת התיק — תחנות בצבעי '
+             f'משפחות-ההסעה (גודל ∝ Σ), ערוצי DEM, מסלול הנגר, ונתיבים '
+             f'מוצהרים (שאיבה — נקודות; מתועל — קו-נקודה, סכמטי). '
+             f'קואורדינטות ITM בק"מ.</div></div>')
+    # conceptual site model
+    nar_families = nar.get("families", {})
+    csm = _csm_html(data, fam_of, nar_families)
+    if csm:
+        S.append(f'<div class="figure">{csm}'
+                 f'<div class="figcap">איור 2: מודל-אתר קונספטואלי — '
+                 f'נתיבי ההסעה, קצבם, הבליה הצפויה בכל נתיב ומעמדו הראייתי '
+                 f'(מחושב מנתוני התיק).</div></div>')
+        if nar_families.get("_provenance"):
+            S.append(f'<p class="provnote">{_esc(nar_families["_provenance"])}</p>')
+    # per-family findings
+    S.extend(_findings_family_sections(data, fam_of, nar_families))
     me_idx = data["max_event"].set_index("station_name")
     legend_rows = "".join(
-        f"<tr><td>{i + 1}</td><td>{_esc(s)}</td>"
+        f"<tr><td>{i + 1}</td>"
+        f'<td><span class="famdot" style="background:'
+        f'{FAMILIES[fam_of.get(s, "other")]["color"]}"></span>{_esc(s)}</td>'
         f"<td>{me_idx.loc[s, 'total_concentration']:.3f}</td></tr>"
         for i, s in enumerate(sim_lab))
     S.append(
         f'<div class="figure">{_plot(fig_sim, "figsim")}'
-        f'<div class="figcap">איור 2: מטריצת דמיון קוסינוס — {n_sim} '
-        f'תחנות מעל סף-האות, ממוספרות ומסודרות באשכולות (המספרים מפוענחים '
-        f'במקרא למטה).</div>'
+        f'<div class="figcap">איור 3: מטריצת דמיון קוסינוס — {n_sim} '
+        f'תחנות מעל סף-האות, ממוספרות ומסודרות באשכולות; פס-הצבע השמאלי '
+        f'מסמן את משפחת-ההסעה (המספרים מפוענחים במקרא למטה).</div>'
         f'<details style="margin-top:8px"><summary style="cursor:pointer;'
         f'font-size:.85rem;color:#4a4f57">מקרא מספור התחנות (לחצו להרחבה)</summary>'
         f'<table style="font-size:.8rem"><tr><th>#</th><th>תחנה</th>'
         f'<th>Σ (µg/L)</th></tr>{legend_rows}</table></details></div>')
-    # cluster interpretation prose
+    # cluster interpretation prose — chemistry vs. transport families
     if sim_clusters:
         cl_txt = "; ".join(
             f"אשכול של {len(c)} תחנות ({_list_he([_esc(x) for x in c], 4)})"
             for c in sim_clusters[:3])
         top = sim_pairs[0] if sim_pairs else None
         S.append(_bdi(
-            f"<p>מבנה הדמיון (איור 2) מגלה {len(sim_clusters)} אשכולות "
+            f"<p>מבנה הדמיון (איור 3) מגלה {len(sim_clusters)} אשכולות "
             f"כימיים מובחנים ברמת דמיון של 70% ומעלה: {cl_txt}. "
             + (f"הזוג הדומה ביותר, {_esc(top[1])} ו{_esc(top[2])} "
                f"({top[0]:.0f}%), " if top else "")
-            + "התלכדות תחנות לאשכול חזק עקבית עם מקור או נתיב-הסעה משותף, "
-            "אך אינה מוכיחה אותו — היא מגדירה קבוצות-חשד להמשך בחינה "
-            "מול צירי הזרימה והפליטה.</p>"))
+            + "השאלה הפורנזית שהמטריצה נועדה לה היא האם האשכולות הכימיים "
+            "מתלכדים עם משפחות-ההסעה (פס-הצבע): התלכדות כזו עקבית עם מקור "
+            "או נתיב משותף — אך אינה מוכיחה אותו; אי-התלכדות היא רמז "
+            "למקור או נתיב שטרם הוסבר.</p>"))
     if fig_att is not None:
         S.append(f'<div class="figure">{_plot(fig_att, "figatt")}'
-                 f'<div class="figcap">איור 3: ΣPFAS (ציר שמאלי, לוגריתמי) '
-                 f'ונתח קדם-חומרים (ימני) לאורך מסלול הזרימה.</div></div>')
+                 f'<div class="figcap">איור 4: ΣPFAS (ציר שמאלי, לוגריתמי) '
+                 f'ונתח קדם-חומרים (ימני) לאורך מסלול הזרימה; באפור — '
+                 f'תחנות מוזנות-שאיבה המוחרגות מהרגרסיה.</div></div>')
     S.append(f'<div class="figure">{_plot(fig_fp, "figfp")}'
-             f'<div class="figcap">איור 4: הרכב יחסי של {len(fp_names)} '
-             f'תחנות המפתח (לפי Σ יורד).</div></div>')
+             f'<div class="figcap">איור 5: הרכב יחסי של {len(fp_names)} '
+             f'תחנות המפתח, מקובצות לפי משפחת-הסעה (מהמקור החוצה).</div></div>')
+    # family filter script — self-contained, drives map/matrix/fingerprints.
+    # Plain-JSON copies of the matrix/fingerprint data are embedded because
+    # fig.to_json() binary-encodes arrays (bdata) that page JS cannot slice.
+    fp_plain = data["fingerprint"].loc[fp_names]
+    fp_plain = fp_plain[[c for c in fp_plain.columns if fp_plain[c].sum() > 0]]
+    fam_js_data = {
+        "byStation": fam_of,
+        "famColors": {k: v["color"] for k, v in FAMILIES.items()},
+        "famNames": {k: v["name_he"] for k, v in FAMILIES.items()},
+        "famShort": {k: v["short_he"] for k, v in FAMILIES.items()},
+        "mapTraces": fam_trace_idx,
+        "simLabels": sim_lab,
+        "simZ": [[round(float(v), 1) for v in row] for row in sim_df.values],
+        "fpStations": fp_names,
+        "fpCompounds": list(fp_plain.columns),
+        "fpColors": {c: COMPOUND_COLORS.get(c, DEFAULT_COLOR)
+                     for c in fp_plain.columns},
+        "fpValues": {c: [round(float(v), 2) for v in fp_plain[c]]
+                     for c in fp_plain.columns},
+    }
+    S.append("<script>window.__famData=" +
+             json.dumps(fam_js_data, ensure_ascii=False) + ";" + _FAM_JS +
+             "</script>")
 
     # 4 — discussion
     S.append("<h2>4. דיון</h2>")
