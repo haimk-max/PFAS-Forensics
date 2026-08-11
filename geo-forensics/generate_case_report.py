@@ -1018,6 +1018,21 @@ def main(region_name):
              f'<span dir="ltr">{git}</span></div>')
     S.append('<div class="draft">טיוטת תבנית לעיון — מבנה הדוח טרם קובע. '
              'סולם-הוודאות (גבוהה/בינונית/נמוכה + בסיס) מאושר.</div>')
+    # Narrative-staleness guard: authored narrative restates interpretation
+    # on top of computed facts, and goes stale silently when the claims
+    # board moves on (caught by the user 2026-08-11: kesariya's synthesis
+    # predated the Or-Akiva pathway finding). Dates compare lexically
+    # (ISO). Warn in the report AND on stderr at generation time.
+    claims_meta = _load(os.path.join(region["_base"], "claims.json")) or {}
+    nar_upd, claims_upd = nar.get("updated"), claims_meta.get("updated")
+    if nar_upd and claims_upd and nar_upd < claims_upd:
+        warn = (f"הנרטיב המחברי של התיק עודכן לאחרונה ב-{nar_upd}, אך "
+                f"לוח-הטענות התעדכן ב-{claims_upd} — פרקי הרקע, העילה "
+                f"והסינתזה עשויים שלא לשקף טענות חדשות. נדרש סבב-עדכון "
+                f"נרטיב.")
+        S.append(f'<div class="draft" style="background:#b5541f">⚠ {warn}</div>')
+        print(f"WARNING [{region_name}]: stale narrative — {nar_upd} < "
+              f"{claims_upd}", file=sys.stderr)
 
     # 1 — introduction & background
     S.append("<h2>1. מבוא ורקע</h2>")
@@ -1196,6 +1211,24 @@ def main(region_name):
             n_c += 1
             S.append(f'<div class="concl"><p>{_bdi(f"<b>{n_c}. עדות ההזדקנות.</b> החתימה הכימית מזדקנת בעקביות עם ההתרחקות מן האתר: נתח קדם-החומרים הלא-יציבים יורד באופן מונוטוני לאורך המסלול. זוהי עדות תומכת עצמאית, שאינה נשענת על גיאומטריה או על הנחות זרימה אלא על תהליך כימי מוכר, ולפיכך משקלה ניכר.")} '
                      f'{_conf("בינונית", "חתך יחיד, לא בו-זמני")}</p></div>')
+        # Cascade pathway is a picture-changing finding — it must surface in
+        # the conclusions, not only in the findings chapter (user-caught
+        # omission, 2026-08-11: kesariya's conclusions had no trace of the
+        # Or-Akiva channel pathway).
+        if c.get("cascade_candidates"):
+            n_c += 1
+            casc_names = _list_he(
+                [f'"{x}"' for x in c["cascade_candidates"]], 3)
+            body = (f"<b>{n_c}. נתיב-שרשרת מועמד.</b> {casc_names} — "
+                    f"קידוחים הצמודים למסלול-הנגר הנגזר מן האתר ושאינם "
+                    f"מוסברים בעננת-התהום המשוערת. הצירוף עקבי עם נתיב "
+                    f"דו-שלבי נגר←חלחול-ערוץ←תהום רדודה. על-פי הכלל, "
+                    f"נתיב-שרשרת אינו נספר כראיה ישירה ואינו ראיית-נגד — "
+                    f"אך הוא משנה את תמונת הרצפטורים ואת תוכנית הדיגום: "
+                    f"ההכרעה בדיגום מזווג ערוץ–קידוחים באותו חלון-זמן.")
+            S.append(f'<div class="concl"><p>{_bdi(body)} '
+                     f'{_conf("נמוכה", "השערת-מנגנון — טרם בוצע דיגום מזווג")}'
+                     f'</p></div>')
     for q in (region.get("open_questions") or []):
         n_c += 1
         q_title = _esc(q["title_he"])
