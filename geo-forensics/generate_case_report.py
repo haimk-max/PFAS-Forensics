@@ -114,13 +114,13 @@ def _family_status(key, c):
     if key == "pumped":
         return ("mid", "נתיב מוצהר (עדות)")
     if key == "piped":
-        return ("mid", "נתיב מוצהר; חתימת מט\"ש טרם נדגמה — ACT-1")
+        return ("mid", "נתיב מוצהר; חתימת מט\"ש טרם נדגמה")
     if key == "cascade":
-        return ("lo", "השערת-מנגנון (D1) — יוכרע בדיגום מזווג ACT-4")
+        return ("lo", "השערת-מנגנון — יוכרע בדיגום מזווג")
     if key == "gw":
-        return ("lo", "הנחת-כיוון (A1) — ממתין למפלסים ACT-2")
+        return ("lo", "הנחת-כיוון — ממתין למפלסים")
     if key == "other":
-        return ("lo", "בבדיקה (A2 / השערות-העברה)")
+        return ("lo", "בבדיקה (השערות-העברה)")
     return ("lo", "")
 
 
@@ -147,9 +147,14 @@ def _classify_families(data):
             fam[name] = "below"
             continue
         row = me.loc[name]
-        near = math.hypot(float(row["x_itm"]) - sx,
-                          float(row["y_itm"]) - sy) <= 1000.0
-        if name == anchor or name in outfalls or near:
+        # Focus = DECLARED at-site stations (anchor / outfalls) or the
+        # tier-1 at-site radius (250 m). Bare 250-1000 m proximity must NOT
+        # precede pathway assignment: in kesariya it swallowed the Or-Akiva
+        # cascade candidates (776-981 m from the site, 9-131 m off the
+        # runoff channel) into "focus" and hid the pathway finding.
+        at_site = math.hypot(float(row["x_itm"]) - sx,
+                             float(row["y_itm"]) - sy) <= 250.0
+        if name == anchor or name in outfalls or at_site:
             fam[name] = "focus"
         elif name in tf:
             fam[name] = "pumped" if tf[name].get("kind") == "pumping" else "piped"
@@ -575,15 +580,28 @@ def _findings_family_sections(data, fam_of, nar_families):
     me = data["max_event"].set_index("station_name")
     att = c.get("attenuation", {})
     gw_tiers = c.get("gw_tiers", {})
-    decide = {
-        "focus": "המוקד מעוגן במדידה ישירה — אינו תלוי בפעולה נוספת.",
-        "stream": "יוכרע/יחודד ב: תאריך הסבת בריכה-1500 (ACT-3) ודיגום מזווג עוקב (ACT-4).",
-        "pumped": "יוכרע ב: בירור סטטוס השאיבה והיקפה (ACT-5).",
-        "piped": "יוכרע ב: דיגום קולחי מט\"ש חוף הכרמל (ACT-1) — תחזית P1: חתימת AFFF בקולחים.",
-        "cascade": "יוכרע ב: דיגום מזווג נחל–קידוח באותו חלון-זמן (ACT-4).",
-        "gw": "יוכרע ב: קובץ מפלסי תהום (ACT-2) — יחליף את ההנחה בגרדיאנטים מדודים ויכייל את k.",
-        "other": "יוכרע ב: אישור/דחיית השערות ההזנה (A2) — אישור יעבירן למורד; דחייה תותיר ראיית-נגד.",
-    }
+    # Explicit ACT/claim references are hagit's; other cases fall back to
+    # generic phrasing pointing at their own action queue (chapter 6).
+    if data["region"].get("name") == "hagit":
+        decide = {
+            "focus": "המוקד מעוגן במדידה ישירה — אינו תלוי בפעולה נוספת.",
+            "stream": "יוכרע/יחודד ב: תאריך הסבת בריכה-1500 (ACT-3) ודיגום מזווג עוקב (ACT-4).",
+            "pumped": "יוכרע ב: בירור סטטוס השאיבה והיקפה (ACT-5).",
+            "piped": "יוכרע ב: דיגום קולחי מט\"ש חוף הכרמל (ACT-1) — תחזית P1: חתימת AFFF בקולחים.",
+            "cascade": "יוכרע ב: דיגום מזווג נחל–קידוח באותו חלון-זמן (ACT-4).",
+            "gw": "יוכרע ב: קובץ מפלסי תהום (ACT-2) — יחליף את ההנחה בגרדיאנטים מדודים ויכייל את k.",
+            "other": "יוכרע ב: אישור/דחיית השערות ההזנה (A2) — אישור יעבירן למורד; דחייה תותיר ראיית-נגד.",
+        }
+    else:
+        decide = {
+            "focus": "המוקד מעוגן במדידה ישירה — אינו תלוי בפעולה נוספת.",
+            "stream": "יוכרע בדיגום עוקב לאורך המסלול (ראו פרק 6).",
+            "pumped": "יוכרע בבירור היקף השאיבה (ראו פרק 6).",
+            "piped": "יוכרע בדיגום החוליה המתועלת (ראו פרק 6).",
+            "cascade": "יוכרע בדיגום מזווג ערוץ–קידוחים באותו חלון-זמן (ראו פרק 6).",
+            "gw": "יוכרע בקובץ מפלסי תהום — יחליף את ההנחה בגרדיאנטים מדודים (ראו פרק 6).",
+            "other": "יוכרע באישור/דחיית השערות ההזנה של התיק (ראו לוח-הטענות).",
+        }
     sub = 1
     for key in ["focus", "stream", "pumped", "piped", "cascade", "gw", "other"]:
         members = _fam_members(data, fam_of, key)
