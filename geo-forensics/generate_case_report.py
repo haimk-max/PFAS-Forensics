@@ -643,11 +643,25 @@ def _findings_family_sections(data, fam_of, nar_families):
                         f"בעקביות לאורך המסלול (ספירמן r={att['r_precursor']}, "
                         f"איור 4) — החתימה מזדקנת עם המרחק, כמצופה מהסעה "
                         f"עילית ממקור נקודתי. ")
+            # Decay verdict is DATA-DRIVEN (same ±0.4 threshold as the
+            # attribution engine); the explanation for an inconclusive
+            # case is case data (observed_he), never code — a hard-coded
+            # hagit explanation ("pool-1500 conversion") leaked into the
+            # kishon report AND contradicted its own r=-0.71 (user-caught,
+            # 2026-08-11).
             if att.get("r_conc") is not None:
-                obs += (f"דעיכת הריכוז המוחלט, לעומת זאת, אינה חד-משמעית "
-                        f"בחתך הנוכחי (r={att['r_conc']}) — ההסבר הסביר הוא "
-                        f"ערבוב שני משטרי-עומס סביב הסבת בריכה-1500, ומדד זה "
-                        f"מושהה ביושר עד לבירור התאריך.")
+                r = att["r_conc"]
+                if r <= -0.4:
+                    obs += (f"גם דעיכת הריכוז המוחלט מתקיימת לאורך המסלול "
+                            f"(r={r}) — עקבית עם מקור באתר. ")
+                elif r >= 0.4:
+                    obs += (f"הריכוז המוחלט דווקא עולה במורד (r={r}) — "
+                            f"ראיית-נגד המרמזת על מקור נוסף בין הנקודות. ")
+                else:
+                    obs += (f"דעיכת הריכוז המוחלט אינה חד-משמעית בחתך "
+                            f"הנוכחי (r={r}). ")
+            if nf.get("observed_he"):
+                obs += _esc(nf["observed_he"])
         elif key == "pumped":
             scores = ", ".join(f"{m['score']:.0f}%" for m in members)
             obs += (f"התחנות אינן על הערוץ אך יורשות את מי הנחל דרך שאיבה "
