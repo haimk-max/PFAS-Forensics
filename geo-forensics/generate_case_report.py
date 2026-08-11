@@ -396,19 +396,24 @@ def _fig_similarity(sim, lab, fam_of):
         textfont=dict(size=9, color="rgba(20,20,20,0.75)"),
         customdata=[[f"{lab[i]} ↔ {lab[j]}" for j in range(n)] for i in range(n)],
         hovertemplate="%{customdata}<br>%{z:.0f}%<extra></extra>"))
-    # family strip along the right axis (x=0 column)
+    # family strips along BOTH axes (row strip at x=0.2, column strip at
+    # y=0.2 — the reversed y-axis puts it on top), so a crossing can be
+    # followed from either direction
+    strip_colors = [FAMILIES[fam_of.get(s, "other")]["color"] for s in lab]
+    strip_text = [f"{s} — {FAMILIES[fam_of.get(s, 'other')]['name_he']}"
+                  for s in lab]
     fig.add_trace(go.Scatter(
         x=[0.2] * n, y=pos, mode="markers",
-        marker=dict(symbol="square", size=11,
-                    color=[FAMILIES[fam_of.get(s, "other")]["color"]
-                           for s in lab]),
-        text=[f"{s} — {FAMILIES[fam_of.get(s, 'other')]['name_he']}"
-              for s in lab],
-        hoverinfo="text", showlegend=False))
+        marker=dict(symbol="square", size=11, color=strip_colors),
+        text=strip_text, hoverinfo="text", showlegend=False))
+    fig.add_trace(go.Scatter(
+        x=pos, y=[0.2] * n, mode="markers",
+        marker=dict(symbol="square", size=11, color=strip_colors),
+        text=strip_text, hoverinfo="text", showlegend=False))
     fig.update_layout(
         font=_FONT, template="plotly_white",
         height=max(460, 24 * n + 150),
-        xaxis=dict(title="מס' תחנה (ראו מקרא; פס-הצבע = משפחת-הסעה)",
+        xaxis=dict(title="מס' תחנה (ראו מקרא; פסי-הצבע = משפחת-הסעה)",
                    side="bottom", tickvals=pos, ticktext=nums,
                    range=[-0.4, n + 0.6], tickfont=dict(size=10)),
         yaxis=dict(autorange="reversed", tickvals=pos, ticktext=nums,
@@ -747,13 +752,20 @@ _FAM_JS = r"""
     });
   }
 
+  function stationChecked(n){
+    var box = document.querySelector(
+      '.simsel[data-station="' + CSS.escape(n) + '"]');
+    return !box || box.checked;
+  }
+
   function applySim(){
     var el = document.getElementById("figsim");
     if (!el) return;
     var idx = [];
-    D.simLabels.forEach(function(n, i){ if (active[famOf(n)]) idx.push(i); });
+    D.simLabels.forEach(function(n, i){
+      if (active[famOf(n)] && stationChecked(n)) idx.push(i); });
     var k = idx.length;
-    if (!k) return;
+    if (k < 2) return;  // a similarity matrix needs at least two stations
     var pos = []; for (var q = 1; q <= k; q++) pos.push(q);
     var nums = idx.map(function(i){ return String(i + 1); });
     var z = idx.map(function(i){
@@ -770,13 +782,17 @@ _FAM_JS = r"""
       textfont:{size:9, color:"rgba(20,20,20,0.75)"},
       customdata:cust,
       hovertemplate:"%{customdata}<br>%{z:.0f}%<extra></extra>"};
-    var strip = {type:"scatter", mode:"markers",
+    var cols = idx.map(function(i){ return D.famColors[famOf(D.simLabels[i])]; });
+    var txts = idx.map(function(i){
+      return D.simLabels[i] + " — " + D.famNames[famOf(D.simLabels[i])]; });
+    var stripY = {type:"scatter", mode:"markers",
       x:pos.map(function(){ return 0.2; }), y:pos,
-      marker:{symbol:"square", size:11,
-        color:idx.map(function(i){ return D.famColors[famOf(D.simLabels[i])]; })},
-      text:idx.map(function(i){
-        return D.simLabels[i] + " — " + D.famNames[famOf(D.simLabels[i])]; }),
-      hoverinfo:"text", showlegend:false};
+      marker:{symbol:"square", size:11, color:cols},
+      text:txts, hoverinfo:"text", showlegend:false};
+    var stripX = {type:"scatter", mode:"markers",
+      x:pos, y:pos.map(function(){ return 0.2; }),
+      marker:{symbol:"square", size:11, color:cols},
+      text:txts, hoverinfo:"text", showlegend:false};
     var lay = JSON.parse(JSON.stringify(el.layout || {}));
     lay.xaxis = lay.xaxis || {};  lay.yaxis = lay.yaxis || {};
     lay.xaxis.tickvals = pos; lay.xaxis.ticktext = nums;
@@ -784,7 +800,7 @@ _FAM_JS = r"""
     lay.yaxis.tickvals = pos; lay.yaxis.ticktext = nums;
     lay.yaxis.autorange = "reversed";
     lay.height = Math.max(380, 24 * k + 150);
-    Plotly.react("figsim", [heat, strip], lay,
+    Plotly.react("figsim", [heat, stripY, stripX], lay,
       {responsive:true, displayModeBar:false});
   }
 
@@ -837,9 +853,24 @@ _FAM_JS = r"""
       active[ch.dataset.fam] = true; ch.classList.add("on"); });
     apply();
   });
+  // per-station selection (matrix legend checkboxes)
+  document.querySelectorAll(".simsel").forEach(function(box){
+    box.addEventListener("change", applySim);
+  });
+  var selAll = document.getElementById("simselall");
+  if (selAll) selAll.addEventListener("click", function(){
+    document.querySelectorAll(".simsel").forEach(function(b){ b.checked = true; });
+    applySim();
+  });
+  var selNone = document.getElementById("simselnone");
+  if (selNone) selNone.addEventListener("click", function(){
+    document.querySelectorAll(".simsel").forEach(function(b){ b.checked = false; });
+    applySim();
+  });
   window.addEventListener("beforeprint", function(){
     chips.forEach(function(ch){
       active[ch.dataset.fam] = true; ch.classList.add("on"); });
+    document.querySelectorAll(".simsel").forEach(function(b){ b.checked = true; });
     apply();
   });
 })();
@@ -888,6 +919,12 @@ font-family:inherit;opacity:.55}
 .decide{font-size:.88rem;color:var(--ink2);background:#faf8f4;
 border-right:3px solid var(--warn);padding:7px 12px;margin:6px 0 18px}
 .provnote{font-size:.78rem;color:var(--ink3);font-style:italic;margin:4px 0 14px}
+.simsel-bar{display:flex;gap:8px;align-items:center;margin:8px 0 4px;flex-wrap:wrap}
+.simsel-btn{border:1.5px solid var(--line);background:#fff;color:var(--ink2);
+border-radius:7px;padding:3px 12px;font-size:.8rem;cursor:pointer;font-family:inherit}
+.simsel-btn:hover{border-color:#b9b5ad}
+.simsel-hint{font-size:.75rem;color:var(--ink3)}
+.simsel{cursor:pointer}
 .csm{padding:6px 2px}
 .csm-src{background:#f3ecf7;border:1.5px solid #7a3d9e;border-radius:9px;
 padding:10px 14px;font-size:.95rem;text-align:center}
@@ -908,6 +945,7 @@ font-size:.9rem;margin-bottom:5px}
   .csm-card{page-break-inside:avoid}.decide{page-break-inside:avoid}
   p{orphans:2;widows:2}
   .draft{display:none}.fambar{display:none}
+  .simsel{display:none}.simsel-bar{display:none}
 }
 """
 
@@ -1014,7 +1052,9 @@ def main(region_name):
     S.extend(_findings_family_sections(data, fam_of, nar_families))
     me_idx = data["max_event"].set_index("station_name")
     legend_rows = "".join(
-        f"<tr><td>{i + 1}</td>"
+        f'<tr><td><input type="checkbox" class="simsel" '
+        f'data-station="{_esc(s)}" checked></td>'
+        f"<td>{i + 1}</td>"
         f'<td><span class="famdot" style="background:'
         f'{FAMILIES[fam_of.get(s, "other")]["color"]}"></span>{_esc(s)}</td>'
         f"<td>{me_idx.loc[s, 'total_concentration']:.3f}</td></tr>"
@@ -1022,11 +1062,17 @@ def main(region_name):
     S.append(
         f'<div class="figure">{_plot(fig_sim, "figsim")}'
         f'<div class="figcap">איור 3: מטריצת דמיון קוסינוס — {n_sim} '
-        f'תחנות מעל סף-האות, ממוספרות ומסודרות באשכולות; פס-הצבע השמאלי '
-        f'מסמן את משפחת-ההסעה (המספרים מפוענחים במקרא למטה).</div>'
-        f'<details style="margin-top:8px"><summary style="cursor:pointer;'
-        f'font-size:.85rem;color:#4a4f57">מקרא מספור התחנות (לחצו להרחבה)</summary>'
-        f'<table style="font-size:.8rem"><tr><th>#</th><th>תחנה</th>'
+        f'תחנות מעל סף-האות, ממוספרות ומסודרות באשכולות; פסי-הצבע בשני '
+        f'הצירים מסמנים את משפחת-ההסעה. בחירת תחנות בודדות — במקרא למטה; '
+        f'סינון לפי משפחה — בסרגל שבראש הפרק.</div>'
+        f'<details open style="margin-top:8px"><summary style="cursor:pointer;'
+        f'font-size:.85rem;color:#4a4f57">מקרא מספור התחנות ובחירתן</summary>'
+        f'<div class="simsel-bar">'
+        f'<button type="button" id="simselall" class="simsel-btn">סמן הכל</button>'
+        f'<button type="button" id="simselnone" class="simsel-btn">נקה הכל</button>'
+        f'<span class="simsel-hint">סימון/ביטול תחנה מעדכן את המטריצה מיד '
+        f'(נדרשות לפחות שתיים)</span></div>'
+        f'<table style="font-size:.8rem"><tr><th></th><th>#</th><th>תחנה</th>'
         f'<th>Σ (µg/L)</th></tr>{legend_rows}</table></details></div>')
     # cluster interpretation prose — chemistry vs. transport families
     if sim_clusters:
