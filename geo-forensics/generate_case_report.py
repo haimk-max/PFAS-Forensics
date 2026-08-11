@@ -560,13 +560,18 @@ def _findings_overview(data):
     return para + " הפריסה המרחבית מוצגת באיור 1."
 
 
+def _sig_he(v):
+    """Σ formatting that keeps small values distinguishable."""
+    return f"{v:,.3f}" if v < 0.1 else f"{v:,.2f}"
+
+
 def _sigma_range_he(members):
     if not members:
         return ""
     lo, hi = members[-1]["sigma"], members[0]["sigma"]
-    if len(members) == 1:
-        return f"Σ={hi:,.2f}"
-    return f"Σ בין {lo:,.2f} ל-{hi:,.2f}"
+    if len(members) == 1 or _sig_he(lo) == _sig_he(hi):
+        return f"Σ≈{_sig_he(hi)}"
+    return f"Σ בין {_sig_he(lo)} ל-{_sig_he(hi)}"
 
 
 def _findings_family_sections(data, fam_of, nar_families):
@@ -622,11 +627,14 @@ def _findings_family_sections(data, fam_of, nar_families):
         if key == "focus":
             anchor = c.get("anchor_station")
             if anchor and anchor in me.index:
+                a_val = float(me.loc[anchor, "total_concentration"])
                 obs += (f'העוצמה המרבית נמדדה בתחנת-העוגן "{_esc(anchor)}" — '
-                        f'{float(me.loc[anchor, "total_concentration"]):,.0f} '
+                        f"{_sig_he(a_val)} "
                         f"מיקרוגרם לליטר, מדידה שאושרה כמייצגת אזור-מקור ידוע. ")
-            obs += ("מדידות-המוצא הרגעיות שבמשפחה מוצגות אך מוחרגות "
-                    "מרגרסיות-העומס — מדידת הבריכה היא המייצגת.")
+            outfalls = data["region"].get("outfalls") or {}
+            if any(o.get("momentary") for o in outfalls.values()):
+                obs += ("מדידות-המוצא הרגעיות שבמשפחה מוצגות אך מוחרגות "
+                        "מרגרסיות-העומס — מדידת נקודת-האיסוף היא המייצגת.")
         elif key == "stream":
             obs += ("התחנות יושבות על מסלול הנגר שנגזר ממודל הגבהים — רציפות "
                     "הידראולית ממשית, לא קרבה גיאוגרפית. ")
@@ -660,10 +668,21 @@ def _findings_family_sections(data, fam_of, nar_families):
             obs += ("החוליה האמצעית — קולחי המט\"ש עצמם — טרם נדגמה, ולכן "
                     "השרשרת מוצהרת אך לא סגורה מדידתית.")
         elif key == "cascade":
-            obs += ("בקידוחים ניכרת העשרה יחסית בתרכובות קצרות-שרשרת "
-                    "וניידות לעומת מי הנחל הסמוכים — דפוס-המיון הצפוי ממעבר "
-                    "דרך תווך נקבובי (מבחן-ההבחנה של D1). זהו נתיב מועמד: "
-                    "אינו נספר כראיה ישירה ואינו ראיית-נגד.")
+            # Case-specific empirical comparisons (e.g. hagit's short-chain
+            # enrichment vs. adjacent stream water) live in the case
+            # narrative (observed_he), NEVER here — hard-coding one case's
+            # finding printed it verbatim in another case (caught by the
+            # user, 2026-08-11).
+            if nf.get("observed_he"):
+                obs += _esc(nf["observed_he"]) + " "
+            has_paired_water = c.get("n_surface_down", 0) > 0
+            if not has_paired_water:
+                obs += ("בתיק זה אין דיגום מי-ערוץ על המסלול, ולכן "
+                        "מבחן-הפרקציונציה (השוואת הרכב מזווגת קידוח–ערוץ) "
+                        "אינו ניתן ליישום בנתונים הקיימים — זהו בדיוק יעד "
+                        "הדיגום המזווג שבהמלצות. ")
+            obs += ("זהו נתיב מועמד: אינו נספר כראיה ישירה ואינו "
+                    "ראיית-נגד.")
         elif key == "gw":
             comp = {}
             for m in members:
@@ -675,8 +694,7 @@ def _findings_family_sections(data, fam_of, nar_families):
                 comp_he += f", במעלה: {comp['up']}"
             obs += (f"פילוח המדרגות (k={GW_PLUME_K}): {comp_he}. "
                     f"תחנות מדרגות 1–2 נספרות; מדרגה 3 — תמיכה חלשה בלבד; "
-                    f"מדרגה 4 עם זיהום היא ממצא המחייב הסבר אחר — כך אותר "
-                    f"בשעתו המקור הנפרד בקיסריה.")
+                    f"מדרגה 4 עם זיהום היא ממצא המחייב הסבר אחר.")
         elif key == "other":
             obs += ("תחנות אלו אינן משויכות לאף נתיב-הסעה של המועמד: פרופיל "
                     "דומה בהן אינו נספר לזכות המועמד — הוא נרשם כראיית-נגד "
