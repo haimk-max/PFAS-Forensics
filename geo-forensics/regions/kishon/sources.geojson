@@ -1,4 +1,34 @@
 {
   "type": "FeatureCollection",
-  "features": []
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          35.0,
+          32.6
+        ]
+      },
+      "properties": {
+        "id": "ramat_david_fftf",
+        "name_he": "בסיס רמת דוד — אזור אימוני כיבוי-אש (מוסק משלב א')",
+        "itm": [
+          217616.0,
+          730361.0
+        ],
+        "kind": "airbase_firefighting",
+        "location_quality": "inferred_from_data — מיקום תחנת-הניקוז 'רמת דוד - כיבוי אש'; אין קואורדינטה רשמית ואין אישור-משתמש",
+        "expected_profiles": [
+          "afff_ecf_fresh",
+          "afff_ecf_weathered"
+        ],
+        "emission_evidence": [
+          "שם התחנה בקובץ הרשות מציין אזור כיבוי-אש בבסיס רמת דוד",
+          "בסיס חיל-אוויר פעיל — מידע פומבי על קיום מערך כיבוי; פרטי הקצף והאירועים טרם בוררו"
+        ],
+        "evidence_tier": "public_info"
+      }
+    }
+  ]
 }
