@@ -22,7 +22,15 @@ import os
 
 import pandas as pd
 
-from config import GW_PLUME_K, MIN_SIGNAL_UG_L
+from config import (
+    GW_PLUME_K,
+    JUNCTION_MARKER_JUMP_PP,
+    JUNCTION_PREC_DEPLETED_PP,
+    JUNCTION_PREC_REBOUND_PP,
+    JUNCTION_RISE_FACTOR,
+    JUNCTION_SIM_REBOUND_PP,
+    MIN_SIGNAL_UG_L,
+)
 from src.flow_model import ASSUMED, DemFlowModel, UniformFlowAssumption
 from src.source_profiles import PRECURSORS, match_profiles
 
@@ -36,6 +44,84 @@ _ATTEN_MIN_N = 4
 # Station source_types transported by surface runoff; everything else
 # (wells, springs) is treated as groundwater-domain.
 SURFACE_TYPES = {"נקודה מזוהה בנחל", "תחנה הידרומטרית", "מאגר"}
+
+# Stable terminal markers for the junction-load ratio test: shares of these
+# compounds are conservative under transport, so a between-reach jump flags
+# added load even from a similar-composition (same-family) second source.
+_JUNCTION_MARKERS = ("PFOA", "PFOS")
+
+
+def _cos_sim(a, b):
+    num = float((a * b).sum())
+    den = math.sqrt(float((a * a).sum())) * math.sqrt(float((b * b).sum()))
+    return 100.0 * num / den if den > 0 else 0.0
+
+
+def junction_scan(series, fingerprint, head_name):
+    """Junction-load test (approved 2026-08-11): scan a flow stem for
+    segment anomalies that indicate load joining between consecutive
+    stations — signals a SIMILAR-composition second source would still
+    trip, because they work on ratios and monotonicity, not on overall
+    similarity:
+
+      1. local Σ rise (next/prev ≥ JUNCTION_RISE_FACTOR) even when the
+         global trend decays;
+      2. similarity-to-head rebound (≥ JUNCTION_SIM_REBOUND_PP above the
+         running minimum) — weathering must not move a station CLOSER to
+         the source profile;
+      3. stable-marker share jump (PFOA/PFOS, ≥ JUNCTION_MARKER_JUMP_PP
+         and at least doubled);
+      4. precursor-share return after depletion (fresh markers cannot
+         reappear downstream without fresh input).
+
+    series: ordered [{"km", "station", "sigma"}] along the stem (signal
+    stations only). fingerprint: normalized %-composition matrix.
+    head_name: reference profile (anchor / most source-adjacent station).
+    Returns [{"segment", "km", "signals"}] — one entry per flagged segment.
+    """
+    rows = [d for d in series if d["station"] in fingerprint.index]
+    if len(rows) < 2 or head_name not in fingerprint.index:
+        return []
+    prec_cols = [c for c in fingerprint.columns
+                 if c.upper() in {p.upper() for p in PRECURSORS}]
+    head = fingerprint.loc[head_name]
+
+    def prec_share(s):
+        return float(fingerprint.loc[s, prec_cols].sum()) if prec_cols else 0.0
+
+    sims = [_cos_sim(fingerprint.loc[d["station"]], head) for d in rows]
+    findings = []
+    run_min_sim = sims[0]
+    run_min_prec = prec_share(rows[0]["station"])
+    for i in range(1, len(rows)):
+        a, b = rows[i - 1], rows[i]
+        signals = []
+        if a["sigma"] > 0 and b["sigma"] / a["sigma"] >= JUNCTION_RISE_FACTOR:
+            signals.append(f"עליית Σ מקומית פי {b['sigma'] / a['sigma']:.1f} "
+                           f"({a['sigma']:.3f}←{b['sigma']:.3f})")
+        if sims[i] >= run_min_sim + JUNCTION_SIM_REBOUND_PP:
+            signals.append(f"עליית דמיון-למוקד במורד ({run_min_sim:.0f}%←"
+                           f"{sims[i]:.0f}%) — הפרת מונוטוניות-הבליה")
+        for m in _JUNCTION_MARKERS:
+            if m in fingerprint.columns:
+                ma = float(fingerprint.loc[a["station"], m])
+                mb = float(fingerprint.loc[b["station"], m])
+                if mb - ma >= JUNCTION_MARKER_JUMP_PP and mb >= 2 * ma:
+                    signals.append(f"קפיצת נתח {m}: {ma:.1f}%←{mb:.1f}%")
+        pb = prec_share(b["station"])
+        if run_min_prec <= JUNCTION_PREC_DEPLETED_PP and \
+                pb >= run_min_prec + JUNCTION_PREC_REBOUND_PP:
+            signals.append(f"שיבת קדם-חומרים במורד ({run_min_prec:.1f}%←"
+                           f"{pb:.1f}%)")
+        if signals:
+            findings.append({
+                "segment": (a["station"], b["station"]),
+                "km": (a["km"], b["km"]),
+                "signals": signals,
+            })
+        run_min_sim = min(run_min_sim, sims[i])
+        run_min_prec = min(run_min_prec, prec_share(b["station"]))
+    return findings
 
 
 def load_region(name: str) -> dict:
@@ -236,7 +322,13 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             # must NOT head the stream series — its load leaves via the WWTP
             # line (corrected per user 2026-07-27).
             for s in stn_total:
-                if _outfall_to(s) == "stream" and s not in {x for _, x in atten_pts}:
+                # momentary-outlet measurements are excluded from load
+                # regressions BY DECLARATION — the head insertion must
+                # honor that too (bug surfaced by the junction scan,
+                # 2026-08-11: a momentary outlet re-entered as series head)
+                if _outfall_to(s) == "stream" \
+                        and not outfalls.get(s, {}).get("momentary") \
+                        and s not in {x for _, x in atten_pts}:
                     d0 = math.hypot(stn_xy[s][0] - sx, stn_xy[s][1] - sy)
                     if d0 <= 1000:
                         atten_pts.append((max(d0, 100.0), s))
@@ -258,6 +350,25 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                 if any(v > 0 for v in prec_vals):
                     r_prec = float(spearmanr(dists, prec_vals).statistic)
                     attenuation["r_precursor"] = round(r_prec, 2)
+
+        # --- junction-load test (approved 2026-08-11) ---
+        # Runs on true path distances only; the reference profile is the
+        # confirmed anchor, or failing that the most source-adjacent
+        # signal station.
+        junction_findings = []
+        if attenuation["basis"] == "path_dem" and len(atten_pts) >= 3:
+            series = sorted(
+                [{"km": d / 1000, "station": s, "sigma": stn_total[s]}
+                 for d, s in atten_pts], key=lambda x: x["km"])
+            head_ref = anchor if (anchor and anchor in fingerprint.index) \
+                else next(iter(sorted(
+                    (s for s in stn_xy
+                     if stn_total[s] >= MIN_SIGNAL_UG_L
+                     and s in fingerprint.index),
+                    key=lambda s: math.hypot(stn_xy[s][0] - sx,
+                                             stn_xy[s][1] - sy))), None)
+            if head_ref:
+                junction_findings = junction_scan(series, fingerprint, head_ref)
 
         emission = src.get("emission_evidence", [])
         ev_tier = src.get("evidence_tier", "none")
@@ -330,6 +441,17 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             evidence_for.append(
                 f"הזדקנות פרופיל נצפית: נתח קדם-חומרים יורד במורד "
                 f"(r={attenuation['r_precursor']}) — עקבי עם התרחקות מהמקור")
+        if junction_findings:
+            _sem = region.get("dataset_semantics", {})
+            _caveat = ("; סייג: חתך לא בו-זמני (KI/A-סמנטיקה)"
+                       if _sem.get("simultaneous") is False else "")
+            for jf in junction_findings:
+                evidence_against.append(
+                    f"אינדיקציית הצטרפות-עומס במקטע "
+                    f"\"{jf['segment'][0]}\"←\"{jf['segment'][1]}\" "
+                    f"({jf['km'][0]:.1f}–{jf['km'][1]:.1f} ק\"מ): "
+                    + "; ".join(jf["signals"])
+                    + " — עקבי עם מקור/יובל נוסף במקטע" + _caveat)
         if emission:
             evidence_for.append("ראיית פליטה: " + "; ".join(emission) +
                                 f" [רמה: {ev_tier}]")
@@ -407,6 +529,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             "chem_share_weighted": round(chem_share_weighted, 2),
             "chem_hits": chem_hits,
             "attenuation": attenuation,
+            "junction_findings": junction_findings,
             "anchor_station": anchor,
             "emission_evidence": emission,
             "flow_caveat": f"עילי: {flow_surface.describe_he()} | תהום: {flow_gw.describe_he()}",

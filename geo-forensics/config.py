@@ -48,6 +48,15 @@ MIN_SIGNAL_UG_L = 0.01
 # dispersivities; will be calibrated against measured heads (S3).
 GW_PLUME_K = 0.2
 
+# --- Junction-load test thresholds (approved 2026-08-11) ---
+# Segment anomalies along a flow stem that indicate load joining between
+# consecutive stations. Declared, calibratable.
+JUNCTION_RISE_FACTOR = 2.0      # local Sigma rise: next/prev ratio above this
+JUNCTION_SIM_REBOUND_PP = 15.0  # similarity-to-head rebound (percent points)
+JUNCTION_MARKER_JUMP_PP = 5.0   # stable-marker (PFOA/PFOS) share jump (pp)
+JUNCTION_PREC_REBOUND_PP = 5.0  # precursor-share return after depletion (pp)
+JUNCTION_PREC_DEPLETED_PP = 2.0 # "depleted" precursor level (pp)
+
 # --- Data Defaults ---
 MAX_UPLOAD_SIZE_MB = 50
 SUPPORTED_EXTENSIONS = [".xlsx", ".xls", ".csv"]

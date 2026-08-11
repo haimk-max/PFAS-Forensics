@@ -661,7 +661,13 @@ def _findings_family_sections(data, fam_of, nar_families):
                     obs += (f"דעיכת הריכוז המוחלט אינה חד-משמעית בחתך "
                             f"הנוכחי (r={r}). ")
             if nf.get("observed_he"):
-                obs += _esc(nf["observed_he"])
+                obs += _esc(nf["observed_he"]) + " "
+            for jf in c.get("junction_findings", []):
+                obs += (f'מבחן הצטרפות-העומס מסמן את המקטע '
+                        f'"{_esc(jf["segment"][0])}"←"{_esc(jf["segment"][1])}" '
+                        f'({jf["km"][0]:.1f}–{jf["km"][1]:.1f} ק"מ): '
+                        + "; ".join(_esc(s) for s in jf["signals"])
+                        + " — אינדיקציה לעומס מצטרף, לא הוכחה. ")
         elif key == "pumped":
             scores = ", ".join(f"{m['score']:.0f}%" for m in members)
             obs += (f"התחנות אינן על הערוץ אך יורשות את מי הנחל דרך שאיבה "
@@ -1229,6 +1235,24 @@ def main(region_name):
         # the conclusions, not only in the findings chapter (user-caught
         # omission, 2026-08-11: kesariya's conclusions had no trace of the
         # Or-Akiva channel pathway).
+        # Junction-load indications are picture-changing: they bound how
+        # much of the downstream picture the single candidate explains.
+        if c.get("junction_findings"):
+            n_c += 1
+            segs = "; ".join(
+                f'"{_esc(jf["segment"][0])}"←"{_esc(jf["segment"][1])}" '
+                f'({jf["km"][0]:.1f}–{jf["km"][1]:.1f} ק"מ)'
+                for jf in c["junction_findings"])
+            body = (f"<b>{n_c}. אינדיקציות הצטרפות-עומס.</b> מבחן-הצמתים "
+                    f"מסמן מקטעים שבהם דפוס הריכוז או ההרכב אינו מוסבר "
+                    f"בהסעה מן המוקד בלבד: {segs}. אלו אינדיקציות ולא "
+                    f"הוכחות — בחתך לא בו-זמני חלקן עשוי לשקף מועדי-דיגום "
+                    f"שונים — אך הן תוחמות את מה שהמועמד היחיד מסביר, "
+                    f"וההכרעה בהן היא דיגום-צמתים מזווג: מעל ומתחת לכל "
+                    f"ענף מצטרף באותו חלון-זמן.")
+            S.append(f'<div class="concl"><p>{_bdi(body)} '
+                     f'{_conf("נמוכה", "מבחן-מקטעים על חתך לא בו-זמני")}'
+                     f'</p></div>')
         if c.get("cascade_candidates"):
             n_c += 1
             casc_names = _list_he(
