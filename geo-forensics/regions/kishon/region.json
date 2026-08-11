@@ -1,0 +1,49 @@
+{
+  "name": "kishon",
+  "name_he": "מערכת הקישון — רמת דוד ועמק יזרעאל",
+  "crs": "EPSG:2039",
+  "bbox_itm": [
+    204000,
+    713000,
+    229000,
+    745000
+  ],
+  "bbox_note_he": "ה-bbox מחריג את 'קישון - גשר קרית חרושת טבעון' (x=299,943 — חריגה של ~75 ק\"מ מזרחה מהאשכול; חשד לשגיאת-הקלדה). הסגר-נתונים עד תיקון — טענה KI-A1.",
+  "measurement_file": "data/sample/נתוני קישון.xlsx",
+  "dataset_semantics": {
+    "snapshot_rule": "מדידת Σ המקסימלית פר תחנה (לוגיקת max-event של ה-loader)",
+    "date_span": "2020-07 עד 2025-12",
+    "simultaneous": false,
+    "steady_state_assumed": true,
+    "provenance": "הצהרת-מודל 2026-08-11 לפי מבנה הקובץ (חציון 2 אירועי-דיגום לתחנה) — ממתינה לאישור המשתמש"
+  },
+  "flow": {
+    "surface": {
+      "direction_deg": 315,
+      "tier": "assumed",
+      "declared_by": "מודל — הנחה גיאוגרפית ראשונית (ניקוז עמק יזרעאל למפרץ חיפה); נגזרת-DEM תידרוס אוטומטית",
+      "declared_on": "2026-08-11",
+      "notes_he": "fallback בלבד — derived/flow_paths.json נטען אוטומטית כשקיים."
+    },
+    "groundwater": {
+      "direction_deg": 315,
+      "tier": "assumed",
+      "declared_by": "מודל — הנחה גיאוגרפית ראשונית, לאישור/תיקון המשתמש (KI-A2)",
+      "declared_on": "2026-08-11",
+      "notes_he": "הנחת-עבודה בלבד; תקרת-ההנחה חלה על כל ראיה נספרת הנשענת עליה."
+    }
+  },
+  "report_narrative": {
+    "updated": "2026-08-11"
+  },
+  "layers": [
+    {
+      "path": "sources.geojson",
+      "kind": "potential_sources",
+      "source": "שלב א' — ריק בכוונה (מבחן-עיוורון: אין מועמדים מוצהרים)",
+      "fetched_at": "2026-08-11",
+      "quality": "stage_a_empty",
+      "notes_he": "מועמד יוכרז רק בשלב ב', אחרי תיעוד ממצאי שלב א'."
+    }
+  ]
+}
