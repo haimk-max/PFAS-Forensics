@@ -312,7 +312,16 @@ def _fig_map(data, fam_of):
             ys.append(float(row["y_itm"]) / 1000)
             extra = ""
             if fk == "gw" and s["name"] in gw_tiers:
-                extra = f"<br>מדרגת-עננה: {gw_tiers[s['name']]['tier']}"
+                gt = gw_tiers[s["name"]]
+                extra = f"<br>מדרגת-עננה: {gt['tier']}"
+                if gt.get("tier_best"):
+                    extra += (f" (מטושטש-שאיבה: עד {gt['tier_best']} "
+                              f"ברדיוס-לכידה)")
+                wc = gt.get("well_class")
+                if wc == "production":
+                    extra += "<br>קידוח הפקה — ריכוז = חסם-תחתון"
+                elif wc == "monitoring":
+                    extra += "<br>קידוח ניטור"
             texts.append(f"{s['name']}<br>Σ={s['sigma']:.3f} µg/L"
                          f"<br>{s['profile']} ({s['score']:.0f}%)"
                          f"<br>{style['name_he']}{extra}")
@@ -713,16 +722,29 @@ def _findings_family_sections(data, fam_of, nar_families):
                     "ראיית-נגד.")
         elif key == "gw":
             comp = {}
+            n_prod = 0
             for m in members:
-                t = gw_tiers.get(m["name"], {}).get("tier", "?")
+                gt = gw_tiers.get(m["name"], {})
+                t = gt.get("tier", "?")
                 comp[t] = comp.get(t, 0) + 1
+                if gt.get("well_class") == "production":
+                    n_prod += 1
             comp_he = ", ".join(f"מדרגה {t}: {n}" for t, n in
                                 sorted(comp.items()) if t not in ("up",))
             if comp.get("up"):
                 comp_he += f", במעלה: {comp['up']}"
             obs += (f"פילוח המדרגות (k={GW_PLUME_K}): {comp_he}. "
-                    f"תחנות מדרגות 1–2 נספרות; מדרגה 3 — תמיכה חלשה בלבד; "
-                    f"מדרגה 4 עם זיהום היא ממצא המחייב הסבר אחר.")
+                    f"תחנות מדרגות 1–2 נספרות; מדרגה 3 — תמיכה חלשה בלבד. ")
+            if n_prod:
+                obs += (f"{n_prod} מתחנות המשפחה הם קידוחי-הפקה: דגימתם "
+                        f"משקללת אזור-לכידה בלתי-מוגדר שיוצרת השאיבה, ולכן "
+                        f"מדרגתם מדווחת כטווח 'מטושטש-שאיבה' (עד רדיוס "
+                        f"מוצהר של 500 מ', גס) וריכוזם הוא חסם-תחתון בשל "
+                        f"מיהול. ")
+            obs += ("כלל 'מדרגה 4 עם זיהום = ממצא המחייב הסבר אחר' חל על "
+                    "קידוחי-ניטור; בקידוח-הפקה הממצא המקביל הוא 'זיהום "
+                    "בתחום אזור-הלכידה' — והצעד הנגזר הוא חיבוק "
+                    "בקידוחי-ניטור.")
         elif key == "other":
             obs += ("תחנות אלו אינן משויכות לאף נתיב-הסעה של המועמד: פרופיל "
                     "דומה בהן אינו נספר לזכות המועמד — הוא נרשם כראיית-נגד "

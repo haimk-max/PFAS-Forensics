@@ -78,7 +78,8 @@ class UniformFlowAssumption:
         return dx * math.sin(rad) + dy * math.cos(rad)
 
     def plausibility(self, station_xy, source_xy,
-                     k: float = 0.2) -> tuple[float, str]:
+                     k: float = 0.2,
+                     lateral_slack_m: float = 0.0) -> tuple[float, str]:
         """Graded hydro-plausibility under transverse-dispersion physics.
 
         A plume in uniform flow is narrow: Gaussian lateral decay
@@ -100,11 +101,15 @@ class UniformFlowAssumption:
         L = self.downgradient_distance_m(station_xy, source_xy)
         if L <= 0:
             return 0.0, "up"
-        # lateral offset = component perpendicular to the flow axis
+        # lateral offset = component perpendicular to the flow axis.
+        # lateral_slack_m > 0 gives the BEST tier within that radius of the
+        # point — used for production wells, whose pumping capture zone
+        # blurs the sampling location (approved 2026-08-12).
         dx = station_xy[0] - source_xy[0]
         dy = station_xy[1] - source_xy[1]
         rad = math.radians(self.direction_deg)
-        W = abs(dx * math.cos(rad) - dy * math.sin(rad))
+        W = max(0.0, abs(dx * math.cos(rad) - dy * math.sin(rad))
+                - lateral_slack_m)
         sigma = k * L
         w = math.exp(-(W * W) / (2 * sigma * sigma)) if sigma > 0 else 0.0
         if w >= 0.6:

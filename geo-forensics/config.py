@@ -48,6 +48,16 @@ MIN_SIGNAL_UG_L = 0.01
 # dispersivities; will be calibrated against measured heads (S3).
 GW_PLUME_K = 0.2
 
+# --- Well classification (approved 2026-08-12) ---
+# Water Authority naming convention: monitoring wells are point sensors;
+# production wells integrate an ill-defined pumping capture zone. Names win;
+# an explicit source_type is the fallback for unprefixed names.
+WELL_MONITORING_PREFIXES = ("נד", "נת", "מח")
+WELL_PRODUCTION_PREFIXES = ("פ", "מק")
+# Coarse declared capture radius for the "pumping-blurred" tier range —
+# placeholder until heads/discharge data (user deferred pumping rates).
+PRODUCTION_CAPTURE_RADIUS_M = 500.0
+
 # --- Junction-load test thresholds (approved 2026-08-11) ---
 # Segment anomalies along a flow stem that indicate load joining between
 # consecutive stations. Declared, calibratable.

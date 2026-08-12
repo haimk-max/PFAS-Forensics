@@ -30,6 +30,9 @@ from config import (
     JUNCTION_RISE_FACTOR,
     JUNCTION_SIM_REBOUND_PP,
     MIN_SIGNAL_UG_L,
+    PRODUCTION_CAPTURE_RADIUS_M,
+    WELL_MONITORING_PREFIXES,
+    WELL_PRODUCTION_PREFIXES,
 )
 from src.flow_model import ASSUMED, DemFlowModel, UniformFlowAssumption
 from src.source_profiles import PRECURSORS, match_profiles
@@ -49,6 +52,27 @@ SURFACE_TYPES = {"נקודה מזוהה בנחל", "תחנה הידרומטרי�
 # compounds are conservative under transport, so a between-reach jump flags
 # added load even from a similar-composition (same-family) second source.
 _JUNCTION_MARKERS = ("PFOA", "PFOS")
+
+
+def classify_well(name, source_type=""):
+    """Well class by the Water Authority naming convention (approved
+    2026-08-12): monitoring wells (נד/נת/מח) sample a point; production
+    wells (פ/מק) integrate an ill-defined pumping capture zone. The name
+    prefix is primary; an explicit source_type ("קידוח ניטור"/"קידוח
+    הפקה") is the fallback for unprefixed names.
+    Returns 'monitoring' | 'production' | 'unknown'."""
+    tok = str(name).strip().split()[0] if str(name).strip() else ""
+    tok = tok.rstrip(".'’׳")
+    if tok in WELL_MONITORING_PREFIXES:
+        return "monitoring"
+    if tok in WELL_PRODUCTION_PREFIXES:
+        return "production"
+    st = str(source_type)
+    if "ניטור" in st:
+        return "monitoring"
+    if "הפקה" in st:
+        return "production"
+    return "unknown"
 
 
 def _cos_sim(a, b):
@@ -180,7 +204,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
     # (cases may share a measurement file — the split is by bbox).
     bbox = region.get("bbox_itm")
     outfalls = region.get("outfalls", {})
-    stn_xy, stn_total, stn_domain = {}, {}, {}
+    stn_xy, stn_total, stn_domain, stn_srctype = {}, {}, {}, {}
     for _, r in impacted.iterrows():
         if pd.notna(r.get("x_itm")) and pd.notna(r.get("y_itm")):
             name = r["station_name"]
@@ -192,6 +216,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             stn_domain[name] = ("surface"
                                if str(r.get("source_type", "")) in SURFACE_TYPES
                                else "groundwater")
+            stn_srctype[name] = str(r.get("source_type", ""))
 
     def _flow_for(s):
         return flow_surface if stn_domain.get(s) == "surface" else flow_gw
@@ -225,7 +250,19 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                     if isinstance(flow_gw, UniformFlowAssumption) else (
                         (1.0, "1") if flow_gw.upgradient_of(xy, (sx, sy))
                         else (0.0, "4"))
-                gw_tiers[s] = {"w": round(w, 3), "tier": t}
+                wc = classify_well(s, stn_srctype.get(s, ""))
+                gw_tiers[s] = {"w": round(w, 3), "tier": t, "well_class": wc}
+                # Production wells: pumping blurs the sampling location —
+                # report the BEST tier within the declared capture radius
+                # alongside the wellhead tier (approved 2026-08-12).
+                # Counting stays by the wellhead tier (conservative).
+                if wc == "production" and \
+                        isinstance(flow_gw, UniformFlowAssumption):
+                    _, t_best = flow_gw.plausibility(
+                        xy, (sx, sy), k=GW_PLUME_K,
+                        lateral_slack_m=PRODUCTION_CAPTURE_RADIUS_M)
+                    if t_best != t:
+                        gw_tiers[s]["tier_best"] = t_best
                 if t in ("1", "2"):
                     down_all.append(s)
         gw_fringe = [s for s, v in gw_tiers.items() if v["tier"] == "3"
@@ -483,6 +520,14 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                          for s in h.get("to_stations", [])}
         conditional = [s for s in strong_up if s in _hyp_stations]
         strong_up = [s for s in strong_up if s not in _hyp_stations]
+        # Production wells: capture geometry is soft (pumping radius
+        # undefined), so "similar profile elsewhere" is NOT counted as
+        # counter-evidence for them (approved 2026-08-12). Listed
+        # separately as an area-screen observation.
+        production_soft = [s for s in strong_up
+                           if classify_well(s, stn_srctype.get(s, ""))
+                           == "production"]
+        strong_up = [s for s in strong_up if s not in production_soft]
         if strong_up:
             evidence_against.append(
                 f"תחנות שאינן במורד האתר מציגות פרופיל דומה ({', '.join(strong_up[:3])}"
@@ -492,6 +537,13 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             evidence_against.append(
                 f"ראיית-נגד מותנית: {', '.join(conditional)} — פרופיל דומה שלא במורד, "
                 f"אך קיים חשד מוצהר להזנת-שאיבה (בבדיקה); אם יאושר — יעברו למורד")
+        if production_soft:
+            evidence_for.append(
+                f"תצפית-סריקה (לא ראיה ולא ראיית-נגד): קידוחי-הפקה עם פרופיל "
+                f"דומה שלא במורד — {', '.join(production_soft[:3])}"
+                + ("..." if len(production_soft) > 3 else "")
+                + f" — דגימתם משקללת אזור-לכידה בלתי-מוגדר; "
+                f"מומלץ חיבוק בקידוחי-ניטור")
 
         # Tier suggestion with the assumed-flow cap. The cap is keyed to the
         # weakest flow tier the evidence relies on: surface may be DEM-derived,
@@ -522,6 +574,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             "n_surface_down": n_surf_down, "n_gw_down": n_gw_down,
             "transfer_fed": transfer_fed,
             "conditional_counter": conditional,
+            "production_soft_similar": production_soft,
             "gw_tiers": gw_tiers, "gw_fringe": gw_fringe,
             "cascade_candidates": cascade_candidates,
             "weak_downgradient": weak_down,
