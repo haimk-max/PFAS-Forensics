@@ -1,156 +1,166 @@
 {
- "domain": "pfas",
- "provenance": "חולץ מ-src/source_profiles.py (2026-07-27) — תפר core/domain; משקולות heuristic מהספרות (ITRC; Barzen-Hanson 2017; Houtz 2013)",
- "precursors": [
-  "FOSA",
-  "82FTS",
-  "6:2FT"
- ],
- "profiles": [
-  {
-   "key": "afff_ecf_fresh",
-   "name_he": "AFFF ותיק (ECF) — טרי",
-   "state": "fresh",
-   "weights": {
-    "PFOS": 40,
-    "PFHxS": 15,
-    "6:2FT": 10,
-    "82FTS": 8,
-    "FOSA": 6,
-    "PFBS": 5,
-    "PFHxA": 5,
-    "PFOA": 4,
-    "PFHpS": 3,
-    "PFPeS": 2,
-    "PFDS": 2
-   },
-   "markers": [
+  "domain": "pfas",
+  "provenance": "חולץ מ-src/source_profiles.py (2026-07-27) — תפר core/domain; משקולות heuristic מהספרות (ITRC; Barzen-Hanson 2017; Houtz 2013)",
+  "precursors": [
     "FOSA",
     "82FTS",
-    "PFHxS"
-   ],
-   "notes_he": "קצף כיבוי מבוסס ECF (דור ישן): דומיננטיות PFOS+PFHxS עם קדם-חומרים נוכחים."
-  },
-  {
-   "key": "afff_ecf_weathered",
-   "name_he": "AFFF ותיק (ECF) — בלוי במורד",
-   "state": "weathered",
-   "weights": {
-    "PFOS": 45,
-    "PFHxS": 20,
-    "PFBS": 8,
-    "PFHxA": 10,
-    "PFOA": 8,
-    "PFPeA": 4,
-    "PFHpS": 2,
-    "FOSA": 1,
-    "6:2FT": 1,
-    "82FTS": 1
-   },
-   "markers": [
-    "PFHxS"
-   ],
-   "notes_he": "אותו מקור לאחר הסעה: קדם-חומרים התפרקו, סולפונטים יציבים שולטים."
-  },
-  {
-   "key": "afff_ft_modern",
-   "name_he": "AFFF פלואורוטלומרי (מודרני)",
-   "state": "fresh",
-   "weights": {
-    "6:2FT": 35,
-    "82FTS": 12,
-    "PFHxA": 18,
-    "PFPeA": 10,
-    "PFBA": 8,
-    "PFOA": 6,
-    "PFBS": 5,
-    "PFOS": 3,
-    "PFHpA": 3
-   },
-   "markers": [
-    "6:2FT",
-    "82FTS"
-   ],
-   "notes_he": "קצף דור חדש (אחרי ~2003): טלומרים ושרשראות קצרות, PFOS שולי."
-  },
-  {
-   "key": "wwtp_effluent",
-   "name_he": "קולחי מט\"ש / שפכים מוניציפליים",
-   "state": "generic",
-   "weights": {
-    "PFOA": 20,
-    "PFHxA": 17,
-    "PFBA": 14,
-    "PFPeA": 13,
-    "PFBS": 10,
-    "PFOS": 9,
-    "PFHpA": 8,
-    "PFNA": 4,
-    "PFDA": 3,
-    "PFHxS": 2
-   },
-   "markers": [],
-   "notes_he": "העשרת שרשראות קצרות ו-PFOA>PFOS — דפוס אופייני לקולחים."
-  },
-  {
-   "key": "landfill_leachate",
-   "name_he": "תשטיפי מטמנה",
-   "state": "generic",
-   "weights": {
-    "6:2FT": 20,
-    "PFBA": 15,
-    "PFHxA": 15,
-    "PFPeA": 12,
-    "PFOA": 12,
-    "PFBS": 10,
-    "PFOS": 6,
-    "PFHpA": 6,
-    "PFNA": 2
-   },
-   "markers": [
     "6:2FT"
-   ],
-   "notes_he": "6:2FT גבוה + שרשראות קצרות; יחס A/S גבוה."
-  },
-  {
-   "key": "fluoropolymer_industry",
-   "name_he": "תעשיית ציפויים/פלואורופולימרים",
-   "state": "generic",
-   "weights": {
-    "PFOA": 45,
-    "PFNA": 12,
-    "PFHxA": 10,
-    "PFDA": 8,
-    "PFHpA": 8,
-    "PFUnA": 5,
-    "PFBA": 5,
-    "PFOS": 3,
-    "PFDoA": 2
-   },
-   "markers": [
-    "PFNA",
-    "PFUnA"
-   ],
-   "notes_he": "דומיננטיות קרבוקסילטים (PFOA וארוכים) — עיבוד פולימרים/טקסטיל/נייר."
-  },
-  {
-   "key": "diffuse_background",
-   "name_he": "רקע מפוזר (אטמוספרי/חקלאי)",
-   "state": "generic",
-   "weights": {
-    "PFOA": 20,
-    "PFOS": 18,
-    "PFHxA": 12,
-    "PFBA": 10,
-    "PFPeA": 8,
-    "PFHxS": 8,
-    "PFBS": 7,
-    "PFHpA": 6,
-    "PFNA": 5,
-    "PFDA": 4
-   },
-   "markers": [],
-   "notes_he": "פיזור רחב ללא דומיננט חד — שקיעה אטמוספרית, בוצה, השקיה בקולחים."
+  ],
+  "profiles": [
+    {
+      "key": "afff_ecf_fresh",
+      "name_he": "AFFF ותיק (ECF) — טרי",
+      "state": "fresh",
+      "weights": {
+        "PFOS": 40,
+        "PFHxS": 15,
+        "6:2FT": 10,
+        "82FTS": 8,
+        "FOSA": 6,
+        "PFBS": 5,
+        "PFHxA": 5,
+        "PFOA": 4,
+        "PFHpS": 3,
+        "PFPeS": 2,
+        "PFDS": 2
+      },
+      "markers": [
+        "FOSA",
+        "82FTS",
+        "PFHxS"
+      ],
+      "notes_he": "קצף כיבוי מבוסס ECF (דור ישן): דומיננטיות PFOS+PFHxS עם קדם-חומרים נוכחים."
+    },
+    {
+      "key": "afff_ecf_weathered",
+      "name_he": "AFFF ותיק (ECF) — בלוי במורד",
+      "state": "weathered",
+      "weights": {
+        "PFOS": 45,
+        "PFHxS": 20,
+        "PFBS": 8,
+        "PFHxA": 10,
+        "PFOA": 8,
+        "PFPeA": 4,
+        "PFHpS": 2,
+        "FOSA": 1,
+        "6:2FT": 1,
+        "82FTS": 1
+      },
+      "markers": [
+        "PFHxS"
+      ],
+      "notes_he": "אותו מקור לאחר הסעה: קדם-חומרים התפרקו, סולפונטים יציבים שולטים."
+    },
+    {
+      "key": "afff_ft_modern",
+      "name_he": "AFFF פלואורוטלומרי (מודרני)",
+      "state": "fresh",
+      "weights": {
+        "6:2FT": 35,
+        "82FTS": 12,
+        "PFHxA": 18,
+        "PFPeA": 10,
+        "PFBA": 8,
+        "PFOA": 6,
+        "PFBS": 5,
+        "PFOS": 3,
+        "PFHpA": 3
+      },
+      "markers": [
+        "6:2FT",
+        "82FTS"
+      ],
+      "notes_he": "קצף דור חדש (אחרי ~2003): טלומרים ושרשראות קצרות, PFOS שולי."
+    },
+    {
+      "key": "wwtp_effluent",
+      "name_he": "קולחי מט\"ש / שפכים מוניציפליים",
+      "state": "generic",
+      "weights": {
+        "PFOA": 20,
+        "PFHxA": 17,
+        "PFBA": 14,
+        "PFPeA": 13,
+        "PFBS": 10,
+        "PFOS": 9,
+        "PFHpA": 8,
+        "PFNA": 4,
+        "PFDA": 3,
+        "PFHxS": 2
+      },
+      "markers": [],
+      "notes_he": "העשרת שרשראות קצרות ו-PFOA>PFOS — דפוס אופייני לקולחים."
+    },
+    {
+      "key": "landfill_leachate",
+      "name_he": "תשטיפי מטמנה",
+      "state": "generic",
+      "weights": {
+        "6:2FT": 20,
+        "PFBA": 15,
+        "PFHxA": 15,
+        "PFPeA": 12,
+        "PFOA": 12,
+        "PFBS": 10,
+        "PFOS": 6,
+        "PFHpA": 6,
+        "PFNA": 2
+      },
+      "markers": [
+        "6:2FT"
+      ],
+      "notes_he": "6:2FT גבוה + שרשראות קצרות; יחס A/S גבוה."
+    },
+    {
+      "key": "fluoropolymer_industry",
+      "name_he": "תעשיית ציפויים/פלואורופולימרים",
+      "state": "generic",
+      "weights": {
+        "PFOA": 45,
+        "PFNA": 12,
+        "PFHxA": 10,
+        "PFDA": 8,
+        "PFHpA": 8,
+        "PFUnA": 5,
+        "PFBA": 5,
+        "PFOS": 3,
+        "PFDoA": 2
+      },
+      "markers": [
+        "PFNA",
+        "PFUnA"
+      ],
+      "notes_he": "דומיננטיות קרבוקסילטים (PFOA וארוכים) — עיבוד פולימרים/טקסטיל/נייר."
+    },
+    {
+      "key": "diffuse_background",
+      "name_he": "רקע מפוזר (אטמוספרי/חקלאי)",
+      "state": "generic",
+      "weights": {
+        "PFOA": 20,
+        "PFOS": 18,
+        "PFHxA": 12,
+        "PFBA": 10,
+        "PFPeA": 8,
+        "PFHxS": 8,
+        "PFBS": 7,
+        "PFHpA": 6,
+        "PFNA": 5,
+        "PFDA": 4
+      },
+      "markers": [],
+      "notes_he": "פיזור רחב ללא דומיננט חד — שקיעה אטמוספרית, בוצה, השקיה בקולחים."
+    }
+  ],
+  "product_hints_he": {
+    "_provenance": "היוריסטיקה ספרותית (ITRC; Barzen-Hanson 2017; Houtz 2013; KEMI 2015) — התאמת-מוצר אינדיקטיבית ברמת משפחת-פורמולציה, לא זיהוי מוצר",
+    "afff_ecf_fresh": "עקבי עם קצפי ECF דור-ראשון (דוגמת 3M Light Water™, ייצור עד ~2002): שליטת PFOS+PFHxS עם קדם-חומרים סולפונאמידיים (FOSA)",
+    "afff_ecf_weathered": "עקבי עם שאריות קצפי ECF דור-ראשון (דוגמת 3M Light Water™) לאחר בליה — קדם-חומרים מדולדלים, שליטת PFOS/PFHxS/PFOA יציבים",
+    "afff_ft_modern": "עקבי עם קצפים פלואורוטלומריים (דוגמת Ansulite®, Chemguard®; פורמולציות C6): שליטת 6:2FT/8:2FTS, היעדר PFOS",
+    "wwtp_effluent": "חתימת קולחים עירונית — אינה מוצר-כיבוי",
+    "landfill_leachate": "חתימת תשטיפי-מטמנה — אינה מוצר-כיבוי",
+    "fluoropolymer_industry": "חתימה תעשייתית (עיבוד פלואורופולימרים) — אינה מוצר-כיבוי",
+    "diffuse_background": "רקע מפוזר — אינו מוצר"
   }
- ]
 }

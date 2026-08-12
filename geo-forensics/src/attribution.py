@@ -233,6 +233,21 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
         sx, sy = src["itm"]
         expected = set(src.get("expected_profiles", []))
 
+        # Site envelope (approved 2026-08-12, TEMPORARY name rule): stations
+        # whose name contains a declared site token belong to the source
+        # complex. Basin-scale series must not resolve intra-site dynamics —
+        # site members are excluded from the attenuation series, the
+        # junction scan and the similar-profile counter-evidence. A 5 km
+        # sanity radius guards against token collisions in combined names.
+        site_tokens = src.get("site_name_tokens") or []
+
+        def _in_site(s):
+            if not site_tokens or not any(t in s for t in site_tokens):
+                return False
+            return math.hypot(stn_xy[s][0] - sx, stn_xy[s][1] - sy) <= 5000.0
+
+        site_members = sorted(s for s in stn_xy if _in_site(s))
+
         # Surface stations: on-path (DEM) or uniform-sector logic.
         # Groundwater stations: graded plume-plausibility tiers (approved
         # 2026-07-27) — tiers 1-2 count as downgradient support, tier 3 is
@@ -349,7 +364,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
         if dem_active:
             for s in down:
                 if stn_domain.get(s) != "surface" or s in transfer_fed \
-                        or s in _momentary:
+                        or s in _momentary or _in_site(s):
                     continue
                 d = flow_surface.downgradient_distance_m(stn_xy[s], (sx, sy))
                 if d is not None and d > 0:
@@ -509,6 +524,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
         strong_up = [s for s in up_or_side
                      if stn_total[s] >= MIN_SIGNAL_UG_L
                      and s != anchor and not _near_site(s)
+                     and not _in_site(s)
                      and s not in cascade_candidates
                      and s in set(matches[matches["rank"] == 1]["station"])
                      and set(matches[(matches["station"] == s)]["profile_key"]) & expected]
@@ -569,6 +585,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             "id": src.get("id"), "name_he": src.get("name_he"),
             "itm": (sx, sy), "kind": src.get("kind"),
             "location_quality": src.get("location_quality", ""),
+            "site_members": site_members,
             "tier": tier,
             "n_downgradient": len(down), "downgradient": down,
             "n_surface_down": n_surf_down, "n_gw_down": n_gw_down,

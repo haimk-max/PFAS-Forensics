@@ -47,11 +47,17 @@ import re as _re
 # numbers may carry thousands-commas (1,121.11) — without covering them the
 # comma splits the bidi run and the digits reorder in RTL prose
 _NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
+# a "word" may start with a short digit prefix (3M, 6:2FT) and end with a
+# trademark sign; consecutive Latin words joined by single spaces are ONE
+# token — wrapping each word in its own <bdi> isolate lets RTL layout reverse
+# multi-word names ("3M Light Water" rendered as "Water Light 3M")
+_LATIN_WORD = r"\d{0,4}[A-Za-z][\w:.\-/+]*[™®]?"
 _LATIN_TOKEN = _re.compile(
-    r"(?<![>\w&#])((?:[A-Za-z][\w:.\-/+]*"
+    r"(?<![>\w&#])((?:"
+    rf"(?:{_LATIN_WORD})(?: {_LATIN_WORD})*"
     rf"|{_NUM}\s*(?:µg/L|ng/L|%)"
-    rf"|{_NUM}\s*–\s*{_NUM})"
-    r"(?:=[-\d.]+)?)(?!;)")
+    rf"|{_NUM}\s*–\s*{_NUM}"
+    r")(?:=[-\d.]+)?)(?!;)")
 
 
 def _bdi(text_html):
@@ -141,20 +147,27 @@ def _classify_families(data):
     cascade = set(c.get("cascade_candidates", []))
     gw_tiers = c.get("gw_tiers", {})
     anchor = c.get("anchor_station")
+    # Site envelopes (temporary name rule, 2026-08-12): every declared
+    # source's site members belong to the focus family — the basin view
+    # collapses each source complex to one node.
+    site_union = {s for cand in data["candidates"]
+                  for s in cand.get("site_members", [])}
     for s in data["stations"]:
         name = s["name"]
         if s["below_thr"]:
             fam[name] = "below"
             continue
         row = me.loc[name]
-        # Focus = DECLARED at-site stations (anchor / outfalls) or the
-        # tier-1 at-site radius (250 m). Bare 250-1000 m proximity must NOT
-        # precede pathway assignment: in kesariya it swallowed the Or-Akiva
-        # cascade candidates (776-981 m from the site, 9-131 m off the
-        # runoff channel) into "focus" and hid the pathway finding.
+        # Focus = DECLARED at-site stations (anchor / outfalls), site-
+        # envelope members, or the tier-1 at-site radius (250 m). Bare
+        # 250-1000 m proximity must NOT precede pathway assignment: in
+        # kesariya it swallowed the Or-Akiva cascade candidates (776-981 m
+        # from the site, 9-131 m off the runoff channel) into "focus" and
+        # hid the pathway finding.
         at_site = math.hypot(float(row["x_itm"]) - sx,
                              float(row["y_itm"]) - sy) <= 250.0
-        if name == anchor or name in outfalls or at_site:
+        if name == anchor or name in outfalls or at_site \
+                or name in site_union:
             fam[name] = "focus"
         elif name in tf:
             fam[name] = "pumped" if tf[name].get("kind") == "pumping" else "piped"
@@ -591,6 +604,40 @@ def _sigma_range_he(members):
     return f"Σ בין {_sig_he(lo)} ל-{_sig_he(hi)}"
 
 
+def _card(rows):
+    """Compact data card: the numbers live here, the prose tells the story
+    (readability decision, 2026-08-12). rows = [(label, value_html)]."""
+    body = "".join(f"<tr><th>{_esc(l)}</th><td>{v}</td></tr>"
+                   for l, v in rows if v not in (None, ""))
+    return f'<table class="datacard">{body}</table>' if body else ""
+
+
+def _endmember_profiles(data):
+    """Empirical end-member signature per candidate: the fingerprint of its
+    strongest site member (approved 2026-08-12). Returns
+    {candidate_name: (station, fingerprint_row)}."""
+    fp = data["fingerprint"]
+    me = data["max_event"].set_index("station_name")
+    out = {}
+    for c in data["candidates"]:
+        members = [s for s in c.get("site_members", [])
+                   if s in fp.index and s in me.index]
+        if not members:
+            continue
+        top = max(members, key=lambda s: float(me.loc[s, "total_concentration"]))
+        out[c["name_he"]] = (top, fp.loc[top])
+    return out
+
+
+def _product_hints():
+    p = os.path.join(os.path.dirname(__file__), "domains", "pfas",
+                     "source_profiles.json")
+    try:
+        return json.load(open(p, encoding="utf-8")).get("product_hints_he", {})
+    except OSError:
+        return {}
+
+
 def _findings_family_sections(data, fam_of, nar_families):
     """§3 per-family subsections: mechanism → observed → what would decide.
     The status chip is computed from the case data; the mechanism paragraph
@@ -624,6 +671,11 @@ def _findings_family_sections(data, fam_of, nar_families):
             "gw": "יוכרע בקובץ מפלסי תהום — יחליף את ההנחה בגרדיאנטים מדודים (ראו פרק 6).",
             "other": "יוכרע באישור/דחיית השערות ההזנה של התיק (ראו לוח-הטענות).",
         }
+    ems = _endmember_profiles(data)
+    hints = _product_hints()
+    from src.source_profiles import PROFILES as _PROFILES
+    _key_by_name = {p.name_he: p.key for p in _PROFILES}
+
     sub = 1
     for key in ["focus", "stream", "pumped", "piped", "cascade", "gw", "other"]:
         members = _fam_members(data, fam_of, key)
@@ -639,87 +691,132 @@ def _findings_family_sections(data, fam_of, nar_families):
         if nf.get("mechanism_he"):
             S.append(_bdi(f'<p>{_esc(nf["mechanism_he"])}</p>'))
 
-        names3 = _list_he([f'"{m["name"]}"' for m in members], 3)
-        obs = f"בתיק זה נמנות עם המשפחה {len(members)} תחנות ({names3}; {_sigma_range_he(members)} µg/L). "
+        # Story-first prose; the numbers live in the data card below
+        # (readability decision, 2026-08-12).
+        obs = ""
+        card = [("תחנות", str(len(members))),
+                ("Σ (µg/L)", _sigma_range_he(members).replace("Σ בין ", "").replace("Σ≈", "≈"))]
+
         if key == "focus":
+            # Group the source complexes by site (temporary name rule)
+            member_names = {m["name"] for m in members}
+            grouped = []
+            for cand in data["candidates"]:
+                site = [s for s in cand.get("site_members", []) if s in member_names]
+                if site:
+                    top = max(site, key=lambda s: float(me.loc[s, "total_concentration"]))
+                    grouped.append((cand["name_he"], site, top))
+            leftover = member_names - {s for _, site, _ in grouped for s in site}
+            for cand_name, site, top in grouped:
+                t_val = float(me.loc[top, "total_concentration"])
+                obs += (f'מכלול "{_esc(cand_name)}" מונה {len(site)} נקודות '
+                        f'דיגום, ובראשן "{_esc(top)}" ({_sig_he(t_val)} µg/L). ')
+                em = ems.get(cand_name)
+                prof_he, score = "", 0.0
+                for st in data["stations"]:
+                    if st["name"] == top:
+                        prof_he, score = st["profile"], st["score"]
+                hint = hints.get(_key_by_name.get(prof_he, ""), "")
+                card.append((f"חתימת {cand_name.split('—')[0].strip()}",
+                             f"{_esc(prof_he)} ({score:.0f}%)"))
+                if hint:
+                    card.append(("התאמת-מוצר (אינדיקטיבית)", _esc(hint)))
+            if leftover:
+                obs += (f"עוד {len(leftover)} נקודות מוקד מוצהרות/צמודות-אתר. ")
             anchor = c.get("anchor_station")
             if anchor and anchor in me.index:
-                a_val = float(me.loc[anchor, "total_concentration"])
-                obs += (f'העוצמה המרבית נמדדה בתחנת-העוגן "{_esc(anchor)}" — '
-                        f"{_sig_he(a_val)} "
-                        f"מיקרוגרם לליטר, מדידה שאושרה כמייצגת אזור-מקור ידוע. ")
+                obs += ("תחנת-העוגן אושרה כמייצגת אזור-מקור ידוע — "
+                        "היא קו-הבסיס שאליו מושוות שאר התחנות. ")
             outfalls = data["region"].get("outfalls") or {}
             if any(o.get("momentary") for o in outfalls.values()):
-                obs += ("מדידות-המוצא הרגעיות שבמשפחה מוצגות אך מוחרגות "
-                        "מרגרסיות-העומס — מדידת נקודת-האיסוף היא המייצגת.")
+                obs += ("מדידות-מוצא רגעיות מוצגות אך אינן נכנסות "
+                        "לרגרסיות-העומס. ")
+            obs += ("הדינמיקה הפנימית של כל מכלול — שונות בין תעלות "
+                    "ומוצאים — עניינה של בחינת-אתר נפרדת ואינה נדונה "
+                    "ברזולוציה האגנית.")
+
         elif key == "stream":
-            obs += ("התחנות יושבות על מסלול הנגר שנגזר ממודל הגבהים — רציפות "
-                    "הידראולית ממשית, לא קרבה גיאוגרפית. ")
-            if att.get("r_precursor") is not None and att["r_precursor"] <= -0.4:
-                obs += (f"מבחן-הבליה של המשפחה מתקיים: נתח קדם-החומרים יורד "
-                        f"בעקביות לאורך המסלול (ספירמן r={att['r_precursor']}, "
-                        f"איור 4) — החתימה מזדקנת עם המרחק, כמצופה מהסעה "
-                        f"עילית ממקור נקודתי. ")
-            # Decay verdict is DATA-DRIVEN (same ±0.4 threshold as the
-            # attribution engine); the explanation for an inconclusive
-            # case is case data (observed_he), never code — a hard-coded
-            # hagit explanation ("pool-1500 conversion") leaked into the
-            # kishon report AND contradicted its own r=-0.71 (user-caught,
-            # 2026-08-11).
-            if att.get("r_conc") is not None:
-                r = att["r_conc"]
-                if r <= -0.4:
-                    obs += (f"גם דעיכת הריכוז המוחלט מתקיימת לאורך המסלול "
-                            f"(r={r}) — עקבית עם מקור באתר. ")
-                elif r >= 0.4:
-                    obs += (f"הריכוז המוחלט דווקא עולה במורד (r={r}) — "
-                            f"ראיית-נגד המרמזת על מקור נוסף בין הנקודות. ")
-                else:
-                    obs += (f"דעיכת הריכוז המוחלט אינה חד-משמעית בחתך "
-                            f"הנוכחי (r={r}). ")
+            obs += ("התחנות יושבות על מסלול הנגר הנגזר — רציפות הידראולית "
+                    "ממשית. ")
+            aging_ok = att.get("r_precursor") is not None and att["r_precursor"] <= -0.4
+            r = att.get("r_conc")
+            if aging_ok and r is not None and r <= -0.4:
+                obs += ("התמונה לאורך הגזע היא הצפויה ממקור נקודתי: הריכוז "
+                        "דועך והחתימה מזדקנת ככל שמתרחקים מן המוקד. ")
+            elif aging_ok:
+                obs += ("החתימה מזדקנת בעקביות עם המרחק; דעיכת הריכוז "
+                        "עצמה אינה חד-משמעית בחתך הנוכחי. ")
+            elif r is not None and r >= 0.4:
+                obs += ("הריכוז דווקא עולה במורד — ראיית-נגד המרמזת על "
+                        "מקור נוסף בין הנקודות. ")
             if nf.get("observed_he"):
                 obs += _esc(nf["observed_he"]) + " "
-            for jf in c.get("junction_findings", []):
-                obs += (f'מבחן הצטרפות-העומס מסמן את המקטע '
-                        f'"{_esc(jf["segment"][0])}"←"{_esc(jf["segment"][1])}" '
-                        f'({jf["km"][0]:.1f}–{jf["km"][1]:.1f} ק"מ): '
-                        + "; ".join(_esc(s) for s in jf["signals"])
-                        + " — אינדיקציה לעומס מצטרף, לא הוכחה. ")
+            card.append(("דעיכת Σ", f"Spearman r={att.get('r_conc')} "
+                         f"(n={att.get('n')}, {att.get('basis','')})"))
+            card.append(("הזדקנות (קדם-חומרים)", f"r={att.get('r_precursor')}"))
+            # empirical end-member affinity along the stem
+            if len(ems) >= 2:
+                fp = data["fingerprint"]
+                import numpy as _np
+                def _cos(a, b):
+                    na = float((_np.array(a) ** 2).sum()) ** 0.5
+                    nb = float((_np.array(b) ** 2).sum()) ** 0.5
+                    return float((_np.array(a) * _np.array(b)).sum()) / (na * nb) if na and nb else 0
+                counts = {}
+                far_aff = []
+                ordered = sorted(members, key=lambda m: -m["sigma"])
+                for m in members:
+                    if m["name"] not in fp.index:
+                        continue
+                    row = fp.loc[m["name"]]
+                    best = max(ems.items(), key=lambda kv: _cos(row, kv[1][1]))[0]
+                    counts[best] = counts.get(best, 0) + 1
+                if counts:
+                    short = {k.split("—")[0].strip(): v for k, v in counts.items()}
+                    card.append(("קרבה לחתימות-המוקד (קצוות אמפיריים)",
+                                 " · ".join(f"{_esc(k)}: {v}" for k, v in short.items())))
+                    obs += ("השוואת כל תחנת-גזע לחתימות-המוקד האמפיריות של "
+                            "התיק מלמדת איזה מוקד קרוב יותר להרכבה — "
+                            "ראו כרטיס-הנתונים. ")
+            jfs = c.get("junction_findings", [])
+            if jfs:
+                obs += (f"מבחן הצטרפות-העומס מסמן {len(jfs)} מקטעים שבהם "
+                        "דפוס הריכוז או ההרכב אינו מוסבר בהסעה בלבד — "
+                        "אינדיקציות-צומת, לא הוכחות; פירוט בכרטיס ובפרק "
+                        "המסקנות. ")
+                for jf in jfs:
+                    card.append((f'צומת חשוד {jf["km"][0]:.0f}–{jf["km"][1]:.0f} ק"מ',
+                                 _esc("; ".join(jf["signals"]))))
+
         elif key == "pumped":
-            scores = ", ".join(f"{m['score']:.0f}%" for m in members)
-            obs += (f"התחנות אינן על הערוץ אך יורשות את מי הנחל דרך שאיבה "
-                    f"מוצהרת; התאמת הפרופיל שלהן לפרופילי-המקור הצפויים "
-                    f"({scores}) עקבית עם ירושה כזו. בהתאם למנגנון — הן "
-                    f"נספרות במורד אך מוחרגות מרגרסיית הדעיכה (מסומנות "
-                    f"באפור באיור 4).")
+            obs += ("התחנות אינן על הערוץ אך יורשות את מי הנחל דרך שאיבה "
+                    "מוצהרת; הרכבן עקבי עם ירושה כזו, והן מוחרגות "
+                    "מרגרסיית הדעיכה (שהות-בריכה מנתקת ריכוז ממרחק). ")
+            card.append(("התאמת-פרופיל",
+                         ", ".join(f"{m['score']:.0f}%" for m in members)))
+
         elif key == "piped":
             anchor = c.get("anchor_station")
             if anchor and anchor in me.index:
                 a_sig = float(me.loc[anchor, "total_concentration"])
-                lo, hi = members[-1]["sigma"], members[0]["sigma"]
-                obs += (f"שרשרת-המיהול הנצפית עקבית עם המנגנון: "
-                        f"{a_sig:,.0f} µg/L במוצא ← {lo:,.2f}–{hi:,.2f} "
-                        f"במאגרים — ירידה של כ-"
-                        f"{np.log10(a_sig / max(hi, 1e-9)):,.1f} סדרי גודל "
-                        f"ללא תלות במרחק גיאוגרפי, כמצופה מנתיב מתועל. ")
-            obs += ("החוליה האמצעית — קולחי המט\"ש עצמם — טרם נדגמה, ולכן "
-                    "השרשרת מוצהרת אך לא סגורה מדידתית.")
+                hi = members[0]["sigma"]
+                obs += ("שרשרת-המיהול הנצפית עקבית עם נתיב מתועל: ירידה "
+                        "של סדרי-גודל בין המוצא למאגרים, ללא תלות במרחק. ")
+                card.append(("שרשרת-מיהול",
+                             f"{_sig_he(a_sig)} ← {_sig_he(hi)} µg/L "
+                             f"(~{np.log10(a_sig / max(hi, 1e-9)):.1f} סדרי-גודל)"))
+            obs += ("החוליה האמצעית — הקולחים עצמם — טרם נדגמה; השרשרת "
+                    "מוצהרת אך לא סגורה מדידתית.")
+
         elif key == "cascade":
-            # Case-specific empirical comparisons (e.g. hagit's short-chain
-            # enrichment vs. adjacent stream water) live in the case
-            # narrative (observed_he), NEVER here — hard-coding one case's
-            # finding printed it verbatim in another case (caught by the
-            # user, 2026-08-11).
             if nf.get("observed_he"):
                 obs += _esc(nf["observed_he"]) + " "
-            has_paired_water = c.get("n_surface_down", 0) > 0
-            if not has_paired_water:
-                obs += ("בתיק זה אין דיגום מי-ערוץ על המסלול, ולכן "
-                        "מבחן-הפרקציונציה (השוואת הרכב מזווגת קידוח–ערוץ) "
-                        "אינו ניתן ליישום בנתונים הקיימים — זהו בדיוק יעד "
-                        "הדיגום המזווג שבהמלצות. ")
-            obs += ("זהו נתיב מועמד: אינו נספר כראיה ישירה ואינו "
-                    "ראיית-נגד.")
+            if c.get("n_surface_down", 0) == 0:
+                obs += ("בתיק אין דיגום מי-ערוץ על המסלול — "
+                        "מבחן-הפרקציונציה ימתין לדיגום המזווג. ")
+            obs += "נתיב מועמד: לא ראיה ישירה ולא ראיית-נגד."
+            card.append(("מרחק מהערוץ", "ראו מפה (איור 1)"))
+
         elif key == "gw":
             comp = {}
             n_prod = 0
@@ -729,28 +826,31 @@ def _findings_family_sections(data, fam_of, nar_families):
                 comp[t] = comp.get(t, 0) + 1
                 if gt.get("well_class") == "production":
                     n_prod += 1
+            obs += ("שיוך הקידוחים לעננה נשען כולו על כיוון-זרימה מונח, "
+                    "ולכן תומך אך אינו מאשש. ")
+            if n_prod:
+                obs += (f"{n_prod} מהם קידוחי-הפקה — דגימתם משקללת "
+                        "אזור-לכידה בלתי-מוגדר, מדרגתם מדווחת כטווח "
+                        "וריכוזם חסם-תחתון. ")
+            obs += ("כלל 'מדרגה 4 עם זיהום = ממצא' חל על קידוחי-ניטור; "
+                    "בקידוח-הפקה הצעד הנגזר הוא חיבוק בקידוחי-ניטור.")
             comp_he = ", ".join(f"מדרגה {t}: {n}" for t, n in
-                                sorted(comp.items()) if t not in ("up",))
+                                sorted(comp.items()) if t != "up")
             if comp.get("up"):
                 comp_he += f", במעלה: {comp['up']}"
-            obs += (f"פילוח המדרגות (k={GW_PLUME_K}): {comp_he}. "
-                    f"תחנות מדרגות 1–2 נספרות; מדרגה 3 — תמיכה חלשה בלבד. ")
+            card.append((f"פילוח מדרגות (k={GW_PLUME_K})", _esc(comp_he)))
             if n_prod:
-                obs += (f"{n_prod} מתחנות המשפחה הם קידוחי-הפקה: דגימתם "
-                        f"משקללת אזור-לכידה בלתי-מוגדר שיוצרת השאיבה, ולכן "
-                        f"מדרגתם מדווחת כטווח 'מטושטש-שאיבה' (עד רדיוס "
-                        f"מוצהר של 500 מ', גס) וריכוזם הוא חסם-תחתון בשל "
-                        f"מיהול. ")
-            obs += ("כלל 'מדרגה 4 עם זיהום = ממצא המחייב הסבר אחר' חל על "
-                    "קידוחי-ניטור; בקידוח-הפקה הממצא המקביל הוא 'זיהום "
-                    "בתחום אזור-הלכידה' — והצעד הנגזר הוא חיבוק "
-                    "בקידוחי-ניטור.")
+                card.append(("קידוחי-הפקה", f"{n_prod} (טווח-מדרגה עד 500 מ')"))
+
         elif key == "other":
-            obs += ("תחנות אלו אינן משויכות לאף נתיב-הסעה של המועמד: פרופיל "
-                    "דומה בהן אינו נספר לזכות המועמד — הוא נרשם כראיית-נגד "
-                    "מותנית (עקבי גם עם מקור אחר), בחלקן תלוי בהשערות-הזנה "
-                    "שבבדיקה.")
+            obs += ("תחנות שאינן משויכות לאף נתיב של המועמדים: פרופיל דומה "
+                    "בהן אינו נזקף לזכות איש — הוא נרשם כראיית-נגד או "
+                    "כראיית-נגד מותנית, בחלקן תלוי בהשערות שבבדיקה.")
+
         S.append(_bdi(f"<p>{obs}</p>"))
+        card_html = _card(card)
+        if card_html:
+            S.append(_bdi(card_html))
         S.append(f'<p class="decide">{_bdi(_esc(decide[key]))}</p>')
     return S
 
@@ -1004,6 +1104,15 @@ font-family:inherit;opacity:.55}
 .famchip.all{opacity:1;font-weight:600}
 .decide{font-size:.88rem;color:var(--ink2);background:#faf8f4;
 border-right:3px solid var(--warn);padding:7px 12px;margin:6px 0 18px}
+table.datacard{width:auto;min-width:55%;border-collapse:collapse;
+font-size:.82rem;margin:4px 0 10px;background:#faf8f4;
+border:1px solid var(--line);border-radius:6px}
+table.datacard th{text-align:right;font-weight:600;color:var(--ink3);
+padding:4px 10px;border-bottom:1px solid var(--line);white-space:nowrap;
+vertical-align:top;background:transparent}
+table.datacard td{padding:4px 10px;border-bottom:1px solid var(--line);
+color:var(--ink2)}
+table.datacard tr:last-child th,table.datacard tr:last-child td{border-bottom:none}
 .provnote{font-size:.78rem;color:var(--ink3);font-style:italic;margin:4px 0 14px}
 .simsel-bar{display:flex;gap:8px;align-items:center;margin:8px 0 4px;flex-wrap:wrap}
 .simsel-btn{border:1.5px solid var(--line);background:#fff;color:var(--ink2);
@@ -1029,6 +1138,7 @@ font-size:.9rem;margin-bottom:5px}
   .figure{page-break-inside:avoid}
   .concl{page-break-inside:avoid}table{page-break-inside:avoid}
   .csm-card{page-break-inside:avoid}.decide{page-break-inside:avoid}
+  table.datacard{page-break-inside:avoid}
   p{orphans:2;widows:2}
   .draft{display:none}.fambar{display:none}
   .simsel{display:none}.simsel-bar{display:none}

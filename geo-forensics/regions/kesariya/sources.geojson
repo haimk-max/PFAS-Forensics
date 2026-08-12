@@ -5,14 +5,27 @@
   "features": [
     {
       "type": "Feature",
-      "geometry": { "type": "Point", "coordinates": [34.932860, 32.498563] },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.93286,
+          32.498563
+        ]
+      },
       "properties": {
         "id": "kesariya_iec_tank_farm",
         "name_he": "תחנת חשמל קיסריה — חוות מכלים (חח\"י)",
-        "itm": [193933.220, 711637.791],
+        "itm": [
+          193933.22,
+          711637.791
+        ],
         "location_quality": "רשמי — נמסר ע\"י המשתמש 2026-07-27",
         "kind": "fuel_tank_farm",
-        "expected_profiles": ["afff_ecf_fresh", "afff_ft_modern", "afff_ecf_weathered"],
+        "expected_profiles": [
+          "afff_ecf_fresh",
+          "afff_ft_modern",
+          "afff_ecf_weathered"
+        ],
         "anchor_station": "נד חשמל קיסריה רדוד",
         "anchor_provenance": "קידוח רדוד ~56 מ' מהמתקן; צביר קדם-חומרים טריים (FOSA+82FTS+PFDS, Σ=0.767) — האינדיקטור שהוביל לזיהוי; המקור אושר ע\"י המשתמש 2026-07-27",
         "emission_evidence": [
@@ -20,7 +33,11 @@
         ],
         "evidence_tier": "user_testimony",
         "hypothesis_origin": "זוהה ע\"י המערכת מסמני קדם-חומרים טריים (מדרגה 4 מחגית ⇒ מקור מקומי); אושר כמתקן ע\"י המשתמש. נבדק כהשערה מול הסברים מתחרים.",
-        "notes_he": "לבירור מול חח\"י: סוג הקצף, אירועי שימוש/תרגולים, ניקוז חוות המכלים. הידרולוגיה: בתחום שקע-השאיבה (ראו flow_zones) — עננה צפויה להילכד בקידוחי הסביבה."
+        "notes_he": "לבירור מול חח\"י: סוג הקצף, אירועי שימוש/תרגולים, ניקוז חוות המכלים. הידרולוגיה: בתחום שקע-השאיבה (ראו flow_zones) — עננה צפויה להילכד בקידוחי הסביבה.",
+        "site_name_tokens": [
+          "חשמל קיסריה"
+        ],
+        "site_rule_provenance": "כלל-שם זמני (משתמש 2026-08-12): תחנה ששמה מכיל את שם-האתר שייכת למכלול-האתר; שמירת-שפיות 5 ק\"מ"
       }
     }
   ]
