@@ -249,67 +249,108 @@ _FONT = dict(family="Assistant, Segoe UI, sans-serif", size=13)
 
 def _fig_map(data, fam_of):
     """Figure 1 — case map in ITM coordinates (self-contained, no tiles).
-    Stations are colored by transport family; declared anthropogenic
-    pathways (pumping, piped) are drawn as connectors — the DEM path alone
-    tells only half the transport story. Returns (fig, family→trace-index)
-    so the family filter bar can toggle visibility client-side."""
+
+    Rebuilt 2026-08-12 after user feedback ("works badly, looks worse"):
+    - shaded-relief backdrop from the region DEM (derived/hillshade.png,
+      embedded as a data URI — offline/CSP-safe) gives geographic context;
+    - the channel network is TWO traces (minor/major by accumulation), not
+      one trace per segment (was 565 traces — killed pan/zoom);
+    - one trace per station family, log-Σ marker sizing, quiet styling for
+      below-threshold / unassigned stations so evidence stations pop;
+    - permanent labels only for the key stations; the rest on hover;
+    - suspected junction segments marked on the stem;
+    - scale bar; equal-aspect axes; pan+wheel-zoom enabled by the caller.
+    Returns (fig, family→trace-index) for the family filter bar."""
     fig = go.Figure()
-    # DEM channels
+    region = data["region"]
+    me = data["max_event"].set_index("station_name")
+
+    # 0) hillshade backdrop
+    hs_png = os.path.join(region["_base"], "derived", "hillshade.png")
+    hs_meta_p = os.path.join(region["_base"], "derived", "hillshade_meta.json")
+    if os.path.isfile(hs_png) and os.path.isfile(hs_meta_p):
+        import base64
+        hs_meta = json.load(open(hs_meta_p, encoding="utf-8"))
+        hx0, hy0, hx1, hy1 = hs_meta["bbox_itm"]
+        b64 = base64.b64encode(open(hs_png, "rb").read()).decode()
+        fig.add_layout_image(dict(
+            source=f"data:image/png;base64,{b64}",
+            xref="x", yref="y", x=hx0 / 1000, y=hy1 / 1000,
+            sizex=(hx1 - hx0) / 1000, sizey=(hy1 - hy0) / 1000,
+            sizing="stretch", opacity=0.45, layer="below"))
+
+    # 1) channel network — two None-separated traces (minor / major)
     if data["channels"]:
         from pyproj import Transformer
         t = Transformer.from_crs(4326, 2039, always_xy=True)
-        first = True
-        for feat in data["channels"]["features"]:
-            pts = [t.transform(lon, lat)
-                   for lon, lat in feat["geometry"]["coordinates"]]
-            fig.add_trace(go.Scatter(
-                x=[p[0] / 1000 for p in pts], y=[p[1] / 1000 for p in pts],
-                mode="lines", line=dict(color="#9ec9e2", width=1.2),
-                name="ערוצי זרימה (DEM)", legendgroup="chan",
-                showlegend=first, hoverinfo="skip"))
-            first = False
-    # candidate runoff path + declared transfer connectors
-    me = data["max_event"].set_index("station_name")
-    for c in data["candidates"]:
+        feats = data["channels"]["features"]
+        accs = [f.get("properties", {}).get("max_acc_cells", 0) for f in feats]
+        major_thr = np.percentile([a for a in accs if a], 85) if any(accs) else 0
+        lines = {"minor": ([], []), "major": ([], [])}
+        for feat, acc in zip(feats, accs):
+            xs, ys = lines["major" if acc >= major_thr else "minor"]
+            for lon, lat in feat["geometry"]["coordinates"]:
+                x, y = t.transform(lon, lat)
+                xs.append(x / 1000); ys.append(y / 1000)
+            xs.append(None); ys.append(None)
+        fig.add_trace(go.Scatter(
+            x=lines["minor"][0], y=lines["minor"][1], mode="lines",
+            line=dict(color="rgba(110,160,200,0.45)", width=0.8),
+            name="ערוצים משניים (DEM)", hoverinfo="skip"))
+        fig.add_trace(go.Scatter(
+            x=lines["major"][0], y=lines["major"][1], mode="lines",
+            line=dict(color="#4a90c4", width=2.2),
+            name="ערוצים ראשיים (DEM)", hoverinfo="skip"))
+
+    # 2) candidate runoff paths — one trace per candidate
+    path_styles = [dict(color="#d97a2c", dash="solid"),
+                   dict(color="#7a3d9e", dash="dash"),
+                   dict(color="#2a9d8f", dash="dot")]
+    cand_paths = {}
+    for i, c in enumerate(data["candidates"]):
         pt = (data["flow"] or {}).get("points", {}).get(c["id"])
         path = pt.get("path_itm") if pt else None
+        cand_paths[c["id"]] = path
         if path:
+            st = path_styles[i % len(path_styles)]
+            short = c["name_he"].split("—")[0].strip()
             fig.add_trace(go.Scatter(
                 x=[p[0] / 1000 for p in path], y=[p[1] / 1000 for p in path],
-                mode="lines",
-                line=dict(color="#d97a2c", width=3, dash="dash"),
-                name="מסלול הנגר מהמקור", hoverinfo="skip"))
+                mode="lines", line=dict(width=3.5, **st),
+                opacity=0.9, name=f"מסלול הנגר — {short}",
+                hoverinfo="name"))
+
+    # 3) declared transfer connectors — one trace per kind
+    pump_xy, pipe_xy = ([], []), ([], [])
+    for c in data["candidates"]:
         sx, sy = c["itm"]
-        first_pump, first_pipe = True, True
+        path = cand_paths.get(c["id"])
         for s, tfv in (c.get("transfer_fed") or {}).items():
             if s not in me.index:
                 continue
             tx = float(me.loc[s, "x_itm"]) / 1000
             ty = float(me.loc[s, "y_itm"]) / 1000
             if tfv.get("kind") == "pumping" and path:
-                # connector from the nearest runoff-path vertex (the pump
-                # draws from the adjacent stream reach, not from the site)
                 near = min(path, key=lambda p: (p[0] / 1000 - tx) ** 2
                            + (p[1] / 1000 - ty) ** 2)
-                fig.add_trace(go.Scatter(
-                    x=[near[0] / 1000, tx], y=[near[1] / 1000, ty],
-                    mode="lines",
-                    line=dict(color=FAMILIES["pumped"]["color"], width=2,
-                              dash="dot"),
-                    name="שאיבה מהנחל (מוצהר)", legendgroup="tfpump",
-                    showlegend=first_pump, hoverinfo="skip"))
-                first_pump = False
+                pump_xy[0].extend([near[0] / 1000, tx, None])
+                pump_xy[1].extend([near[1] / 1000, ty, None])
             elif tfv.get("kind") != "pumping":
-                # piped endpoint declaration — schematic, not a geometry
-                fig.add_trace(go.Scatter(
-                    x=[sx / 1000, tx], y=[sy / 1000, ty], mode="lines",
-                    line=dict(color=FAMILIES["piped"]["color"], width=2,
-                              dash="dashdot"),
-                    name="נתיב מתועל ביוב←מט\"ש (מוצהר, סכמטי)",
-                    legendgroup="tfpipe",
-                    showlegend=first_pipe, hoverinfo="skip"))
-                first_pipe = False
-    # stations by transport family
+                pipe_xy[0].extend([sx / 1000, tx, None])
+                pipe_xy[1].extend([sy / 1000, ty, None])
+    if pump_xy[0]:
+        fig.add_trace(go.Scatter(
+            x=pump_xy[0], y=pump_xy[1], mode="lines",
+            line=dict(color=FAMILIES["pumped"]["color"], width=2, dash="dot"),
+            name="שאיבה מהנחל (מוצהר)", hoverinfo="skip"))
+    if pipe_xy[0]:
+        fig.add_trace(go.Scatter(
+            x=pipe_xy[0], y=pipe_xy[1], mode="lines",
+            line=dict(color=FAMILIES["piped"]["color"], width=2,
+                      dash="dashdot"),
+            name="נתיב מתועל (מוצהר, סכמטי)", hoverinfo="skip"))
+
+    # 5) stations — one trace per family; quiet styling for context families
     fam_trace_idx = {}
     gw_tiers = (data["candidates"][0].get("gw_tiers", {})
                 if data["candidates"] else {})
@@ -318,6 +359,7 @@ def _fig_map(data, fam_of):
         if not members:
             continue
         style = FAMILIES[fk]
+        quiet = fk in ("other", "below")
         xs, ys, texts, sizes = [], [], [], []
         for s in members:
             row = me.loc[s["name"]]
@@ -335,35 +377,114 @@ def _fig_map(data, fam_of):
                     extra += "<br>קידוח הפקה — ריכוז = חסם-תחתון"
                 elif wc == "monitoring":
                     extra += "<br>קידוח ניטור"
-            texts.append(f"{s['name']}<br>Σ={s['sigma']:.3f} µg/L"
+            texts.append(f"<b>{s['name']}</b><br>Σ={s['sigma']:.3f} µg/L"
                          f"<br>{s['profile']} ({s['score']:.0f}%)"
                          f"<br>{style['name_he']}{extra}")
-            sizes.append(7 if s["below_thr"] else
-                         max(9, min(26, 10 + 4 * np.log10(s["sigma"] / 0.001 + 1))))
+            if s["below_thr"]:
+                sizes.append(5)
+            else:
+                sizes.append(max(9, min(26,
+                             10 + 4 * np.log10(s["sigma"] / 0.001 + 1))))
         fam_trace_idx[fk] = len(fig.data)
         fig.add_trace(go.Scatter(
             x=xs, y=ys, mode="markers", name=style["name_he"],
             marker=dict(size=sizes, symbol=style["symbol"],
-                        color=style["color"], opacity=0.85,
-                        line=dict(width=1, color="white")),
+                        color=style["color"],
+                        opacity=0.45 if quiet else 0.92,
+                        line=dict(width=0 if quiet else 1.2, color="white")),
             text=texts, hoverinfo="text"))
-    # sources
-    for src in (data["sources"] or {}).get("features", []):
-        p = src["properties"]
+
+    # 6) suspected junction segments — triangle just north of the measuring
+    # station (offset so the station marker stays visible), drawn ON TOP of
+    # the station layers
+    jx, jy, jtext = [], [], []
+    seen_seg = set()
+    for c in data["candidates"]:
+        for jf in c.get("junction_findings", []):
+            seg = tuple(jf.get("segment") or ("", ""))
+            if seg in seen_seg or seg[1] not in me.index:
+                continue
+            seen_seg.add(seg)
+            jx.append(float(me.loc[seg[1], "x_itm"]) / 1000)
+            jy.append(float(me.loc[seg[1], "y_itm"]) / 1000 + 0.4)
+            jtext.append(
+                f'צומת חשוד {jf["km"][0]:.0f}–{jf["km"][1]:.0f} ק"מ'
+                f'<br>נמדד ב: {seg[1]}<br>הקודמת: {seg[0]}')
+    if jx:
         fig.add_trace(go.Scatter(
-            x=[p["itm"][0] / 1000], y=[p["itm"][1] / 1000],
+            x=jx, y=jy, mode="markers", name="צומת חשוד (הצטרפות-עומס)",
+            marker=dict(symbol="triangle-up", size=14, color="#d97a2c",
+                        line=dict(width=1.5, color="#7a3500")),
+            text=jtext, hoverinfo="text"))
+
+    # 7) permanent labels — key stations, spatially thinned so cluster
+    # members don't stack (one label per ~1.5 km; higher Σ wins)
+    signal = [s for s in data["stations"] if not s["below_thr"]]
+    key, taken = [], []
+    src_feats = (data["sources"] or {}).get("features", [])
+    src_xy = [(f["properties"]["itm"][0] / 1000,
+               f["properties"]["itm"][1] / 1000) for f in src_feats]
+    for s in sorted(signal, key=lambda v: -v["sigma"]):
+        x = float(me.loc[s["name"], "x_itm"]) / 1000
+        y = float(me.loc[s["name"], "y_itm"]) / 1000
+        if any(math.hypot(x - tx, y - ty) < 1.5 for tx, ty in taken + src_xy):
+            continue
+        key.append((s["name"], x, y))
+        taken.append((x, y))
+        if len(key) >= 6:
+            break
+    if key:
+        fig.add_trace(go.Scatter(
+            x=[k[1] for k in key], y=[k[2] + 0.55 for k in key],
+            mode="text", text=[k[0] for k in key],
+            textfont=dict(size=10.5, color="#1c1f24"),
+            name="שמות תחנות-המפתח", hoverinfo="skip"))
+
+    # 8) declared sources — gold star (distinct from the purple focus
+    # stations) + label
+    if src_feats:
+        fig.add_trace(go.Scatter(
+            x=[s["properties"]["itm"][0] / 1000 for s in src_feats],
+            y=[s["properties"]["itm"][1] / 1000 for s in src_feats],
             mode="markers+text",
-            marker=dict(size=20, symbol="star", color="#7a3d9e",
-                        line=dict(width=1.5, color="white")),
-            text=[p["name_he"]], textposition="top center",
-            textfont=dict(size=12), name="מקור מוערך"))
+            marker=dict(size=24, symbol="star", color="#f4b942",
+                        line=dict(width=1.8, color="#5a4200")),
+            text=[s["properties"]["name_he"].split("—")[0].strip()
+                  for s in src_feats],
+            textposition="bottom center",
+            textfont=dict(size=12, color="#5a4200"),
+            name="מקור מוערך", hoverinfo="text",
+            hovertext=[s["properties"]["name_he"] for s in src_feats]))
+
+    # 9) scale bar (bottom-right, 5 km) — axes are in km so length is 5
+    bbox = region.get("bbox_itm")
+    if bbox:
+        bx = bbox[2] / 1000 - 1.5
+        by = bbox[1] / 1000 + 1.2
+        fig.add_shape(type="line", x0=bx - 5, x1=bx, y0=by, y1=by,
+                      line=dict(color="#1c1f24", width=3))
+        for x_ in (bx - 5, bx):
+            fig.add_shape(type="line", x0=x_, x1=x_, y0=by - 0.15,
+                          y1=by + 0.15, line=dict(color="#1c1f24", width=2))
+        fig.add_annotation(x=bx - 2.5, y=by + 0.55, text='5 ק"מ',
+                           showarrow=False, font=dict(size=11))
+        fig.add_annotation(x=bbox[0] / 1000 + 1.2, y=bbox[3] / 1000 - 1.2,
+                           text="צפון ↑", showarrow=False,
+                           font=dict(size=11, color="#4a4f57"))
+
     fig.update_layout(
-        font=_FONT, template="plotly_white", height=560,
-        xaxis=dict(title="ITM מזרח (ק\"מ)", constrain="domain"),
-        yaxis=dict(title="ITM צפון (ק\"מ)", scaleanchor="x", scaleratio=1),
+        font=_FONT, template="plotly_white", height=720,
+        dragmode="pan",
+        xaxis=dict(title=dict(text='ITM מזרח (ק"מ)', font=dict(size=11)),
+                   constrain="domain", tickfont=dict(size=10),
+                   gridcolor="rgba(0,0,0,0.06)"),
+        yaxis=dict(title=dict(text='ITM צפון (ק"מ)', font=dict(size=11)),
+                   scaleanchor="x", scaleratio=1, tickfont=dict(size=10),
+                   gridcolor="rgba(0,0,0,0.06)"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02,
-                    font=dict(size=10)),
-        margin=dict(l=60, r=20, t=40, b=50))
+                    font=dict(size=10), itemsizing="constant"),
+        plot_bgcolor="#f2efe8",
+        margin=dict(l=55, r=15, t=40, b=45))
     return fig, fam_trace_idx
 
 
@@ -1230,12 +1351,19 @@ def main(region_name):
     fig_att = _fig_attenuation(data)
     fig_fp, fp_names = _fig_fingerprints(data, fam_of)
 
-    def _plot(fig, div_id):
+    def _plot(fig, div_id, config=None):
+        cfg = config or "{responsive:true, displayModeBar:false}"
         return (f'<div id="{div_id}"></div><script>window.__figs=window.__figs||{{}};'
                 f'window.__figs["{div_id}"]={fig.to_json()};'
                 f'Plotly.newPlot("{div_id}", window.__figs["{div_id}"], '
-                f'{{}}, {{responsive:true, displayModeBar:false}});'
+                f'{{}}, {cfg});'
                 f'</script>')
+
+    # the map is the one figure that needs real navigation: wheel-zoom, pan,
+    # and a visible reset button (user feedback 2026-08-12)
+    _MAP_CFG = ("{responsive:true, scrollZoom:true, displayModeBar:true, "
+                "displaylogo:false, modeBarButtonsToRemove:"
+                "['select2d','lasso2d','autoScale2d','toImage']}")
 
     S = []
     S.append(f"<h1>דוח חקירה סביבתית-הידרולוגית<br>{_esc(region.get('name_he', region_name))}</h1>")
@@ -1310,11 +1438,13 @@ def main(region_name):
              f'משפחת-הסעה:</span>{chips}'
              f'<button class="famchip all" id="famall">הכל</button></div>')
     S.append(_bdi(f"<p>{_findings_overview(data)}</p>"))
-    S.append(f'<div class="figure">{_plot(fig_map, "figmap")}'
-             f'<div class="figcap">איור 1: מפת התיק — תחנות בצבעי '
-             f'משפחות-ההסעה (גודל ∝ Σ), ערוצי DEM, מסלול הנגר, ונתיבים '
-             f'מוצהרים (שאיבה — נקודות; מתועל — קו-נקודה, סכמטי). '
-             f'קואורדינטות ITM בק"מ.</div></div>')
+    S.append(f'<div class="figure">{_plot(fig_map, "figmap", _MAP_CFG)}'
+             f'<div class="figcap">איור 1: מפת התיק על רקע תבליט מוצלל '
+             f'(DEM) — תחנות בצבעי משפחות-ההסעה (גודל ∝ Σ), רשת-הערוצים, '
+             f'מסלולי הנגר של המועמדים, נתיבים מוצהרים, ומשולשי '
+             f'צומת-חשוד. ניווט: גלגלת = זום · גרירה = הזזה · לחיצה כפולה '
+             f'או כפתור-הבית = איפוס · לחיצה על פריט-מקרא מסתירה/מציגה '
+             f'שכבה. קואורדינטות ITM בק"מ.</div></div>')
     # conceptual site model
     nar_families = nar.get("families", {})
     csm = _csm_html(data, fam_of, nar_families)

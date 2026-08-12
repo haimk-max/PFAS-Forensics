@@ -1,0 +1,14 @@
+{
+  "bbox_itm": [
+    204000,
+    713000,
+    230500,
+    745000
+  ],
+  "azimuth_deg": 315.0,
+  "altitude_deg": 45.0,
+  "cell_m": 30.0,
+  "source": "Copernicus GLO-30 DSM (AWS Open Data)",
+  "quality": "derived_dem",
+  "notes_he": "רקע-תבליט לקריאות המפה בלבד — אינו שכבת-ראיה."
+}
