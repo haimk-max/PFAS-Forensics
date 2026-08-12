@@ -443,7 +443,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                 f"(r={attenuation['r_precursor']}) — עקבי עם התרחקות מהמקור")
         if junction_findings:
             _sem = region.get("dataset_semantics", {})
-            _caveat = ("; סייג: חתך לא בו-זמני (KI/A-סמנטיקה)"
+            _caveat = ("; סייג: חתך לא בו-זמני — ראו סמנטיקת-החתך המוצהרת"
                        if _sem.get("simultaneous") is False else "")
             for jf in junction_findings:
                 evidence_against.append(
