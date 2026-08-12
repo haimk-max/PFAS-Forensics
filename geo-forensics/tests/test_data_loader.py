@@ -111,3 +111,25 @@ class TestCleanData:
         })
         result = clean_data(df)
         assert result["compound"].tolist() == ["PFOS", "PFOA"]
+
+
+def test_censored_comparison_symbol_column_zeroes_result():
+    """Water Authority exports flag below-LOD rows in a separate
+    'comparison_symbol ' column (note the trailing space) while the result
+    cell holds the LOD value itself — it must load as 0, not as a real
+    concentration (found on the 2026-08 Kishon export: 43 rows)."""
+    import pandas as pd
+    from src.data_loader import clean_data, normalize_columns
+
+    raw = pd.DataFrame({
+        "water_source_name": ["A", "A", "B"],
+        "x_coordinate": [200000, 200000, 201000],
+        "y_coordinate": [700000, 700000, 701000],
+        "sample_date": ["2026-01-01"] * 3,
+        "param_symbol": ["PFOS", "PFOA", "PFOS"],
+        "measure_unit": ["microgr/L"] * 3,
+        "comparison_symbol ": ["<", None, "<"],   # trailing space, as exported
+        "result": [0.001, 0.05, 0.01],
+    })
+    df = clean_data(normalize_columns(raw))
+    assert list(df["concentration"]) == [0.0, 0.05, 0.0]

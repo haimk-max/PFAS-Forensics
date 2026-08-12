@@ -29,6 +29,35 @@
         ],
         "evidence_tier": "public_info"
       }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          35.07,
+          32.64
+        ]
+      },
+      "properties": {
+        "id": "alroy_fuel_terminal",
+        "name_he": "מסוף הדלק אלרואי (תש\"ן) — מוסק מקידוחי-הניטור",
+        "itm": [
+          210100,
+          734580
+        ],
+        "kind": "fuel_terminal",
+        "location_quality": "inferred_from_data — מרכז אשכול קידוחי 'נד תש\"ן אלרואי'; אין קואורדינטה רשמית ואין אישור-משתמש",
+        "expected_profiles": [
+          "afff_ecf_weathered",
+          "afff_ecf_fresh"
+        ],
+        "emission_evidence": [
+          "שמות הקידוחים בקובץ הרשות — 'נד תש\"ן אלרואי' — מזהים קידוחי-ניטור של מתקן תש\"ן",
+          "מסוף דלק אלרואי — מידע פומבי; חוות-מכלים ממוגנות-קצף; פרטי המערך והאירועים טרם בוררו"
+        ],
+        "evidence_tier": "public_info"
+      }
     }
   ]
 }

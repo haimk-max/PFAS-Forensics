@@ -4,7 +4,7 @@
     "N32_00_E034_00.tif",
     "N32_00_E035_00.tif"
   ],
-  "prepared_on": "2026-08-11",
+  "prepared_on": "2026-08-12",
   "resolution_m": 30.0,
   "method": "priority-flood fill + D8 + accumulation (src/dem_engine.py)",
   "channel_threshold_km2": 0.5004,

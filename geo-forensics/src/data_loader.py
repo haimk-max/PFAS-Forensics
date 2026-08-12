@@ -68,6 +68,12 @@ COLUMN_MAPPING: dict[str, str] = {
     "units": "unit",
     "measure_unit": "unit",
     "יחידת מדידה": "unit",
+    # Censoring symbol ('<' = below LOD). Water Authority exports carry it
+    # in a SEPARATE column (sometimes with a trailing space in the header —
+    # normalize_columns strips it); when present with '<', the result cell
+    # holds the LOD value itself, which must not enter as a real measurement.
+    "comparison_symbol": "comparison_symbol",
+    "סימן השוואה": "comparison_symbol",
 }
 
 # עמודות חובה - חייבות להיות בכל קובץ
@@ -140,6 +146,14 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     # Parse concentrations - handle "<LOD" values (below limit of detection)
     if "concentration" in df.columns:
         df["concentration"] = df["concentration"].apply(_parse_concentration)
+
+    # Censored results flagged in a separate comparison_symbol column:
+    # '<' means the numeric result is the LOD itself, not a detection —
+    # zero it (same convention as '<x' inside the result cell). Without
+    # this, LOD values (0.001/0.01) enter as real concentrations.
+    if "comparison_symbol" in df.columns and "concentration" in df.columns:
+        _cens = df["comparison_symbol"].astype(str).str.strip() == "<"
+        df.loc[_cens, "concentration"] = 0.0
 
     # Ensure numeric coordinates
     for col in ["x_itm", "y_itm"]:
