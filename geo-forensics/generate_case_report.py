@@ -522,11 +522,19 @@ def _fig_fingerprints(data, fam_of, max_stations=10):
 
 def _list_he(items, limit=None):
     items = list(items)
+    extra = 0
     if limit and len(items) > limit:
-        items = items[:limit] + [f"ועוד {len(items) - limit}"]
-    if len(items) <= 1:
-        return items[0] if items else ""
-    return ", ".join(items[:-1]) + " ו" + items[-1]
+        extra = len(items) - limit
+        items = items[:limit]
+    if not items:
+        return ""
+    if len(items) == 1:
+        s = items[0]
+    else:
+        # the "ועוד N" tail must stay OUTSIDE the vav-joined list — joining
+        # it as a list item produced "וועוד" (caught by QA agent 2026-08-12)
+        s = ", ".join(items[:-1]) + " ו" + items[-1]
+    return s + (f" ועוד {extra}" if extra else "")
 
 
 def _findings_overview(data):
