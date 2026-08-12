@@ -228,6 +228,18 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
     prec_cols = [c for c in fingerprint.columns if c.upper() in {p.upper() for p in PRECURSORS}]
     prec_share = fingerprint[prec_cols].sum(axis=1) if prec_cols else pd.Series(dtype=float)
 
+    # Cross-candidate site union: a station inside ANY declared source
+    # complex tells that complex's story — it must not surface as another
+    # candidate's chain candidate.
+    def _in_any_site(s):
+        for _src in sources:
+            toks = _src.get("site_name_tokens") or []
+            if toks and any(t in s for t in toks) and math.hypot(
+                    stn_xy[s][0] - _src["itm"][0],
+                    stn_xy[s][1] - _src["itm"][1]) <= 5000.0:
+                return True
+        return False
+
     results = []
     for src in sources:
         sx, sy = src["itm"]
@@ -312,20 +324,40 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                                        "offset_m": None, "kind": kind}
                 down_all.append(s)
 
-        up_or_side = [s for s in stn_xy if s not in down_all]
-
-        # Channel-adjacent stations (within 300 m of the candidate's runoff
-        # path) are CASCADE candidates (stream → bank infiltration → GW, the
-        # Tirli/D1 mechanism) — a similar profile there is a pathway question,
-        # not "elsewhere" counter-evidence. Listed separately.
+        # Channel-adjacent groundwater stations are CASCADE candidates
+        # (stream → bank infiltration → GW, the Tirli/D1 mechanism). The
+        # chain pathway competes with the direct-plume explanation, so the
+        # scan covers ALL gw stations with signal — including ones that are
+        # nominally downgradient under the assumed direction (user feedback
+        # 2026-08-12, item 4). A production well's capture zone blurs its
+        # geometry: the declared capture radius extends the 300 m adjacency
+        # threshold, and such a hit is marked coarse. A chain candidate is
+        # neither direct evidence nor counter-evidence (decided by paired
+        # sampling) — it is pulled out of the counted downgradient pool.
         cascade_candidates = []
+        cascade_meta = {}
         if dem_active:
-            for s in up_or_side:
-                if stn_domain.get(s) == "groundwater" and \
-                        stn_total[s] >= MIN_SIGNAL_UG_L:
-                    hit = flow_surface.near_path((sx, sy), stn_xy[s], 300.0)
-                    if hit is not None:
-                        cascade_candidates.append(s)
+            for s in stn_xy:
+                if stn_domain.get(s) != "groundwater" or \
+                        stn_total[s] < MIN_SIGNAL_UG_L or _in_any_site(s) or \
+                        s == src.get("anchor_station"):
+                    continue
+                wc = classify_well(s, stn_srctype.get(s, ""))
+                slack = (PRODUCTION_CAPTURE_RADIUS_M if wc == "production"
+                         else 0.0)
+                hit = flow_surface.near_path((sx, sy), stn_xy[s],
+                                             300.0 + slack)
+                if hit is not None:
+                    cascade_candidates.append(s)
+                    cascade_meta[s] = {
+                        "path_km": round(hit[0] / 1000.0, 2),
+                        "offset_m": int(round(hit[1])),
+                        "well_class": wc,
+                        "coarse": bool(hit[1] > 300.0),
+                    }
+            down_all = [s for s in down_all if s not in cascade_meta]
+
+        up_or_side = [s for s in stn_xy if s not in down_all]
 
         # --- signal threshold: near-LOD stations must not count as evidence ---
         down = [s for s in down_all if stn_total[s] >= MIN_SIGNAL_UG_L]
@@ -465,10 +497,16 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                 f"{len(_tf_pipe)} תחנות מוזנות-נתיב-מתועל (ביוב←מט\"ש←קולחים): "
                 f"{', '.join(_tf_pipe)} — הצהרת משתמש; ראו תחזית P1")
         if cascade_candidates:
+            _casc_parts = []
+            for s in cascade_candidates:
+                m = cascade_meta.get(s, {})
+                tag = " (אזור-לכידה, גס)" if m.get("coarse") else ""
+                _casc_parts.append(f"{s}{tag}")
             evidence_for.append(
-                f"מועמדי-שרשרת (קידוחים צמודי-ערוץ ≤300 מ' ממסלול הנגר): "
-                f"{', '.join(cascade_candidates)} — עקבי עם החדרת-גדות (מנגנון D1); "
-                f"לא נספרים כראיה ישירה ולא כראיית-נגד")
+                f"מועמדי-שרשרת (קידוחים צמודי-ערוץ למסלול הנגר; "
+                f"בקידוח-הפקה — עד רדיוס-הלכידה המוצהר): "
+                f"{', '.join(_casc_parts)} — עקבי עם החדרת-גדות; "
+                f"לא נספרים כראיה ישירה ולא כראיית-נגד — מוכרע בדיגום מזווג")
         if chem_hits:
             evidence_for.append(
                 f"התאמה כימית לפרופילים הצפויים ב-{len(chem_hits)}/{len(down)} "
@@ -594,6 +632,7 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             "production_soft_similar": production_soft,
             "gw_tiers": gw_tiers, "gw_fringe": gw_fringe,
             "cascade_candidates": cascade_candidates,
+            "cascade_meta": cascade_meta,
             "weak_downgradient": weak_down,
             "chem_share": round(chem_share, 2),
             "chem_share_weighted": round(chem_share_weighted, 2),

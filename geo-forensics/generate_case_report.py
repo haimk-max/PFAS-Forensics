@@ -576,17 +576,21 @@ def _findings_overview(data):
     second = ordered.iloc[1] if len(ordered) > 1 else None
     gap = (lead["total_concentration"] / second["total_concentration"]
            if second is not None and second["total_concentration"] > 0 else None)
-    para = (f"מתוך {data['n_stations']} תחנות הדיגום שבתחום התיק, "
-            f"{len(sig)} נושאות ריכוז העולה על סף-האות הראייתי "
-            f"({MIN_SIGNAL_UG_L} מיקרוגרם לליטר) והן המהוות את בסיס הראיות; "
-            f"היתר, שריכוזן נמוך מכך, מוצגות במפה אך אינן נספרות, שכן הרכבן "
-            f"היחסי נשלט על-ידי רעש אנליטי. הריכוזים אינם מתפלגים באופן אחיד: "
-            f"הם משתרעים על פני כ-{orders:.0f} סדרי גודל, מקצה של עשיריות "
-            f"אחוז מהסף ועד לערכים הגבוהים ביותר, שנמדדו ב{top_list}.")
+    para = (f"בתחום התיק {data['n_stations']} תחנות דיגום. "
+            f"{len(sig)} מהן מעל סף-האות ({MIN_SIGNAL_UG_L} מיקרוגרם לליטר) — "
+            f"הן בסיס הראיות. "
+            f"השאר מוצגות במפה אך אינן נספרות: בריכוזים כאלה ההרכב נשלט "
+            f"רעש-מדידה. "
+            f"הריכוזים משתרעים על פני כ-{orders:.0f} סדרי גודל. "
+            f"שלוש התחנות הגבוהות: {top_list}.")
     if gap and gap >= 10:
-        para += (f" בולט במיוחד הפער בין התחנה המובילה לבאה אחריה — יחס של "
-                 f"פי {gap:,.0f} — פער המאפיין נקודת-מקור ולא זיהום מפוזר, "
-                 f"ומצביע על כך שמדובר בשחרור מרוכז ולא ברקע אזורי.")
+        para += (f" הפער בין המובילה לבאה אחריה — פי {gap:,.0f} — מאפיין "
+                 f"נקודת-מקור, לא רקע מפוזר.")
+    excluded = data.get("excluded_stations") or []
+    if excluded:
+        para += (f" {len(excluded)} תחנות נוספות שבקובץ הנתונים הושמטו מגוף "
+                 f"הדוח — מסלול-הנגר שלהן שייך לאגן אחר; הרשימה המלאה "
+                 f"בנספח א'.")
     return para + " הפריסה המרחבית מוצגת באיור 1."
 
 
@@ -692,10 +696,15 @@ def _findings_family_sections(data, fam_of, nar_families):
             S.append(_bdi(f'<p>{_esc(nf["mechanism_he"])}</p>'))
 
         # Story-first prose; the numbers live in the data card below
-        # (readability decision, 2026-08-12).
+        # (readability decision, 2026-08-12). Explicit station names in every
+        # pathway card (user feedback 2026-08-12, item 2).
         obs = ""
         card = [("תחנות", str(len(members))),
                 ("Σ (µg/L)", _sigma_range_he(members).replace("Σ בין ", "").replace("Σ≈", "≈"))]
+
+        def _names_row(label="שמות התחנות", fmt=None):
+            parts = [fmt(m) if fmt else _esc(m["name"]) for m in members]
+            card.append((label, " · ".join(parts)))
 
         if key == "focus":
             # Group the source complexes by site (temporary name rule)
@@ -711,6 +720,9 @@ def _findings_family_sections(data, fam_of, nar_families):
                 t_val = float(me.loc[top, "total_concentration"])
                 obs += (f'מכלול "{_esc(cand_name)}" מונה {len(site)} נקודות '
                         f'דיגום, ובראשן "{_esc(top)}" ({_sig_he(t_val)} µg/L). ')
+                _short = cand_name.split("—")[0].strip()
+                card.append((f"תחנות מכלול {_short}",
+                             " · ".join(_esc(s) for s in sorted(site))))
                 em = ems.get(cand_name)
                 prof_he, score = "", 0.0
                 for st in data["stations"]:
@@ -723,6 +735,8 @@ def _findings_family_sections(data, fam_of, nar_families):
                     card.append(("התאמת-מוצר (אינדיקטיבית)", _esc(hint)))
             if leftover:
                 obs += (f"עוד {len(leftover)} נקודות מוקד מוצהרות/צמודות-אתר. ")
+                card.append(("נקודות מוקד נוספות",
+                             " · ".join(_esc(s) for s in sorted(leftover))))
             anchor = c.get("anchor_station")
             if anchor and anchor in me.index:
                 obs += ("תחנת-העוגן אושרה כמייצגת אזור-מקור ידוע — "
@@ -738,6 +752,12 @@ def _findings_family_sections(data, fam_of, nar_families):
         elif key == "stream":
             obs += ("התחנות יושבות על מסלול הנגר הנגזר — רציפות הידראולית "
                     "ממשית. ")
+            # explicit member names, in downstream order with path-km
+            _km = {d["station"]: d["km"] for d in c.get("atten_series", [])}
+            members.sort(key=lambda m: _km.get(m["name"], float("inf")))
+            _names_row("התחנות (לפי סדר במורד)",
+                       lambda m: (f'{_esc(m["name"])} ({_km[m["name"]]:.1f} ק"מ)'
+                                  if m["name"] in _km else _esc(m["name"])))
             aging_ok = att.get("r_precursor") is not None and att["r_precursor"] <= -0.4
             r = att.get("r_conc")
             if aging_ok and r is not None and r <= -0.4:
@@ -785,15 +805,21 @@ def _findings_family_sections(data, fam_of, nar_families):
                         "אינדיקציות-צומת, לא הוכחות; פירוט בכרטיס ובפרק "
                         "המסקנות. ")
                 for jf in jfs:
-                    card.append((f'צומת חשוד {jf["km"][0]:.0f}–{jf["km"][1]:.0f} ק"מ',
-                                 _esc("; ".join(jf["signals"]))))
+                    # the change is measured AT the downstream station of the
+                    # segment — name both ends explicitly (user feedback
+                    # 2026-08-12, item 3)
+                    seg = jf.get("segment") or ("", "")
+                    card.append((
+                        f'צומת חשוד {jf["km"][0]:.0f}–{jf["km"][1]:.0f} ק"מ',
+                        _esc(f'השינוי נמדד ב"{seg[1]}" (התחנה הקודמת: '
+                             f'"{seg[0]}"); ' + "; ".join(jf["signals"]))))
 
         elif key == "pumped":
             obs += ("התחנות אינן על הערוץ אך יורשות את מי הנחל דרך שאיבה "
                     "מוצהרת; הרכבן עקבי עם ירושה כזו, והן מוחרגות "
                     "מרגרסיית הדעיכה (שהות-בריכה מנתקת ריכוז ממרחק). ")
-            card.append(("התאמת-פרופיל",
-                         ", ".join(f"{m['score']:.0f}%" for m in members)))
+            _names_row("התחנות (התאמת-פרופיל)",
+                       lambda m: f'{_esc(m["name"])} ({m["score"]:.0f}%)')
 
         elif key == "piped":
             anchor = c.get("anchor_station")
@@ -807,15 +833,30 @@ def _findings_family_sections(data, fam_of, nar_families):
                              f"(~{np.log10(a_sig / max(hi, 1e-9)):.1f} סדרי-גודל)"))
             obs += ("החוליה האמצעית — הקולחים עצמם — טרם נדגמה; השרשרת "
                     "מוצהרת אך לא סגורה מדידתית.")
+            _names_row()
 
         elif key == "cascade":
             if nf.get("observed_he"):
                 obs += _esc(nf["observed_he"]) + " "
+            cmeta = c.get("cascade_meta", {})
+            if any(cmeta.get(m["name"], {}).get("coarse") for m in members):
+                obs += ("בקידוח-הפקה הצמידות נבחנת עד רדיוס אזור-הלכידה "
+                        "המוצהר (500 מ', גס) — השאיבה מטשטשת את מיקום "
+                        "הדגימה, ולכן הערוץ יכול להזין את הקידוח גם "
+                        "כשראש-הבאר רחוק ממנו. ")
             if c.get("n_surface_down", 0) == 0:
                 obs += ("בתיק אין דיגום מי-ערוץ על המסלול — "
                         "מבחן-הפרקציונציה ימתין לדיגום המזווג. ")
             obs += "נתיב מועמד: לא ראיה ישירה ולא ראיית-נגד."
-            card.append(("מרחק מהערוץ", "ראו מפה (איור 1)"))
+
+            def _casc_fmt(m):
+                mm = cmeta.get(m["name"], {})
+                if not mm:
+                    return _esc(m["name"])
+                tag = " — דרך אזור-הלכידה, גס" if mm.get("coarse") else ""
+                return (f'{_esc(m["name"])} ({mm.get("offset_m", "?")} מ\' '
+                        f'מהערוץ, בק"מ {mm.get("path_km", "?")}{tag})')
+            _names_row("הקידוחים (מרחק מהערוץ)", _casc_fmt)
 
         elif key == "gw":
             comp = {}
@@ -842,10 +883,20 @@ def _findings_family_sections(data, fam_of, nar_families):
             if n_prod:
                 card.append(("קידוחי-הפקה", f"{n_prod} (טווח-מדרגה עד 500 מ')"))
 
+            def _gw_fmt(m):
+                gt = gw_tiers.get(m["name"], {})
+                t = gt.get("tier", "?")
+                t_lbl = "במעלה" if t == "up" else f"מדרגה {t}"
+                if gt.get("tier_best") and gt["tier_best"] != t:
+                    t_lbl += f" (עד {gt['tier_best']} בטווח-הלכידה)"
+                return f'{_esc(m["name"])} ({t_lbl})'
+            _names_row("הקידוחים (מדרגת-עננה)", _gw_fmt)
+
         elif key == "other":
             obs += ("תחנות שאינן משויכות לאף נתיב של המועמדים: פרופיל דומה "
                     "בהן אינו נזקף לזכות איש — הוא נרשם כראיית-נגד או "
                     "כראיית-נגד מותנית, בחלקן תלוי בהשערות שבבדיקה.")
+            _names_row()
 
         S.append(_bdi(f"<p>{obs}</p>"))
         card_html = _card(card)
@@ -1053,6 +1104,19 @@ _FAM_JS = r"""
     document.querySelectorAll(".simsel").forEach(function(b){ b.checked = false; });
     applySim();
   });
+  // group buttons: one click checks/unchecks a whole transport family
+  document.querySelectorAll(".simsel-fam").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var fam = btn.dataset.fam, boxes = [];
+      document.querySelectorAll(".simsel").forEach(function(b){
+        if (famOf(b.dataset.station) === fam) boxes.push(b);
+      });
+      var any = boxes.some(function(b){ return b.checked; });
+      boxes.forEach(function(b){ b.checked = !any; });
+      btn.classList.toggle("off", any);
+      applySim();
+    });
+  });
   window.addEventListener("beforeprint", function(){
     chips.forEach(function(ch){
       active[ch.dataset.fam] = true; ch.classList.add("on"); });
@@ -1118,6 +1182,8 @@ table.datacard tr:last-child th,table.datacard tr:last-child td{border-bottom:no
 .simsel-btn{border:1.5px solid var(--line);background:#fff;color:var(--ink2);
 border-radius:7px;padding:3px 12px;font-size:.8rem;cursor:pointer;font-family:inherit}
 .simsel-btn:hover{border-color:#b9b5ad}
+.simsel-fam{display:inline-flex;align-items:center;gap:5px}
+.simsel-fam.off{opacity:.45;text-decoration:line-through}
 .simsel-hint{font-size:.75rem;color:var(--ink3)}
 .simsel{cursor:pointer}
 .csm{padding:6px 2px}
@@ -1262,6 +1328,15 @@ def main(region_name):
     # per-family findings
     S.extend(_findings_family_sections(data, fam_of, nar_families))
     me_idx = data["max_event"].set_index("station_name")
+    # one-click group selection for the matrix (user feedback 2026-08-12,
+    # item 5): a button per family present toggles all its stations at once
+    sim_group_btns = "".join(
+        f'<button type="button" class="simsel-btn simsel-fam" data-fam="{k}">'
+        f'<span class="famdot" style="background:{FAMILIES[k]["color"]}">'
+        f'</span>{_esc(FAMILIES[k]["short_he"])} '
+        f'({sum(1 for s in sim_lab if fam_of.get(s, "other") == k)})</button>'
+        for k in FAMILY_ORDER
+        if any(fam_of.get(s, "other") == k for s in sim_lab))
     legend_rows = "".join(
         f'<tr><td><input type="checkbox" class="simsel" '
         f'data-station="{_esc(s)}" checked></td>'
@@ -1281,7 +1356,9 @@ def main(region_name):
         f'<div class="simsel-bar">'
         f'<button type="button" id="simselall" class="simsel-btn">סמן הכל</button>'
         f'<button type="button" id="simselnone" class="simsel-btn">נקה הכל</button>'
-        f'<span class="simsel-hint">סימון/ביטול תחנה מעדכן את המטריצה מיד '
+        f'{sim_group_btns}'
+        f'<span class="simsel-hint">לחיצה על קבוצה מסמנת/מבטלת את כל '
+        f'תחנותיה בבת-אחת; כוונון עדין — בתיבות שבטבלה למטה '
         f'(נדרשות לפחות שתיים)</span></div>'
         f'<table style="font-size:.8rem"><tr><th></th><th>#</th><th>תחנה</th>'
         f'<th>Σ (µg/L)</th></tr>{legend_rows}</table></details></div>')
@@ -1426,8 +1503,32 @@ def main(region_name):
                      f"<td>{_esc(a['yield_he'])}</td><td>{_esc(a['priority'])}</td></tr>")
         S.append("</table>")
 
-    # appendix
-    S.append("<h2>נספח — מניפסט מתודולוגי</h2>")
+    # appendix: declared out-of-basin omissions (user feedback 2026-08-12,
+    # item 6) — dropped from the report body, never silently
+    excluded = data.get("excluded_stations") or []
+    if excluded:
+        screen = region.get("basin_screen", {})
+        S.append("<h2>נספח א' — תחנות שהושמטו מגוף הדוח (מסנן-אגן מוצהר)</h2>")
+        S.append(_bdi(
+            f"<p>{len(excluded)} תחנות מופיעות בקובץ הנתונים ובתחום מלבן-התיק, "
+            f"אך בבירור אינן שייכות לאגן הנחקר: מסלול-הנגר שלהן, כפי שנגזר "
+            f"ממודל הגבהים, אינו מתלכד עם גזע-הזרימה של התיק. הן הושמטו מכל "
+            f"איור, מנייה וניתוח בגוף הדוח, ומפורטות כאן במלואן. הכלל מוצהר "
+            f"וניתן לעקיפה בהצהרת-מומחה (overrides).</p>"))
+        note = (screen.get("provenance") or {}).get("note_he", "")
+        if note:
+            S.append(_bdi(f'<p class="provnote">{_esc(note)}</p>'))
+        S.append('<table><tr><th>תחנה</th><th>סוג</th><th>Σ (µg/L)</th>'
+                 '<th>סיבת ההשמטה</th></tr>')
+        for e in excluded:
+            S.append(f"<tr><td>{_esc(e['name'])}</td>"
+                     f"<td>{_esc(e['source_type'])}</td>"
+                     f"<td>{_sig_he(e['sigma'])}</td>"
+                     f"<td>{_esc(e['reason_he'])}</td></tr>")
+        S.append("</table>")
+
+    S.append("<h2>נספח ב' — מניפסט מתודולוגי</h2>" if excluded
+             else "<h2>נספח — מניפסט מתודולוגי</h2>")
     S.append(f"<p>גרסת מתודולוגיה (commit): <span dir='ltr'>{git}</span> · "
              f"סף-אות: {MIN_SIGNAL_UG_L} µg/L · רוחב-עננה k={GW_PLUME_K} · "
              f"צמידות-לערוץ: 300 מ' · פרופילי-מקור: domains/pfas (היוריסטיקה "

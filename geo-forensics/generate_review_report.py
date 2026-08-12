@@ -42,6 +42,68 @@ def _esc(s):
     return html.escape(str(s))
 
 
+def _basin_screen(df, region, base):
+    """Declared out-of-basin screen (region.json `basin_screen`).
+
+    A bbox is a rectangle; a drainage basin is not. Stations inside the bbox
+    whose DEM (D8) runoff path never converges with the case trunk drain to a
+    different basin and are dropped from the report body BEFORE attribution,
+    so every counter and figure agrees. The dropped list is returned for the
+    report's appendix — omission is declared, never silent. Overrides
+    (include/exclude by name) let expert feedback beat the model.
+    """
+    screen = region.get("basin_screen")
+    if not screen:
+        return df, []
+    flow = _load_json(os.path.join(base, "derived", "flow_paths.json"))
+    if not flow:
+        return df, []
+    pts = flow.get("points", {})
+    trunk = pts.get(screen.get("trunk_source", ""), {}).get("path_itm")
+    if not trunk:
+        return df, []
+    cell = float(screen.get("cell_match_m", 40.0))
+    tset = set()
+    for x, y in trunk:
+        tset.add((round(x / cell), round(y / cell)))
+
+    def _converges(path):
+        for x, y in path:
+            r, c = round(x / cell), round(y / cell)
+            if any((r + dr, c + dc) in tset
+                   for dr in (-1, 0, 1) for dc in (-1, 0, 1)):
+                return True
+        return False
+
+    force_in = set(screen.get("overrides", {}).get("include", []))
+    force_out = set(screen.get("overrides", {}).get("exclude", []))
+    excluded = []
+    for name in df["station_name"].unique():
+        if name in force_in:
+            continue
+        meta = pts.get(name)
+        out = name in force_out or (
+            meta is not None and "path_itm" in meta
+            and not _converges(meta["path_itm"]))
+        if out:
+            sub = df[df["station_name"] == name]
+            sigma = (float(sub.groupby("date")["concentration"].sum().max())
+                     if "date" in sub.columns
+                     else float(sub["concentration"].sum()))
+            excluded.append({
+                "name": name,
+                "sigma": sigma,
+                "source_type": str(sub["source_type"].iloc[0])
+                if "source_type" in sub.columns and len(sub) else "",
+                "reason_he": ("הוחרג בהצהרת-משתמש" if name in force_out else
+                              "מסלול-הנגר (DEM) אינו מתלכד עם גזע-הזרימה של התיק — אגן אחר"),
+            })
+    if excluded:
+        names = {e["name"] for e in excluded}
+        df = df[~df["station_name"].isin(names)].copy()
+    return df, sorted(excluded, key=lambda e: -e["sigma"])
+
+
 def _prepare(region_name):
     region = load_region(region_name)
     mf = os.path.join(os.path.dirname(__file__), region["measurement_file"])
@@ -60,6 +122,10 @@ def _prepare(region_name):
         df = df_all[df_all["station_name"].isin(in_bbox)].copy()
     else:
         df = df_all
+
+    # declared basin screen (user feedback 2026-08-12): bbox keeps the case
+    # rectangle, the screen drops stations that demonstrably drain elsewhere
+    df, excluded_stations = _basin_screen(df, region, region["_base"])
 
     fp = build_fingerprint_matrix(df, group)
     tot = calc_total_concentration(df, group)
@@ -123,6 +189,7 @@ def _prepare(region_name):
         "n_signal": int((me["total_concentration"] >= MIN_SIGNAL_UG_L).sum()),
         "date_span": region.get("dataset_semantics", {}).get("date_span", ""),
         "df": df, "group": group, "fingerprint": fp, "max_event": me,
+        "excluded_stations": excluded_stations,
     }
 
 
