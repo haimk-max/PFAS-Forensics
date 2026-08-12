@@ -472,20 +472,56 @@ def _fig_map(data, fam_of):
                            text="צפון ↑", showarrow=False,
                            font=dict(size=11, color="#4a4f57"))
 
+    # 10) named views for the one-click view bar (user feedback 2026-08-12:
+    # the tiny modebar is not real map navigation). Every view is an ITM-km
+    # [x0, x1, y0, y1] box; JS applies it with Plotly.relayout.
+    views = {}
+    if bbox:
+        full = [bbox[0] / 1000 - 0.5, bbox[2] / 1000 + 0.5,
+                bbox[1] / 1000 - 0.5, bbox[3] / 1000 + 0.5]
+        views["כל האגן"] = full
+    for c in data["candidates"]:
+        pts = [(c["itm"][0] / 1000, c["itm"][1] / 1000)]
+        for s in c.get("site_members", []):
+            if s in me.index:
+                pts.append((float(me.loc[s, "x_itm"]) / 1000,
+                            float(me.loc[s, "y_itm"]) / 1000))
+        xs_, ys_ = [p[0] for p in pts], [p[1] for p in pts]
+        pad = 1.8
+        short = c["name_he"].split("—")[0].strip()
+        views[f"מכלול {short}"] = [min(xs_) - pad, max(xs_) + pad,
+                                   min(ys_) - pad, max(ys_) + pad]
+    if jx:
+        views["מקטע-הצמתים"] = [min(jx) - 2, max(jx) + 2,
+                                min(jy) - 2, max(jy) + 2]
+
+    # initial view = the case bbox (no dead space beyond the hillshade);
+    # figure height follows the bbox aspect so the map FILLS its column
+    # instead of floating as a narrow strip inside it
+    if bbox:
+        dx = full[1] - full[0]
+        dy = full[3] - full[2]
+        height = int(min(1150, max(620, 850 * dy / dx + 90)))
+        xr, yr = full[:2], full[2:]
+    else:
+        height, xr, yr = 720, None, None
     fig.update_layout(
-        font=_FONT, template="plotly_white", height=720,
+        font=_FONT, template="plotly_white", height=height,
         dragmode="pan",
         xaxis=dict(title=dict(text='ITM מזרח (ק"מ)', font=dict(size=11)),
                    constrain="domain", tickfont=dict(size=10),
-                   gridcolor="rgba(0,0,0,0.06)"),
+                   gridcolor="rgba(0,0,0,0.06)", range=xr),
         yaxis=dict(title=dict(text='ITM צפון (ק"מ)', font=dict(size=11)),
                    scaleanchor="x", scaleratio=1, tickfont=dict(size=10),
-                   gridcolor="rgba(0,0,0,0.06)"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02,
-                    font=dict(size=10), itemsizing="constant"),
+                   gridcolor="rgba(0,0,0,0.06)", range=yr),
+        legend=dict(orientation="v", x=0.01, xanchor="left",
+                    y=0.99, yanchor="top", font=dict(size=10),
+                    itemsizing="constant",
+                    bgcolor="rgba(255,255,255,0.82)",
+                    bordercolor="#e2ddd2", borderwidth=1),
         plot_bgcolor="#f2efe8",
-        margin=dict(l=55, r=15, t=40, b=45))
-    return fig, fam_trace_idx
+        margin=dict(l=55, r=10, t=15, b=45))
+    return fig, fam_trace_idx, views
 
 
 def _similarity(data):
@@ -1305,6 +1341,14 @@ border-radius:7px;padding:3px 12px;font-size:.8rem;cursor:pointer;font-family:in
 .simsel-btn:hover{border-color:#b9b5ad}
 .simsel-fam{display:inline-flex;align-items:center;gap:5px}
 .simsel-fam.off{opacity:.45;text-decoration:line-through}
+.mapviews{display:flex;flex-wrap:wrap;gap:7px;align-items:center;
+  margin:10px 0 6px;padding:9px 12px;background:#fff;
+  border:1px solid var(--line);border-radius:10px}
+.mapview-btn{border:1.5px solid var(--line);background:#fff;color:var(--ink2);
+  border-radius:8px;padding:6px 14px;font-size:.92rem;font-family:inherit;
+  cursor:pointer;font-weight:600;min-width:42px}
+.mapview-btn:hover{border-color:var(--accent);color:var(--accent)}
+.mapview-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .simsel-hint{font-size:.75rem;color:var(--ink3)}
 .simsel{cursor:pointer}
 .csm{padding:6px 2px}
@@ -1327,7 +1371,7 @@ font-size:.9rem;margin-bottom:5px}
   .csm-card{page-break-inside:avoid}.decide{page-break-inside:avoid}
   table.datacard{page-break-inside:avoid}
   p{orphans:2;widows:2}
-  .draft{display:none}.fambar{display:none}
+  .draft{display:none}.fambar{display:none}.mapviews{display:none}
   .simsel{display:none}.simsel-bar{display:none}
 }
 """
@@ -1344,7 +1388,7 @@ def main(region_name):
                          cwd=os.path.dirname(__file__) or ".").stdout.strip()
 
     fam_of = _classify_families(data)
-    fig_map, fam_trace_idx = _fig_map(data, fam_of)
+    fig_map, fam_trace_idx, map_views = _fig_map(data, fam_of)
     sim_df, sim_lab, sim_clusters, sim_pairs = _similarity(data)
     fig_sim = _fig_similarity(sim_df, sim_lab, fam_of)
     n_sim = len(sim_lab)
@@ -1438,13 +1482,49 @@ def main(region_name):
              f'משפחת-הסעה:</span>{chips}'
              f'<button class="famchip all" id="famall">הכל</button></div>')
     S.append(_bdi(f"<p>{_findings_overview(data)}</p>"))
+    view_btns = "".join(
+        f'<button type="button" class="mapview-btn" data-view="{_esc(k)}">'
+        f'{_esc(k)}</button>' for k in map_views)
+    S.append(
+        f'<div class="mapviews"><span class="fambar-t">תצוגה:</span>'
+        f'{view_btns}'
+        f'<button type="button" class="mapview-btn" id="mapzin">+</button>'
+        f'<button type="button" class="mapview-btn" id="mapzout">−</button>'
+        f'</div>')
     S.append(f'<div class="figure">{_plot(fig_map, "figmap", _MAP_CFG)}'
              f'<div class="figcap">איור 1: מפת התיק על רקע תבליט מוצלל '
              f'(DEM) — תחנות בצבעי משפחות-ההסעה (גודל ∝ Σ), רשת-הערוצים, '
              f'מסלולי הנגר של המועמדים, נתיבים מוצהרים, ומשולשי '
-             f'צומת-חשוד. ניווט: גלגלת = זום · גרירה = הזזה · לחיצה כפולה '
-             f'או כפתור-הבית = איפוס · לחיצה על פריט-מקרא מסתירה/מציגה '
-             f'שכבה. קואורדינטות ITM בק"מ.</div></div>')
+             f'צומת-חשוד. ניווט: כפתורי-התצוגה שמעל · גלגלת = זום · '
+             f'גרירה = הזזה · לחיצה על פריט-מקרא מסתירה/מציגה שכבה. '
+             f'קואורדינטות ITM בק"מ.</div></div>')
+    S.append("<script>window.__mapViews=" +
+             json.dumps(map_views, ensure_ascii=False) + ";" + r"""
+(function(){
+  function mapEl(){ return document.getElementById("figmap"); }
+  function setView(v){
+    Plotly.relayout(mapEl(), {"xaxis.range":[v[0],v[1]],
+                              "yaxis.range":[v[2],v[3]]});
+  }
+  document.querySelectorAll(".mapview-btn[data-view]").forEach(function(b){
+    b.addEventListener("click", function(){
+      setView(window.__mapViews[b.dataset.view]);
+      document.querySelectorAll(".mapview-btn").forEach(function(o){
+        o.classList.toggle("on", o === b); });
+    });
+  });
+  function zoomBy(f){
+    var el = mapEl(), xr = el.layout.xaxis.range, yr = el.layout.yaxis.range;
+    var cx = (xr[0]+xr[1])/2, cy = (yr[0]+yr[1])/2;
+    var hx = (xr[1]-xr[0])/2*f, hy = (yr[1]-yr[0])/2*f;
+    setView([cx-hx, cx+hx, cy-hy, cy+hy]);
+  }
+  var zi = document.getElementById("mapzin");
+  var zo = document.getElementById("mapzout");
+  if (zi) zi.addEventListener("click", function(){ zoomBy(0.6); });
+  if (zo) zo.addEventListener("click", function(){ zoomBy(1.6); });
+})();
+</script>""")
     # conceptual site model
     nar_families = nar.get("families", {})
     csm = _csm_html(data, fam_of, nar_families)
