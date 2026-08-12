@@ -11,8 +11,14 @@ PFAS-Forensics/
 │   ├── app_legacy.py        ← דשבורד Streamlit — גרסה מקורית (גלילה רציפה)
 │   ├── generate_report.py   ← מחולל דוחות HTML סטטיים (v1)
 │   ├── generate_report_v2.py← מחולל דוחות HTML סטטיים (v2)
-│   ├── config.py            ← הגדרות: צבעים, מפה, UI
-│   ├── src/                 ← מודולי אנליטיקה ועיבוד נתונים
+│   ├── generate_case_report.py  ← **דוח-חקירה פר-תיק** (מפת Leaflet+תצ"א, CSM, ראיות, נספחים)
+│   ├── generate_review_report.py← דוח ביקורת-מומחה (לוח-טענות + גיליון-תשובות)
+│   ├── config.py            ← הגדרות: צבעים, מפה, ספי-ראיה
+│   ├── src/                 ← מודולי אנליטיקה, ייחוס-מקור, מודל-זרימה
+│   ├── domains/pfas/        ← ידע דומייני: פרופילי-מקור ורמזי-מוצר
+│   ├── regions/<תיק>/       ← ישות-תיק: region.json, sources, claims, actions, derived/
+│   ├── tools/               ← הכנות חד-פעמיות: DEM, הצללת-תבליט, תצ"א Sentinel-2
+│   ├── vendor/leaflet/      ← Leaflet מקומי (מוטמע בדוחות — ללא CDN)
 │   ├── tests/               ← בדיקות pytest
 │   ├── data/sample/         ← קבצי נתונים לדוגמה
 │   └── REQUIREMENTS.md      ← מפרט דרישות הדשבורד
@@ -31,6 +37,16 @@ cd geo-forensics
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+### דוח-חקירה פר-תיק (self-contained)
+```bash
+cd geo-forensics
+python tools/prepare_region_dem.py <תיק> <dem-tiles...>        # חד-פעמי
+python tools/prepare_region_hillshade.py <תיק> <dem-tiles...>  # חד-פעמי
+python tools/prepare_region_basemap.py <תיק>                   # חד-פעמי (תצ"א)
+python generate_case_report.py <תיק>       # hagit | kesariya | kishon
+```
+התוצר: `regions/<תיק>/case_report_<תיק>.html` — עצמאי לחלוטין (מפה, איורים ונתונים מוטמעים).
 
 ### דוח HTML סטטי (self-contained)
 ```bash

@@ -1,0 +1,35 @@
+{
+  "bbox_itm": [
+    204000,
+    713000,
+    230500,
+    745000
+  ],
+  "res_m": 15.0,
+  "scenes": [
+    {
+      "id": "S2A_36SXA_20250819_0_L2A",
+      "datetime": "2025-08-19T08:31:30.987000Z",
+      "cloud_cover": 0.58
+    },
+    {
+      "id": "S2B_36SXB_20250812_1_L2A",
+      "datetime": "2025-08-12T08:31:04.739000Z",
+      "cloud_cover": 1.09
+    },
+    {
+      "id": "S2A_36SYA_20250819_1_L2A",
+      "datetime": "2025-08-19T08:31:27.781000Z",
+      "cloud_cover": 0.0
+    },
+    {
+      "id": "S2A_36SYB_20250819_1_L2A",
+      "datetime": "2025-08-19T08:31:13.164000Z",
+      "cloud_cover": 0.22
+    }
+  ],
+  "source": "Copernicus Sentinel-2 L2A (AWS Open Data, sentinel-cogs)",
+  "attribution_he": "מכיל נתוני Copernicus Sentinel-2 מעובדים (ESA)",
+  "quality": "satellite_imagery",
+  "notes_he": "רקע-תצ\"א לקריאוּת בלבד — אינו שכבת-ראיה; התאריך שונה מתאריכי הדיגום."
+}

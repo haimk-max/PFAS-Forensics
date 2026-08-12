@@ -242,89 +242,89 @@ _PLOTLY_JS = open(os.path.join(os.path.dirname(plotly.__file__),
                                "package_data", "plotly.min.js"),
                   encoding="utf-8").read()
 
+# Leaflet is vendored (vendor/leaflet, BSD-2-Clause) and inlined: the reports
+# must stay self-contained — an Artifact page cannot reach a CDN.
+_LEAFLET_DIR = os.path.join(os.path.dirname(__file__), "vendor", "leaflet")
+_LEAFLET_JS = open(os.path.join(_LEAFLET_DIR, "leaflet.js"),
+                   encoding="utf-8").read()
+_LEAFLET_CSS = open(os.path.join(_LEAFLET_DIR, "leaflet.css"),
+                    encoding="utf-8").read()
+
 _FONT = dict(family="Assistant, Segoe UI, sans-serif", size=13)
 
 
 # ─── figures ────────────────────────────────────────────────────────────────
 
-def _fig_map(data, fam_of):
-    """Figure 1 — case map in ITM coordinates (self-contained, no tiles).
+def _map_payload(data, fam_of):
+    """Figure 1 data for the embedded Leaflet map (approved 2026-08-12).
 
-    Rebuilt 2026-08-12 after user feedback ("works badly, looks worse"):
-    - shaded-relief backdrop from the region DEM (derived/hillshade.png,
-      embedded as a data URI — offline/CSP-safe) gives geographic context;
-    - the channel network is TWO traces (minor/major by accumulation), not
-      one trace per segment (was 565 traces — killed pan/zoom);
-    - one trace per station family, log-Σ marker sizing, quiet styling for
-      below-threshold / unassigned stations so evidence stations pop;
-    - permanent labels only for the key stations; the rest on hover;
-    - suspected junction segments marked on the stem;
-    - scale bar; equal-aspect axes; pan+wheel-zoom enabled by the caller.
-    Returns (fig, family→trace-index) for the family filter bar."""
-    fig = go.Figure()
+    Plotly was the wrong tool for a map: its zoom/pan is a chart interaction,
+    not map navigation. Leaflet is vendored locally (vendor/leaflet) and the
+    map runs on CRS.Simple with axes in ITM kilometres, so no projection or
+    tile server is involved — the shaded-relief PNG is the only backdrop and
+    it is embedded as a data URI. Returns a JSON-ready dict."""
     region = data["region"]
     me = data["max_event"].set_index("station_name")
+    bbox = region.get("bbox_itm") or [0, 0, 1, 1]
+    P = {"bbox": [bbox[0] / 1000, bbox[1] / 1000,
+                  bbox[2] / 1000, bbox[3] / 1000],
+         "famColors": {k: v["color"] for k, v in FAMILIES.items()},
+         "famNames": {k: v["name_he"] for k, v in FAMILIES.items()}}
 
-    # 0) hillshade backdrop
-    hs_png = os.path.join(region["_base"], "derived", "hillshade.png")
-    hs_meta_p = os.path.join(region["_base"], "derived", "hillshade_meta.json")
-    if os.path.isfile(hs_png) and os.path.isfile(hs_meta_p):
-        import base64
-        hs_meta = json.load(open(hs_meta_p, encoding="utf-8"))
-        hx0, hy0, hx1, hy1 = hs_meta["bbox_itm"]
-        b64 = base64.b64encode(open(hs_png, "rb").read()).decode()
-        fig.add_layout_image(dict(
-            source=f"data:image/png;base64,{b64}",
-            xref="x", yref="y", x=hx0 / 1000, y=hy1 / 1000,
-            sizex=(hx1 - hx0) / 1000, sizey=(hy1 - hy0) / 1000,
-            sizing="stretch", opacity=0.45, layer="below"))
+    # backdrops: satellite imagery (base) + shaded relief (toggleable)
+    import base64
 
-    # 1) channel network — two None-separated traces (minor / major)
+    def _overlay(img_name, meta_name, mime):
+        img_p = os.path.join(region["_base"], "derived", img_name)
+        meta_p = os.path.join(region["_base"], "derived", meta_name)
+        if not (os.path.isfile(img_p) and os.path.isfile(meta_p)):
+            return None
+        m = json.load(open(meta_p, encoding="utf-8"))
+        b = m["bbox_itm"]
+        return {"url": f"data:{mime};base64," +
+                base64.b64encode(open(img_p, "rb").read()).decode(),
+                "bounds": [b[0] / 1000, b[1] / 1000, b[2] / 1000, b[3] / 1000],
+                "meta": m}
+
+    sat = _overlay("basemap.jpg", "basemap_meta.json", "image/jpeg")
+    if sat:
+        dates = ", ".join(s["datetime"][:10] for s in sat["meta"]["scenes"])
+        P["satellite"] = {"url": sat["url"], "bounds": sat["bounds"],
+                          "credit": (f'{sat["meta"]["attribution_he"]} · '
+                                     f'{dates}')}
+    hs = _overlay("hillshade.png", "hillshade_meta.json", "image/png")
+    if hs:
+        P["hillshade"] = {"url": hs["url"], "bounds": hs["bounds"]}
+
+    # channel network, split minor/major by drainage area
+    P["channels"] = {"minor": [], "major": []}
     if data["channels"]:
         from pyproj import Transformer
         t = Transformer.from_crs(4326, 2039, always_xy=True)
         feats = data["channels"]["features"]
         accs = [f.get("properties", {}).get("max_acc_cells", 0) for f in feats]
-        major_thr = np.percentile([a for a in accs if a], 85) if any(accs) else 0
-        lines = {"minor": ([], []), "major": ([], [])}
+        thr = np.percentile([a for a in accs if a], 85) if any(accs) else 0
         for feat, acc in zip(feats, accs):
-            xs, ys = lines["major" if acc >= major_thr else "minor"]
+            line = []
             for lon, lat in feat["geometry"]["coordinates"]:
                 x, y = t.transform(lon, lat)
-                xs.append(x / 1000); ys.append(y / 1000)
-            xs.append(None); ys.append(None)
-        fig.add_trace(go.Scatter(
-            x=lines["minor"][0], y=lines["minor"][1], mode="lines",
-            line=dict(color="rgba(110,160,200,0.45)", width=0.8),
-            name="ערוצים משניים (DEM)", hoverinfo="skip"))
-        fig.add_trace(go.Scatter(
-            x=lines["major"][0], y=lines["major"][1], mode="lines",
-            line=dict(color="#4a90c4", width=2.2),
-            name="ערוצים ראשיים (DEM)", hoverinfo="skip"))
+                line.append([round(x / 1000, 4), round(y / 1000, 4)])
+            P["channels"]["major" if acc >= thr else "minor"].append(line)
 
-    # 2) candidate runoff paths — one trace per candidate
-    path_styles = [dict(color="#d97a2c", dash="solid"),
-                   dict(color="#7a3d9e", dash="dash"),
-                   dict(color="#2a9d8f", dash="dot")]
-    cand_paths = {}
+    # candidate runoff paths + declared connectors
+    P["paths"], P["connectors"] = [], []
+    colors = ["#d97a2c", "#7a3d9e", "#2a9d8f"]
     for i, c in enumerate(data["candidates"]):
         pt = (data["flow"] or {}).get("points", {}).get(c["id"])
         path = pt.get("path_itm") if pt else None
-        cand_paths[c["id"]] = path
+        short = c["name_he"].split("—")[0].strip()
         if path:
-            st = path_styles[i % len(path_styles)]
-            short = c["name_he"].split("—")[0].strip()
-            fig.add_trace(go.Scatter(
-                x=[p[0] / 1000 for p in path], y=[p[1] / 1000 for p in path],
-                mode="lines", line=dict(width=3.5, **st),
-                opacity=0.9, name=f"מסלול הנגר — {short}",
-                hoverinfo="name"))
-
-    # 3) declared transfer connectors — one trace per kind
-    pump_xy, pipe_xy = ([], []), ([], [])
-    for c in data["candidates"]:
+            P["paths"].append({
+                "name": f"מסלול הנגר — {short}",
+                "color": colors[i % len(colors)],
+                "pts": [[round(p[0] / 1000, 4), round(p[1] / 1000, 4)]
+                        for p in path]})
         sx, sy = c["itm"]
-        path = cand_paths.get(c["id"])
         for s, tfv in (c.get("transfer_fed") or {}).items():
             if s not in me.index:
                 continue
@@ -333,153 +333,81 @@ def _fig_map(data, fam_of):
             if tfv.get("kind") == "pumping" and path:
                 near = min(path, key=lambda p: (p[0] / 1000 - tx) ** 2
                            + (p[1] / 1000 - ty) ** 2)
-                pump_xy[0].extend([near[0] / 1000, tx, None])
-                pump_xy[1].extend([near[1] / 1000, ty, None])
+                P["connectors"].append({
+                    "name": "שאיבה מהנחל (מוצהר)",
+                    "color": FAMILIES["pumped"]["color"], "dash": "3 5",
+                    "pts": [[near[0] / 1000, near[1] / 1000], [tx, ty]]})
             elif tfv.get("kind") != "pumping":
-                pipe_xy[0].extend([sx / 1000, tx, None])
-                pipe_xy[1].extend([sy / 1000, ty, None])
-    if pump_xy[0]:
-        fig.add_trace(go.Scatter(
-            x=pump_xy[0], y=pump_xy[1], mode="lines",
-            line=dict(color=FAMILIES["pumped"]["color"], width=2, dash="dot"),
-            name="שאיבה מהנחל (מוצהר)", hoverinfo="skip"))
-    if pipe_xy[0]:
-        fig.add_trace(go.Scatter(
-            x=pipe_xy[0], y=pipe_xy[1], mode="lines",
-            line=dict(color=FAMILIES["piped"]["color"], width=2,
-                      dash="dashdot"),
-            name="נתיב מתועל (מוצהר, סכמטי)", hoverinfo="skip"))
+                P["connectors"].append({
+                    "name": "נתיב מתועל (מוצהר, סכמטי)",
+                    "color": FAMILIES["piped"]["color"], "dash": "9 4 2 4",
+                    "pts": [[sx / 1000, sy / 1000], [tx, ty]]})
 
-    # 5) stations — one trace per family; quiet styling for context families
-    fam_trace_idx = {}
+    # stations
     gw_tiers = (data["candidates"][0].get("gw_tiers", {})
                 if data["candidates"] else {})
-    for fk in FAMILY_ORDER:
-        members = [s for s in data["stations"] if fam_of.get(s["name"]) == fk]
-        if not members:
-            continue
-        style = FAMILIES[fk]
-        quiet = fk in ("other", "below")
-        xs, ys, texts, sizes = [], [], [], []
-        for s in members:
-            row = me.loc[s["name"]]
-            xs.append(float(row["x_itm"]) / 1000)
-            ys.append(float(row["y_itm"]) / 1000)
-            extra = ""
-            if fk == "gw" and s["name"] in gw_tiers:
-                gt = gw_tiers[s["name"]]
-                extra = f"<br>מדרגת-עננה: {gt['tier']}"
-                if gt.get("tier_best"):
-                    extra += (f" (מטושטש-שאיבה: עד {gt['tier_best']} "
-                              f"ברדיוס-לכידה)")
-                wc = gt.get("well_class")
-                if wc == "production":
-                    extra += "<br>קידוח הפקה — ריכוז = חסם-תחתון"
-                elif wc == "monitoring":
-                    extra += "<br>קידוח ניטור"
-            texts.append(f"<b>{s['name']}</b><br>Σ={s['sigma']:.3f} µg/L"
-                         f"<br>{s['profile']} ({s['score']:.0f}%)"
-                         f"<br>{style['name_he']}{extra}")
-            if s["below_thr"]:
-                sizes.append(5)
-            else:
-                sizes.append(max(9, min(26,
-                             10 + 4 * np.log10(s["sigma"] / 0.001 + 1))))
-        fam_trace_idx[fk] = len(fig.data)
-        fig.add_trace(go.Scatter(
-            x=xs, y=ys, mode="markers", name=style["name_he"],
-            marker=dict(size=sizes, symbol=style["symbol"],
-                        color=style["color"],
-                        opacity=0.45 if quiet else 0.92,
-                        line=dict(width=0 if quiet else 1.2, color="white")),
-            text=texts, hoverinfo="text"))
+    P["stations"] = []
+    for s in data["stations"]:
+        row = me.loc[s["name"]]
+        fk = fam_of.get(s["name"], "other")
+        extra = ""
+        if fk == "gw" and s["name"] in gw_tiers:
+            gt = gw_tiers[s["name"]]
+            extra = f"<br>מדרגת-עננה: {gt['tier']}"
+            if gt.get("tier_best"):
+                extra += f" (מטושטש-שאיבה: עד {gt['tier_best']})"
+            wc = gt.get("well_class")
+            if wc == "production":
+                extra += "<br>קידוח הפקה — ריכוז = חסם-תחתון"
+            elif wc == "monitoring":
+                extra += "<br>קידוח ניטור"
+        P["stations"].append({
+            "n": s["name"], "f": fk,
+            "x": round(float(row["x_itm"]) / 1000, 4),
+            "y": round(float(row["y_itm"]) / 1000, 4),
+            "r": (4 if s["below_thr"] else
+                  round(max(6, min(17, 6 + 3 * np.log10(
+                      s["sigma"] / 0.001 + 1))), 1)),
+            "t": (f'<b>{_esc(s["name"])}</b><br>Σ={s["sigma"]:.3f} µg/L'
+                  f'<br>{_esc(s["profile"])} ({s["score"]:.0f}%)'
+                  f'<br>{FAMILIES[fk]["name_he"]}{extra}')})
 
-    # 6) suspected junction segments — triangle just north of the measuring
-    # station (offset so the station marker stays visible), drawn ON TOP of
-    # the station layers
-    jx, jy, jtext = [], [], []
-    seen_seg = set()
+    # declared sources, junction flags, key labels
+    P["sources"] = [{
+        "n": f["properties"]["name_he"].split("—")[0].strip(),
+        "full": f["properties"]["name_he"],
+        "x": f["properties"]["itm"][0] / 1000,
+        "y": f["properties"]["itm"][1] / 1000}
+        for f in (data["sources"] or {}).get("features", [])]
+    P["junctions"], seen = [], set()
     for c in data["candidates"]:
         for jf in c.get("junction_findings", []):
             seg = tuple(jf.get("segment") or ("", ""))
-            if seg in seen_seg or seg[1] not in me.index:
+            if seg in seen or seg[1] not in me.index:
                 continue
-            seen_seg.add(seg)
-            jx.append(float(me.loc[seg[1], "x_itm"]) / 1000)
-            jy.append(float(me.loc[seg[1], "y_itm"]) / 1000 + 0.4)
-            jtext.append(
-                f'צומת חשוד {jf["km"][0]:.0f}–{jf["km"][1]:.0f} ק"מ'
-                f'<br>נמדד ב: {seg[1]}<br>הקודמת: {seg[0]}')
-    if jx:
-        fig.add_trace(go.Scatter(
-            x=jx, y=jy, mode="markers", name="צומת חשוד (הצטרפות-עומס)",
-            marker=dict(symbol="triangle-up", size=14, color="#d97a2c",
-                        line=dict(width=1.5, color="#7a3500")),
-            text=jtext, hoverinfo="text"))
-
-    # 7) permanent labels — key stations, spatially thinned so cluster
-    # members don't stack (one label per ~1.5 km; higher Σ wins)
-    signal = [s for s in data["stations"] if not s["below_thr"]]
-    key, taken = [], []
-    src_feats = (data["sources"] or {}).get("features", [])
-    src_xy = [(f["properties"]["itm"][0] / 1000,
-               f["properties"]["itm"][1] / 1000) for f in src_feats]
-    for s in sorted(signal, key=lambda v: -v["sigma"]):
-        x = float(me.loc[s["name"], "x_itm"]) / 1000
-        y = float(me.loc[s["name"], "y_itm"]) / 1000
-        if any(math.hypot(x - tx, y - ty) < 1.5 for tx, ty in taken + src_xy):
+            seen.add(seg)
+            P["junctions"].append({
+                "x": round(float(me.loc[seg[1], "x_itm"]) / 1000, 4),
+                "y": round(float(me.loc[seg[1], "y_itm"]) / 1000, 4),
+                "t": (f'<b>צומת חשוד {jf["km"][0]:.0f}–{jf["km"][1]:.0f} '
+                      f'ק"מ</b><br>נמדד ב: {_esc(seg[1])}'
+                      f'<br>התחנה הקודמת: {_esc(seg[0])}'
+                      f'<br>{_esc("; ".join(jf["signals"]))}')})
+    labels, taken = [], [(s["x"], s["y"]) for s in P["sources"]]
+    for s in sorted((v for v in P["stations"] if v["r"] > 4),
+                    key=lambda v: -v["r"]):
+        if any(math.hypot(s["x"] - tx, s["y"] - ty) < 1.5
+               for tx, ty in taken):
             continue
-        key.append((s["name"], x, y))
-        taken.append((x, y))
-        if len(key) >= 6:
+        labels.append({"n": s["n"], "x": s["x"], "y": s["y"]})
+        taken.append((s["x"], s["y"]))
+        if len(labels) >= 6:
             break
-    if key:
-        fig.add_trace(go.Scatter(
-            x=[k[1] for k in key], y=[k[2] + 0.55 for k in key],
-            mode="text", text=[k[0] for k in key],
-            textfont=dict(size=10.5, color="#1c1f24"),
-            name="שמות תחנות-המפתח", hoverinfo="skip"))
+    P["labels"] = labels
 
-    # 8) declared sources — gold star (distinct from the purple focus
-    # stations) + label
-    if src_feats:
-        fig.add_trace(go.Scatter(
-            x=[s["properties"]["itm"][0] / 1000 for s in src_feats],
-            y=[s["properties"]["itm"][1] / 1000 for s in src_feats],
-            mode="markers+text",
-            marker=dict(size=24, symbol="star", color="#f4b942",
-                        line=dict(width=1.8, color="#5a4200")),
-            text=[s["properties"]["name_he"].split("—")[0].strip()
-                  for s in src_feats],
-            textposition="bottom center",
-            textfont=dict(size=12, color="#5a4200"),
-            name="מקור מוערך", hoverinfo="text",
-            hovertext=[s["properties"]["name_he"] for s in src_feats]))
-
-    # 9) scale bar (bottom-right, 5 km) — axes are in km so length is 5
-    bbox = region.get("bbox_itm")
-    if bbox:
-        bx = bbox[2] / 1000 - 1.5
-        by = bbox[1] / 1000 + 1.2
-        fig.add_shape(type="line", x0=bx - 5, x1=bx, y0=by, y1=by,
-                      line=dict(color="#1c1f24", width=3))
-        for x_ in (bx - 5, bx):
-            fig.add_shape(type="line", x0=x_, x1=x_, y0=by - 0.15,
-                          y1=by + 0.15, line=dict(color="#1c1f24", width=2))
-        fig.add_annotation(x=bx - 2.5, y=by + 0.55, text='5 ק"מ',
-                           showarrow=False, font=dict(size=11))
-        fig.add_annotation(x=bbox[0] / 1000 + 1.2, y=bbox[3] / 1000 - 1.2,
-                           text="צפון ↑", showarrow=False,
-                           font=dict(size=11, color="#4a4f57"))
-
-    # 10) named views for the one-click view bar (user feedback 2026-08-12:
-    # the tiny modebar is not real map navigation). Every view is an ITM-km
-    # [x0, x1, y0, y1] box; JS applies it with Plotly.relayout.
-    views = {}
-    if bbox:
-        full = [bbox[0] / 1000 - 0.5, bbox[2] / 1000 + 0.5,
-                bbox[1] / 1000 - 0.5, bbox[3] / 1000 + 0.5]
-        views["כל האגן"] = full
+    # named views for the view bar
+    views = {"כל האגן": [P["bbox"][0] - 0.4, P["bbox"][2] + 0.4,
+                         P["bbox"][1] - 0.4, P["bbox"][3] + 0.4]}
     for c in data["candidates"]:
         pts = [(c["itm"][0] / 1000, c["itm"][1] / 1000)]
         for s in c.get("site_members", []):
@@ -487,41 +415,143 @@ def _fig_map(data, fam_of):
                 pts.append((float(me.loc[s, "x_itm"]) / 1000,
                             float(me.loc[s, "y_itm"]) / 1000))
         xs_, ys_ = [p[0] for p in pts], [p[1] for p in pts]
-        pad = 1.8
         short = c["name_he"].split("—")[0].strip()
-        views[f"מכלול {short}"] = [min(xs_) - pad, max(xs_) + pad,
-                                   min(ys_) - pad, max(ys_) + pad]
-    if jx:
-        views["מקטע-הצמתים"] = [min(jx) - 2, max(jx) + 2,
-                                min(jy) - 2, max(jy) + 2]
+        views[f"מכלול {short}"] = [min(xs_) - 1.8, max(xs_) + 1.8,
+                                   min(ys_) - 1.8, max(ys_) + 1.8]
+    if P["junctions"]:
+        jxs = [j["x"] for j in P["junctions"]]
+        jys = [j["y"] for j in P["junctions"]]
+        views["מקטע-הצמתים"] = [min(jxs) - 2, max(jxs) + 2,
+                                min(jys) - 2, max(jys) + 2]
+    P["views"] = views
+    return P
 
-    # initial view = the case bbox (no dead space beyond the hillshade);
-    # figure height follows the bbox aspect so the map FILLS its column
-    # instead of floating as a narrow strip inside it
-    if bbox:
-        dx = full[1] - full[0]
-        dy = full[3] - full[2]
-        height = int(min(1150, max(620, 850 * dy / dx + 90)))
-        xr, yr = full[:2], full[2:]
-    else:
-        height, xr, yr = 720, None, None
-    fig.update_layout(
-        font=_FONT, template="plotly_white", height=height,
-        dragmode="pan",
-        xaxis=dict(title=dict(text='ITM מזרח (ק"מ)', font=dict(size=11)),
-                   constrain="domain", tickfont=dict(size=10),
-                   gridcolor="rgba(0,0,0,0.06)", range=xr),
-        yaxis=dict(title=dict(text='ITM צפון (ק"מ)', font=dict(size=11)),
-                   scaleanchor="x", scaleratio=1, tickfont=dict(size=10),
-                   gridcolor="rgba(0,0,0,0.06)", range=yr),
-        legend=dict(orientation="v", x=0.01, xanchor="left",
-                    y=0.99, yanchor="top", font=dict(size=10),
-                    itemsizing="constant",
-                    bgcolor="rgba(255,255,255,0.82)",
-                    bordercolor="#e2ddd2", borderwidth=1),
-        plot_bgcolor="#f2efe8",
-        margin=dict(l=55, r=10, t=15, b=45))
-    return fig, fam_trace_idx, views
+
+_MAP_JS = r"""
+(function(){
+  var D = window.__mapData;
+  // canvas renderer: hundreds of markers stay smooth, and hit-testing is
+  // done by Leaflet itself (the SVG renderer's hit region was unreliable
+  // inside this RTL document)
+  var map = L.map("figmap", {preferCanvas: true, crs: L.CRS.Simple,
+    zoomSnap: 0.25,
+    zoomDelta: 0.5, wheelPxPerZoomLevel: 90, minZoom: -8, maxZoom: 8,
+    attributionControl: false, zoomControl: true});
+  var P = function(x, y){ return L.latLng(y, x); };   // ITM-km -> lat/lng
+  var B = function(v){ return L.latLngBounds(P(v[0], v[2]), P(v[1], v[3])); };
+
+  function overlay(o, opts){
+    var b = o.bounds;
+    return L.imageOverlay(o.url, L.latLngBounds(P(b[0], b[1]),
+                                                P(b[2], b[3])), opts);
+  }
+  var satLayer = D.satellite
+    ? overlay(D.satellite, {opacity: 1, className: "sat-img"}).addTo(map)
+    : null;
+  var hsLayer = D.hillshade
+    ? overlay(D.hillshade, {opacity: D.satellite ? 0.28 : 0.55,
+                            className: "hs-img"})
+    : null;
+  if (hsLayer && !D.satellite) hsLayer.addTo(map);
+  if (D.satellite){
+    L.control.attribution({prefix: false})
+      .addAttribution(D.satellite.credit).addTo(map);
+  }
+  function poly(pts, opts){
+    return L.polyline(pts.map(function(p){ return P(p[0], p[1]); }), opts);
+  }
+  var chanMinor = L.layerGroup(D.channels.minor.map(function(l){
+    return poly(l, {color:"#6ea0c8", weight:1, opacity:0.5}); })).addTo(map);
+  var chanMajor = L.layerGroup(D.channels.major.map(function(l){
+    return poly(l, {color:"#3f86bd", weight:2.6, opacity:0.95}); })).addTo(map);
+  var pathLayer = L.layerGroup(D.paths.map(function(p){
+    return poly(p.pts, {color:p.color, weight:4, opacity:0.9})
+             .bindTooltip(p.name, {sticky:true}); })).addTo(map);
+  var connLayer = L.layerGroup(D.connectors.map(function(c){
+    return poly(c.pts, {color:c.color, weight:2.5, dashArray:c.dash,
+                        opacity:0.9}).bindTooltip(c.name, {sticky:true});
+  })).addTo(map);
+
+  // stations, grouped per transport family so the family bar can toggle them
+  window.__mapLayers = {};
+  D.stations.forEach(function(s){
+    var g = window.__mapLayers[s.f] ||
+            (window.__mapLayers[s.f] = L.layerGroup().addTo(map));
+    var quiet = (s.f === "other" || s.f === "below");
+    L.circleMarker(P(s.x, s.y), {
+      radius: s.r, color: quiet ? "#ffffff00" : "#fff", weight: quiet ? 0 : 1.4,
+      fillColor: D.famColors[s.f], fillOpacity: quiet ? 0.45 : 0.9
+    }).bindTooltip(s.t, {sticky:true}).bindPopup(s.t).addTo(g);
+  });
+  var srcLayer = L.layerGroup(D.sources.map(function(s){
+    return L.marker(P(s.x, s.y), {icon: L.divIcon({className:"srcicon",
+      html:'<div class="srcstar">★</div><div class="srclbl">' + s.n + '</div>',
+      iconSize:[10,10]})}).bindTooltip(s.full, {sticky:true});
+  })).addTo(map);
+  var juncLayer = L.layerGroup(D.junctions.map(function(j){
+    return L.marker(P(j.x, j.y), {icon: L.divIcon({className:"juncicon",
+      html:'<div class="junctri">▲</div>', iconSize:[16,16]})})
+      .bindTooltip(j.t, {sticky:true}).bindPopup(j.t);
+  })).addTo(map);
+  var lblLayer = L.layerGroup(D.labels.map(function(l){
+    return L.marker(P(l.x, l.y), {icon: L.divIcon({className:"stnlblwrap",
+      html:'<div class="stnlbl">' + l.n + '</div>', iconSize:[1,1]}),
+      interactive:false});
+  })).addTo(map);
+
+  var overlays = {};
+  if (satLayer) overlays['רקע תצ"א (Sentinel-2)'] = satLayer;
+  if (hsLayer) overlays["הצללת-תבליט (DEM)"] = hsLayer;
+  overlays["ערוצים ראשיים"] = chanMajor;
+  overlays["ערוצים משניים"] = chanMinor;
+  overlays["מסלולי נגר"] = pathLayer;
+  overlays["נתיבים מוצהרים"] = connLayer;
+  overlays["מקורות"] = srcLayer;
+  overlays["צמתים חשודים"] = juncLayer;
+  overlays["שמות תחנות"] = lblLayer;
+  L.control.layers(null, overlays,
+    {collapsed: true, position: "topright"}).addTo(map);
+
+  // scale bar in kilometres (CRS.Simple: 1 unit = 1 km)
+  var Scale = L.Control.extend({
+    options: {position: "bottomleft"},
+    onAdd: function(m){
+      var d = L.DomUtil.create("div", "kmscale");
+      function upd(){
+        var p1 = m.latLngToContainerPoint(P(0, 0));
+        var p2 = m.latLngToContainerPoint(P(1, 0));
+        var pxPerKm = Math.abs(p2.x - p1.x), km = 1;
+        while (pxPerKm * km < 60) km *= 2;
+        while (pxPerKm * km > 180) km /= 2;
+        d.style.width = Math.round(pxPerKm * km) + "px";
+        d.innerHTML = '<span>' + (km < 1 ? km.toFixed(1) : km) + ' ק"מ</span>';
+      }
+      m.on("zoomend", upd); setTimeout(upd, 60);
+      return d;
+    }
+  });
+  map.addControl(new Scale());
+
+  window.__mapFit = function(v){ map.fitBounds(B(v)); };
+  window.__mapZoom = function(d){ map.zoomIn(d); };
+  window.__mapSetFam = function(fk, on){
+    var g = window.__mapLayers[fk];
+    if (!g) return;
+    if (on) { map.addLayer(g); } else { map.removeLayer(g); }
+  };
+  map.fitBounds(B(D.views["כל האגן"]));
+  setTimeout(function(){ map.invalidateSize(); }, 120);
+  // print always shows the whole basin with every layer on
+  window.addEventListener("beforeprint", function(){
+    Object.keys(window.__mapLayers).forEach(function(fk){
+      map.addLayer(window.__mapLayers[fk]); });
+    map.invalidateSize();
+    map.fitBounds(B(D.views["כל האגן"]));
+  });
+})();
+"""
+
+
 
 
 def _similarity(data):
@@ -1139,10 +1169,9 @@ _FAM_JS = r"""
   function famOf(n){ return D.byStation[n] || "other"; }
 
   function applyMap(){
-    if (!document.getElementById("figmap") || !D.mapTraces) return;
-    Object.keys(D.mapTraces).forEach(function(fk){
-      Plotly.restyle("figmap",
-        {visible: active[fk] ? true : "legendonly"}, [D.mapTraces[fk]]);
+    if (!window.__mapSetFam) return;
+    Object.keys(active).forEach(function(fk){
+      window.__mapSetFam(fk, !!active[fk]);
     });
   }
 
@@ -1349,6 +1378,43 @@ border-radius:7px;padding:3px 12px;font-size:.8rem;cursor:pointer;font-family:in
   cursor:pointer;font-weight:600;min-width:42px}
 .mapview-btn:hover{border-color:var(--accent);color:var(--accent)}
 .mapview-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+/* Leaflet map (figure 1) */
+#figmap{width:100%;border:1px solid var(--line);border-radius:10px;
+  background:#eae6dd;direction:ltr}
+#figmap .leaflet-container{font-family:inherit;background:#eae6dd}
+#figmap .hs-img{image-rendering:auto;filter:contrast(1.05);
+  mix-blend-mode:multiply}
+#figmap .sat-img{filter:saturate(1.08) brightness(1.04)}
+#figmap .leaflet-control-attribution{direction:rtl;font-size:.72rem;
+  background:rgba(255,255,255,.8)}
+#figmap .leaflet-control-layers{direction:rtl;font-size:.82rem;
+  background:rgba(255,255,255,.92);border:1px solid var(--line);
+  box-shadow:none;padding:6px 8px;line-height:1.7}
+#figmap .leaflet-control-layers label{font-weight:600;color:var(--ink2)}
+#figmap .leaflet-popup-content,#figmap .leaflet-tooltip{direction:rtl;
+  text-align:right;font-size:.85rem;line-height:1.55}
+/* label wrappers overflow their 1px icon box — without this they swallow
+   clicks meant for the station markers underneath */
+#figmap .stnlblwrap,#figmap .stnlbl,#figmap .srclbl{pointer-events:none}
+#figmap .srcstar,#figmap .junctri{pointer-events:auto}
+#figmap .srcicon{background:none;border:none}
+#figmap .srcstar{position:absolute;transform:translate(-50%,-55%);
+  font-size:26px;color:#f4b942;text-shadow:0 0 3px #5a4200,0 0 1px #5a4200;
+  line-height:1}
+#figmap .srclbl{position:absolute;transform:translate(-50%,14px);
+  white-space:nowrap;font-size:12.5px;font-weight:700;color:#ffdf8a;
+  text-shadow:0 0 4px #000,0 0 2px #000,0 1px 2px #000}
+#figmap .juncicon{background:none;border:none}
+#figmap .junctri{position:absolute;transform:translate(-50%,-150%);
+  font-size:15px;color:#d97a2c;text-shadow:0 0 2px #7a3500;line-height:1}
+#figmap .stnlblwrap{background:none;border:none}
+#figmap .stnlbl{position:absolute;transform:translate(-50%,-24px);
+  white-space:nowrap;font-size:11.5px;font-weight:700;color:#fff;
+  text-shadow:0 0 4px #000,0 0 2px #000,0 1px 2px #000}
+#figmap .kmscale{height:22px;border:2px solid #1c1f24;border-top:none;
+  background:rgba(255,255,255,.65);position:relative}
+#figmap .kmscale span{position:absolute;bottom:2px;width:100%;
+  text-align:center;font-size:11px;font-weight:600;color:#1c1f24}
 .simsel-hint{font-size:.75rem;color:var(--ink3)}
 .simsel{cursor:pointer}
 .csm{padding:6px 2px}
@@ -1373,6 +1439,8 @@ font-size:.9rem;margin-bottom:5px}
   p{orphans:2;widows:2}
   .draft{display:none}.fambar{display:none}.mapviews{display:none}
   .simsel{display:none}.simsel-bar{display:none}
+  #figmap .leaflet-control-zoom{display:none}
+  #figmap .leaflet-control-layers{display:none}
 }
 """
 
@@ -1388,7 +1456,8 @@ def main(region_name):
                          cwd=os.path.dirname(__file__) or ".").stdout.strip()
 
     fam_of = _classify_families(data)
-    fig_map, fam_trace_idx, map_views = _fig_map(data, fam_of)
+    map_payload = _map_payload(data, fam_of)
+    map_views = map_payload["views"]
     sim_df, sim_lab, sim_clusters, sim_pairs = _similarity(data)
     fig_sim = _fig_similarity(sim_df, sim_lab, fam_of)
     n_sim = len(sim_lab)
@@ -1402,12 +1471,6 @@ def main(region_name):
                 f'Plotly.newPlot("{div_id}", window.__figs["{div_id}"], '
                 f'{{}}, {cfg});'
                 f'</script>')
-
-    # the map is the one figure that needs real navigation: wheel-zoom, pan,
-    # and a visible reset button (user feedback 2026-08-12)
-    _MAP_CFG = ("{responsive:true, scrollZoom:true, displayModeBar:true, "
-                "displaylogo:false, modeBarButtonsToRemove:"
-                "['select2d','lasso2d','autoScale2d','toImage']}")
 
     S = []
     S.append(f"<h1>דוח חקירה סביבתית-הידרולוגית<br>{_esc(region.get('name_he', region_name))}</h1>")
@@ -1491,38 +1554,34 @@ def main(region_name):
         f'<button type="button" class="mapview-btn" id="mapzin">+</button>'
         f'<button type="button" class="mapview-btn" id="mapzout">−</button>'
         f'</div>')
-    S.append(f'<div class="figure">{_plot(fig_map, "figmap", _MAP_CFG)}'
+    # aspect-matched height so the map fills the column
+    _bx = map_payload["bbox"]
+    _mh = int(min(1100, max(600,
+                  820 * (_bx[3] - _bx[1]) / max(_bx[2] - _bx[0], 1e-6) + 60)))
+    S.append(f'<div class="figure"><div id="figmap" '
+             f'style="height:{_mh}px"></div>'
              f'<div class="figcap">איור 1: מפת התיק על רקע תבליט מוצלל '
              f'(DEM) — תחנות בצבעי משפחות-ההסעה (גודל ∝ Σ), רשת-הערוצים, '
              f'מסלולי הנגר של המועמדים, נתיבים מוצהרים, ומשולשי '
              f'צומת-חשוד. ניווט: כפתורי-התצוגה שמעל · גלגלת = זום · '
-             f'גרירה = הזזה · לחיצה על פריט-מקרא מסתירה/מציגה שכבה. '
-             f'קואורדינטות ITM בק"מ.</div></div>')
-    S.append("<script>window.__mapViews=" +
-             json.dumps(map_views, ensure_ascii=False) + ";" + r"""
+             f'גרירה = הזזה · לחיצה על תחנה = פרטים · תיבות-השכבות '
+             f'שבפינה מדליקות/מכבות שכבות. קואורדינטות ITM בק"מ.'
+             f'</div></div>')
+    S.append("<script>window.__mapData=" +
+             json.dumps(map_payload, ensure_ascii=False) + ";" + _MAP_JS +
+             r"""
 (function(){
-  function mapEl(){ return document.getElementById("figmap"); }
-  function setView(v){
-    Plotly.relayout(mapEl(), {"xaxis.range":[v[0],v[1]],
-                              "yaxis.range":[v[2],v[3]]});
-  }
   document.querySelectorAll(".mapview-btn[data-view]").forEach(function(b){
     b.addEventListener("click", function(){
-      setView(window.__mapViews[b.dataset.view]);
-      document.querySelectorAll(".mapview-btn").forEach(function(o){
-        o.classList.toggle("on", o === b); });
+      window.__mapFit(window.__mapData.views[b.dataset.view]);
+      document.querySelectorAll(".mapview-btn[data-view]").forEach(
+        function(o){ o.classList.toggle("on", o === b); });
     });
   });
-  function zoomBy(f){
-    var el = mapEl(), xr = el.layout.xaxis.range, yr = el.layout.yaxis.range;
-    var cx = (xr[0]+xr[1])/2, cy = (yr[0]+yr[1])/2;
-    var hx = (xr[1]-xr[0])/2*f, hy = (yr[1]-yr[0])/2*f;
-    setView([cx-hx, cx+hx, cy-hy, cy+hy]);
-  }
   var zi = document.getElementById("mapzin");
   var zo = document.getElementById("mapzout");
-  if (zi) zi.addEventListener("click", function(){ zoomBy(0.6); });
-  if (zo) zo.addEventListener("click", function(){ zoomBy(1.6); });
+  if (zi) zi.addEventListener("click", function(){ window.__mapZoom(0.5); });
+  if (zo) zo.addEventListener("click", function(){ window.__mapZoom(-0.5); });
 })();
 </script>""")
     # conceptual site model
@@ -1605,7 +1664,6 @@ def main(region_name):
         "famColors": {k: v["color"] for k, v in FAMILIES.items()},
         "famNames": {k: v["name_he"] for k, v in FAMILIES.items()},
         "famShort": {k: v["short_he"] for k, v in FAMILIES.items()},
-        "mapTraces": fam_trace_idx,
         "simLabels": sim_lab,
         "simZ": [[round(float(v), 1) for v in row] for row in sim_df.values],
         "fpStations": fp_names,
@@ -1752,6 +1810,8 @@ def main(region_name):
                 f'<meta name="viewport" content="width=device-width, initial-scale=1">'
                 f'<title>דוח חקירה — {_esc(region.get("name_he", region_name))}</title>'
                 f'<script>{_PLOTLY_JS}</script>'
+                f'<script>{_LEAFLET_JS}</script>'
+                f'<style>{_LEAFLET_CSS}</style>'
                 f'<style>{_CSS}</style></head><body><div class="wrap">{body}'
                 f'<div class="foot">הדוח הופק אוטומטית מקבצי התיק · commit '
                 f'<span dir="ltr">{git}</span> · כלי סינון לתעדוף חקירה — '

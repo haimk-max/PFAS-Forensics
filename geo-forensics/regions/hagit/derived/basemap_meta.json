@@ -1,0 +1,20 @@
+{
+  "bbox_itm": [
+    190152,
+    716000,
+    203910,
+    724822
+  ],
+  "res_m": 10.0,
+  "scenes": [
+    {
+      "id": "S2B_36SXB_20250812_1_L2A",
+      "datetime": "2025-08-12T08:31:04.739000Z",
+      "cloud_cover": 1.09
+    }
+  ],
+  "source": "Copernicus Sentinel-2 L2A (AWS Open Data, sentinel-cogs)",
+  "attribution_he": "מכיל נתוני Copernicus Sentinel-2 מעובדים (ESA)",
+  "quality": "satellite_imagery",
+  "notes_he": "רקע-תצ\"א לקריאוּת בלבד — אינו שכבת-ראיה; התאריך שונה מתאריכי הדיגום."
+}
