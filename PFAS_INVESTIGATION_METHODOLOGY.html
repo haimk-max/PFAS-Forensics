@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<!--
+  מקור: sessions-archive/toolkit/process/templates/hebrew-doc.html@ (עותק מותאם, חד-פעמי)
+  רינדור סטטי חד-פעמי של PFAS_INVESTIGATION_METHODOLOGY.md v1.0 — לא חלק משגרת-פרסום; מקור-האמת נשאר קובץ ה-Markdown.
+-->
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>מתודולוגיית חקירת מקורות PFAS — גרסה 1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;700;900&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#fdfcf9; --ink:#1a1a1a; --ink-2:#3a3a3a; --soft:#6b6b6b;
+    --rule:#1a1a1a; --rule-light:#cfcfcf; --rule-faint:#e6e3dd;
+    --accent:#0f6b7a; --accent-soft:#e6f0f2; --grey-1:#f0ede6; --grey-2:#d8d3c8;
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:"Frank Ruhl Libre","Times New Roman",serif;
+    -webkit-font-smoothing:antialiased;
+    font-feature-settings:"kern","liga","tnum";
+  }
+  body{padding:0 0 80px;font-size:15.5px;line-height:1.7}
+  bdi{unicode-bidi:isolate}
+  p,li,td,th,h1,h2,h3,h4,figcaption{unicode-bidi:isolate}
+  .doc{max-width:920px;margin:0 auto;padding:56px 48px 0}
+  .mono{font-family:"IBM Plex Mono",monospace;font-feature-settings:"tnum"}
+
+  /* ── Masthead ── */
+  .masthead{border-bottom:2px solid var(--ink);padding-bottom:22px;margin-bottom:44px}
+  .masthead .top{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-family:"IBM Plex Mono",monospace;font-size:11px;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--soft);
+    padding-bottom:14px;border-bottom:1px solid var(--rule-light);margin-bottom:22px;
+  }
+  .masthead h1{font-weight:900;font-size:30px;line-height:1.2;margin:0 0 12px;letter-spacing:-0.005em}
+  .masthead .sub{
+    font-size:16px;color:var(--ink-2);font-weight:400;line-height:1.6;margin-bottom:0;
+    text-align:justify;text-justify:inter-word;
+  }
+
+  /* ── Section ── */
+  section{margin:44px 0}
+  .sec-h{display:flex;align-items:baseline;gap:14px;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--ink)}
+  .sec-h .num{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.06em;color:var(--soft);text-transform:uppercase;flex-shrink:0}
+  .sec-h h2{font-weight:700;font-size:21px;letter-spacing:-0.005em;margin:0;flex:1}
+  h3{font-family:"Source Sans 3",sans-serif;font-weight:700;font-size:15.5px;margin:26px 0 10px;color:var(--ink)}
+
+  /* ── Prose ── */
+  p{line-height:1.72;color:var(--ink-2);margin:0 0 14px;text-align:justify;text-justify:inter-word}
+  p strong, li strong{color:var(--ink);font-weight:700}
+
+  /* ── Clean list ── */
+  ul.clean{list-style:none;padding:0;margin:14px 0 20px;border-top:1px solid var(--rule-faint)}
+  ul.clean li{
+    font-size:15px;line-height:1.62;color:var(--ink-2);
+    padding:12px 0;border-bottom:1px solid var(--rule-faint);
+    position:relative;padding-right:22px;
+  }
+  ul.clean li::before{content:"—";position:absolute;right:0;top:12px;color:var(--soft);font-weight:400}
+  ul.clean li strong{color:var(--ink);font-weight:700}
+
+  /* ── Numbered principle list ── */
+  ol.principles{margin:14px 0 20px;padding:0;list-style:none;counter-reset:pr}
+  ol.principles li{
+    counter-increment:pr;display:flex;gap:14px;
+    padding:12px 0;border-bottom:1px solid var(--rule-faint);
+    font-size:15px;line-height:1.6;color:var(--ink-2);
+  }
+  ol.principles li:first-child{border-top:1px solid var(--rule-faint)}
+  ol.principles li::before{
+    content:counter(pr);
+    font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--accent);
+    font-weight:600;flex-shrink:0;min-width:16px;
+  }
+  ol.principles li strong{color:var(--ink);font-weight:700}
+
+  /* ── Question list (used here for the numbered limitations, §16) ── */
+  ol.questions{margin:14px 0 6px;padding:0;list-style:none;counter-reset:q}
+  ol.questions li{
+    counter-increment:q;display:flex;gap:14px;
+    padding:13px 0;border-bottom:1px solid var(--rule-faint);
+    font-size:15px;line-height:1.6;color:var(--ink);
+  }
+  ol.questions li:first-child{border-top:1px solid var(--rule-faint)}
+  ol.questions li::before{
+    content:counter(q);
+    font-family:"IBM Plex Mono",monospace;font-size:13px;
+    background:var(--ink);color:var(--paper);
+    width:20px;height:20px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;margin-top:1px;
+  }
+
+  /* ── Data table ── */
+  table.data-table{
+    width:100%;border-collapse:collapse;font-size:13.5px;
+    font-family:"Frank Ruhl Libre","Times New Roman",serif;
+    margin:14px 0 20px;background:var(--paper);
+  }
+  table.data-table thead th{
+    border-top:1.5px solid var(--ink);border-bottom:1px solid var(--ink);
+    font-family:"Source Sans 3",sans-serif;font-size:11.5px;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--soft);
+    font-weight:600;padding:9px 10px 8px;text-align:right;background:var(--grey-1);
+  }
+  table.data-table tbody td{
+    padding:10px;text-align:right;border-bottom:1px solid var(--rule-faint);
+    vertical-align:top;line-height:1.5;color:var(--ink-2);
+  }
+  table.data-table tbody tr:nth-child(even) td{background:rgba(240,237,230,.4)}
+  table.data-table tbody tr:last-child td{border-bottom:1.5px solid var(--ink)}
+  table.data-table td:first-child{
+    font-weight:600;color:var(--ink);
+    font-family:"Source Sans 3",sans-serif;font-size:13px;width:32%;
+  }
+
+  /* ── Note box ── */
+  .note{
+    border-right:3px solid var(--accent);
+    padding:12px 18px;margin:16px 0;background:var(--accent-soft);
+    font-size:14px;line-height:1.6;color:var(--ink-2);
+  }
+  .note strong{color:var(--ink)}
+  .note.warn{border-right-color:#b5541f;background:#fbeee4}
+
+  /* ── Footer ── */
+  footer{
+    max-width:920px;margin:0 auto;padding:28px 48px 0;
+    border-top:1px solid var(--rule-light);
+    font-size:11.5px;color:var(--soft);
+    font-family:"Source Sans 3",sans-serif;line-height:1.6;
+  }
+  footer span{display:inline-block;margin-left:16px}
+  footer b{color:var(--ink);font-weight:600}
+
+  @media print{
+    @page{size:A4;margin:16mm 14mm}
+    body{font-size:13.5px;padding:0}
+    .doc{padding:0;max-width:none}
+    .masthead{margin-bottom:26px;padding-bottom:14px}
+    .masthead h1{font-size:22px}
+    .sec-h{break-after:avoid-page;margin-bottom:10px;padding-bottom:5px}
+    .sec-h h2{font-size:15px}
+    h3{font-size:12.5px;margin:16px 0 6px;break-after:avoid-page}
+    p,li{font-size:13.5px;line-height:1.5;orphans:2;widows:2}
+    ul.clean li,ol.principles li,ol.questions li{break-inside:avoid}
+    table.data-table{break-inside:avoid;font-size:10.5px;margin:8px 0 14px}
+    table.data-table thead th{font-size:9px;padding:5px 6px 4px}
+    table.data-table tbody td{padding:4px 6px 3px;line-height:1.3}
+    table.data-table thead{display:table-header-group}
+    .note{break-inside:avoid}
+    footer{border-top:none;padding-top:10px;break-before:avoid-page;font-size:10px}
+  }
+  @media (max-width:640px){
+    .doc{padding:24px 16px 0}
+    .masthead h1{font-size:24px}
+    footer{padding:24px 16px 0}
+  }
+</style>
+</head>
+<body>
+
+<div class="doc">
+
+<header class="masthead">
+  <div class="top">
+    <span><bdi>PFAS Investigation Methodology</bdi></span>
+    <span>גרסה <bdi>1.0</bdi> · עודכן <bdi>2026-08-12</bdi></span>
+  </div>
+  <h1>מתודולוגיית חקירת מקורות <bdi>PFAS</bdi></h1>
+  <p class="sub"><strong>מטרת המסמך:</strong> זהו הבית הקנוני היחיד למתודולוגיה. דוחות התיקים מפנים אליו ואינם משכפלים אותו; כל דוח נושא בראשו את מספר הגרסה שלפיה הופק. שינוי מתודולוגי מחייב העלאת גרסה כאן ורישום ב-<bdi>PROCESS.md</bdi>.</p>
+</header>
+
+<div class="note">
+  <strong>רמת ודאות מוצהרת:</strong> המתודולוגיה נבנתה בשלב <bdi>bootstrap</bdi> — מומחה יחיד בסיוע מודל. ספים ופרמטרים המסומנים "בר-כיול" הם הצהרות עבודה שטרם עברו כיול מול מדידות שדה, והם רשומים כטענות בלוחות-הטענות של התיקים.
+</div>
+
+<section>
+  <div class="sec-h"><span class="num">§1</span><h2>מבנה נתוני הקלט</h2></div>
+  <p>קובץ <bdi>Excel</bdi> של רשות המים, שורה לכל שילוב תחנה×תרכובת×מועד. שדות מחייבים: שם תחנה, סוג מקור, קואורדינטות <bdi>ITM</bdi>, שם תרכובת, ריכוז, יחידה, סימן-השוואה, תאריך דיגום, מעבדה.</p>
+  <ul class="clean">
+    <li>קואורדינטות מומרות <bdi>ITM (EPSG:2039)</bdi> ← <bdi>WGS84</bdi> בעת הצורך; טווחי-תקינות נבדקים.</li>
+    <li>תאריכים המיוצגים כמספרים סידוריים של <bdi>Excel</bdi> מזוהים ומומרים.</li>
+    <li>שמות עמודות ותחנות בעברית נתמכים מלאה.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§2</span><h2>בחירת הנתונים לניתוח</h2></div>
+  <ul class="clean">
+    <li><strong>חתך התיק</strong>: תיק = מלבן (<bdi>bbox</bdi>) מוצהר ב-<bdi>region.json</bdi>. רק תחנות בתוכו נכנסות לניתוח. תיקים שונים יכולים לחלוק קובץ-מדידות.</li>
+    <li><strong>מסנן-אגן מוצהר</strong> (אופציונלי, פר-תיק): תחנה שבתוך המלבן אך מסלול-הנגר שלה אינו מתלכד עם גזע-הזרימה של התיק מושמטת מגוף הדוח ומפורטת בנספח. הכלל אינו מבחן-שייכות בתיק שמוזן נתיבים מוצהרים או בחוף שטוח, ולכן הפעלתו מוצהרת פר-תיק.</li>
+    <li><strong>כלל-סינון וסמנטיקת-חתך</strong>: כל תיק מצהיר את כלל בחירת המדידה (למשל "מדידה אחרונה לכל מקור"), את מידת הבו-זמניות ואת הנחת המצב-היציב. ההצהרה מוצגת בכל פלט.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§3</span><h2>טיפול בתוצאות מתחת לסף הכימות</h2></div>
+  <p>ערך המסומן <bdi>"&lt;"</bdi> בעמודת סימן-ההשוואה מטופל כאפס לצורך חישוב ההרכב והסכום. אין החלפה בחצי-סף. ההחלטה שמרנית ומונעת ניפוח מלאכותי של תרכובות נדירות.</p>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§4</span><h2>הגדרת סכום <bdi>PFAS</bdi> (Σ)</h2></div>
+  <p>Σ = סכום ריכוזי הקונגנרים הבודדים בתחנה, במועד הנבחר. פרמטרים מצרפיים בקובץ המעבדה (למשל <bdi>TPFAS</bdi>) <strong>מסוננים</strong> ואינם נכנסים לסכום, כדי למנוע ספירה כפולה.</p>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§5</span><h2>בניית הפרופיל הכימי (טביעת אצבע)</h2></div>
+  <p>הפרופיל הוא וקטור ההרכב היחסי: נתח כל תרכובת מתוך Σ, באחוזים. הפרופיל מנרמל את עוצמת הזיהום ומאפשר השוואה בין תחנות בריכוזים שונים בסדרי-גודל.</p>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§6</span><h2>מדידת דמיון בהרכב</h2></div>
+  <p>מדד הדמיון בין שני פרופילים הוא <strong>דמיון קוסינוס</strong> בין וקטורי ההרכב.</p>
+  <ul class="clean">
+    <li>בדוח מוצג בסולם <bdi>0–1</bdi> ("דמיון בהרכב: <bdi>0.92</bdi>").</li>
+    <li><strong>אינו הסתברות</strong> ואינו "אחוז התאמה". הוא מודד קרבת-כיוון בין הרכבים בלבד.</li>
+    <li>במטריצת הדמיון בין תחנות המדד מוצג באחוזים (<bdi>0–100</bdi>) — שם מדובר בהשוואה ישירה בין שתי תחנות, וההצגה באחוזים מקובלת ואינה מטעה.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§7</span><h2>הערכת התמיכה הכימית — ארבעה רכיבים נפרדים</h2></div>
+  <p>התמיכה הכימית <strong>אינה מוצגת כציון מורכב אחד</strong> ואינה מוצגת כ-"<bdi>XX%</bdi> התאמה". היא מפורקת לארבעה רכיבים, המוצגים בנפרד בכרטיס-הנתונים של כל מועמד:</p>
+  <table class="data-table">
+    <thead><tr><th>רכיב</th><th>מה הוא מודד</th><th>הצגה</th></tr></thead>
+    <tbody>
+      <tr><td>דמיון בהרכב</td><td>קרבת ההרכב שנמדד לפרופיל-המקור הצפוי</td><td>מספר <bdi>0–1</bdi> (חציון על תחנות המורד הנספרות)</td></tr>
+      <tr><td>התאמה לפרופיל בליה</td><td>האם השינוי בהרכב לאורך הנתיב תואם את כיוון הבליה הצפוי</td><td>גבוהה / בינונית / נמוכה / לא ניתן להעריך</td></tr>
+      <tr><td>איכות האות</td><td>עד כמה הפרופילים שמאחורי ההערכה אמינים</td><td>גבוהה / בינונית / נמוכה</td></tr>
+      <tr><td>רמת התמיכה הכימית</td><td>הערכה משולבת, מבוססת-כללים</td><td>גבוהה / בינונית / נמוכה / אין די ראיות</td></tr>
+    </tbody>
+  </table>
+  <h3>כללי הדירוג (שקופים, לא נוסחה)</h3>
+  <ul class="clean">
+    <li><em>התאמה לפרופיל בליה</em> נגזרת ממתאם ספירמן של נתח קדם-החומרים מול מרחק-המסלול: <bdi>≤−0.6</bdi> גבוהה · <bdi>≤−0.4</bdi> בינונית · אחרת נמוכה · פחות מ-<bdi>3</bdi> נקודות או ללא סדרה: לא ניתן להעריך. הרכיב מוערך ברמת הנתיב בלבד — לתחנה בודדת אין בסיס מדיד לכיוון-בליה, ולכן לא מיוחס לה ערך.</li>
+    <li><em>איכות האות</em> נגזרת מנתח תחנות המורד שריכוזן ≥ סף-אמינות-הסיווג: <bdi>≥75%</bdi> גבוהה · <bdi>≥40%</bdi> בינונית · אחרת נמוכה.</li>
+    <li><em>רמת התמיכה הכימית</em>: "אין די ראיות" כשאין תחנות נספרות; "נמוכה" כשנתח התחנות התואמות <bdi>&lt; 0.3</bdi>; "גבוהה" כשנתח התחנות <bdi>≥ 0.6</bdi> <strong>וגם</strong> דמיון חציוני <bdi>≥ 0.8</bdi> <strong>וגם</strong> איכות אות גבוהה; אחרת "בינונית".</li>
+    <li><strong>עוגן-עקביות</strong>: הסף <bdi>0.3</bdi> הוא בדיוק הסף שמזין את הציר הכימי בדירוג המקור (§14). לכן הדוח לעולם לא יציג "תמיכה כימית נמוכה" בעוד המנוע סופר את הציר הכימי כקיים.</li>
+  </ul>
+  <p>ציון משוקלל-עוצמה מחושב פנימית לצורכי ביקורת ובדיקה, אך <strong>אינו מוצג בדוח</strong>.</p>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§8</span><h2>מקורות פרופילי הייחוס</h2></div>
+  <p>פרופילי המקור נשמרים כנתונים ב-<bdi>geo-forensics/domains/pfas/source_profiles.json</bdi> — כדי שיהיו ברי-ביקורת על ידי מומחה-תוכן, ולא קבורים בקוד. הם היוריסטיקה ספרותית (<bdi>ITRC</bdi>; <bdi>Barzen-Hanson 2017</bdi>; <bdi>Houtz 2013</bdi>) ולא תקן.</p>
+  <div class="note">
+    <strong>כלל ייחוס-מוצר</strong>: התאמה לפרופיל <bdi>AFFF</bdi> היסטורי מנוסחת ברמת <strong>משפחת חומרים או טכנולוגיית ייצור</strong>, לא ברמת מוצר מסחרי.<br>
+    הניסוח <strong>המותר</strong>: "ההרכב אופייני לקצפי <bdi>AFFF</bdi> היסטוריים שיוצרו בתהליך <bdi>ECF</bdi>; פרופילים מסוג זה תועדו, בין היתר, במוצרי <bdi>3M Light Water</bdi>".<br>
+    הניסוח <strong>האסור</strong>: "זוהה <bdi>3M Light Water</bdi>".
+  </div>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§9</span><h2>ניתוח בליה וקדם-חומרים</h2></div>
+  <p>קדם-חומרים (<bdi>FOSA</bdi>, <bdi>6:2FT</bdi>, <bdi>8:2FTS</bdi>) מתפרקים לאורך ההסעה. לכל טיפוס-מקור מוגדרת גרסת "טרי" וגרסת "בלוי"; נוכחות סמנים טריים היא אינדיקציה למקור קרוב.</p>
+  <div class="note">
+    <strong>כלל ניסוח</strong>: המונח "מונוטוני" משמש <strong>רק</strong> כאשר הנתונים תומכים בירידה רציפה (מתאם <bdi>≤ −0.8</bdi>). אחרת מתואר "מגמת ירידה כללית התואמת את כיוון הבליה הצפוי, שאינה רציפה". מקטע שבו ההרכב נעשה שוב דומה יותר למקור, או שבו עולה נתח רכיבים פחות-בלויים, מוצג במפורש כאפשרות לתוספת זיהום או למקור נוסף — ולא כרעש שיש להחליק.
+  </div>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§10</span><h2>הערכת איכות האות</h2></div>
+  <ul class="clean">
+    <li><strong>סף-אות ראייתי</strong> (<bdi>MIN_SIGNAL_UG_L</bdi>, כרגע <bdi>0.01 µg/L</bdi>): תחנה מתחתיו מוצגת אך <strong>אינה נספרת</strong> כראיה כימית — הרכבה נשלט רעש ו-<bdi>LOD</bdi>.</li>
+    <li><strong>סף-אמינות לסיווג הרכבי</strong> (<bdi>CLUSTER_MIN_SIGNAL_UG_L</bdi>, כרגע <bdi>0.05 µg/L</bdi>, בר-כיול): מתחתיו התחנה אינה מקבלת שיוך לאשכול כימי ומוצגת כ"אות חלש מדי לסיווג".</li>
+    <li><strong>שקלול עוצמה</strong>: משקלה הראייתי של תחנה <bdi>∝ log10(Σ/סף)</bdi> — לצד הספירה הפשוטה, לא במקומה.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§11</span><h2>אשכולות ודמיון בין תחנות</h2></div>
+  <p>מטריצת דמיון קוסינוס בין כל תחנות-האות, מסודרת באשכול היררכי (<bdi>average linkage</bdi>). אשכול מוגדר בחיתוך <bdi>70%</bdi> דמיון. אשכול מקבל צבע וזהות בדוח רק אם הוא מונה <strong>≥3 חברים אמינים</strong> (§10) — קבוצות קטנות מכך אינן נבדלות מצירוף מקרי ברמות הרעש הללו.</p>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§12</span><h2>ניתוח מרחבי ונתיבי זרימה</h2></div>
+  <ul class="clean">
+    <li><strong>זרימה עילית</strong> נגזרת ממודל גבהים (<bdi>Copernicus GLO-30</bdi>) באלגוריתם <bdi>D8</bdi>: מילוי-שקעים, כיווני-זרימה, צבירה, וסף-ערוץ <bdi>0.5 קמ"ר</bdi>. התוצר: רשת ערוצים ומסלול-נגר לכל מקור מוצהר.</li>
+    <li><strong>סף צמידות-לערוץ</strong>: <bdi>300 מ'</bdi> (כויל על <bdi>ground-truth</bdi>: תחנת גדה במרחק <bdi>153 מ'</bdi> מהערוץ הממודל).</li>
+    <li><strong>העברות מים מוצהרות</strong>: נתיבים אנתרופוגניים שהמודל אינו רואה (שאיבה, קולחים) נכנסים כהצהרה עם <bdi>provenance</bdi>. תחנה מוזנת-נתיב נספרת במורד, מסומנת, ומוחרגת מרגרסיית הדעיכה.</li>
+    <li><strong>דעיכה כראיה</strong>: מתאם ספירמן של <bdi>log10(Σ)</bdi> מול מרחק-מסלול. דעיכה תומכת; <strong>עלייה במורד היא ראיית-נגד</strong> המרמזת על מקור נוסף.</li>
+    <li><strong>מבחן הצטרפות-עומס בצמתים</strong>: לאורך גזע-הזרימה נבחנות ארבע אנומליות-מקטע — עלייה מקומית ב-Σ; עליית דמיון-למוקד במורד; קפיצת יחסי-סמנים יציבים; שיבת קדם-חומרים במורד הרחוק. כל אנומליה מסומנת כתוספת-זיהום אפשרית במקטע, ונבחנת מול ענפי-ה-<bdi>DEM</bdi> המצטרפים שם. אינה הוכחה; מוכרעת בדיגום חובק.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§13</span><h2>הנחות הקשורות למי התהום</h2></div>
+  <ul class="clean">
+    <li>כיוון זרימת התהום הוא <strong>הנחה מוצהרת</strong> עד לקבלת מפלסים מדודים.</li>
+    <li><strong>מדרגות סבירות</strong>: עננה גאוסיאנית ברוחב, <bdi>w=exp(−W²/2σ²)</bdi>, <bdi>σ=k·L</bdi>, <bdi>k=0.2</bdi> (בר-כיול). ארבע מדרגות: <bdi>1</bdi> ליבה · <bdi>2</bdi> אגף · <bdi>3</bdi> שוליים (תמיכה חלשה בלבד) · <bdi>4</bdi> מחוץ לעננה. <strong>מדרגה 4 עם זיהום = ממצא</strong> ("מקור אחר"), בקידוחי ניטור בלבד.</li>
+    <li><strong>סיווג קידוחים</strong>: לפי קונבנציית-השמות של הרשות — <bdi>נד/נת/מח</bdi> ניטור, <bdi>פ/מק</bdi> הפקה. קידוח הפקה נשאר ברמת ראיה מלאה, אך ריכוזו חסם-תחתון (מיהול מוצהר, לא מכומת), מדרגתו מדווחת כטווח בתוך רדיוס-לכידה מוצהר (<bdi>500 מ'</bdi>, גס), והוא אינו נמנה בראיית-הנגד "פרופיל דומה שלא במורד".</li>
+    <li><strong>החדרה מהנחל לתהום</strong>: קידוח הצמוד לערוץ עם פרופיל תואם מסומן כנתיב דו-שלבי אפשרי (נחל ← גדות ← תהום). אינו ראיה ישירה ואינו ראיית-נגד; מוכרע בדיגום מזווג.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§14</span><h2>לוגיקת דירוג מקורות</h2></div>
+  <p>שלושה <strong>צירי ראיה משלימים</strong>, המבוססים על סוגי מידע שונים (ומחזקים זה את זה — אינם בלתי-תלויים סטטיסטית):</p>
+  <ol class="principles">
+    <li><strong>כימי</strong> — האם ההרכב בתחנות המורד קרוב לפרופיל הצפוי מן האתר (סף: <bdi>≥30%</bdi> מהתחנות הנספרות).</li>
+    <li><strong>הידרולוגי</strong> — האם התחנות הפגועות במורד האתר.</li>
+    <li><strong>פליטה</strong> — ראיה עצמאית לפעילות פולטת באתר.</li>
+  </ol>
+  <table class="data-table">
+    <thead><tr><th>מספר צירים</th><th>דירוג</th></tr></thead>
+    <tbody>
+      <tr><td>3 + הידרולוגיה נגזרת/מוצהרת</td><td><strong>מועמד מרכזי</strong></td></tr>
+      <tr><td>2 (או 3 תחת תקרת-הנחה)</td><td><strong>מועמד משני</strong></td></tr>
+      <tr><td>1</td><td><strong>מקור אפשרי</strong></td></tr>
+      <tr><td>0</td><td><strong>לא נתמך בשלב זה</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="note">
+    <strong>תקרת-ההנחה</strong>: כל עוד ראיות <strong>נספרות</strong> נשענות על כיוון-זרימה מונח, הדירוג אינו עולה מעל "מועמד משני". ראיות שכולן נגזרות או מוצהרות (<bdi>DEM</bdi>, נתיבים, עוגן מאושר) משחררות את התקרה.
+  </div>
+  <p><strong>כלל הניסוח המחייב</strong>: מועמד לעולם אינו מוכרז "המקור". כל פלט כולל בעד / נגד / מה-יפריך.</p>
+  <h3>טבלת מיגרציה של אוצר-הדירוג (<bdi>v1.0</bdi>)</h3>
+  <table class="data-table">
+    <thead><tr><th>עד <bdi>v1.0</bdi></th><th>מ-<bdi>v1.0</bdi> ואילך</th></tr></thead>
+    <tbody>
+      <tr><td>מועמד ליבה</td><td><strong>מועמד מרכזי</strong></td></tr>
+      <tr><td>מועמד משני</td><td>מועמד משני (ללא שינוי)</td></tr>
+      <tr><td>רקע מקומי / ראיה בודדת</td><td><strong>מקור אפשרי</strong></td></tr>
+      <tr><td>אין תמיכה בנתונים הנוכחיים</td><td><strong>לא נתמך בשלב זה</strong></td></tr>
+    </tbody>
+  </table>
+  <p>תנאי-הסף לא השתנו — רק התוויות. מסמכים והכרעות שנוסחו לפני המיגרציה שומרים את נוסחם המקורי כרשומת-ביקורת, ומתפרשים לפי טבלה זו.</p>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§15</span><h2>הגדרות רמות הוודאות</h2></div>
+  <table class="data-table">
+    <thead><tr><th>רמה</th><th>משמעות</th></tr></thead>
+    <tbody>
+      <tr><td>גבוהה</td><td>נשען על מדידה ישירה או על ראיות נגזרות שאינן תלויות בהנחה</td></tr>
+      <tr><td>בינונית</td><td>נשען על ראיות עקיפות, על חתך יחיד או על הנחה מוצהרת</td></tr>
+      <tr><td>נמוכה</td><td>השערת-מנגנון, טרם נבחנה בדיגום ייעודי</td></tr>
+    </tbody>
+  </table>
+  <p>כל מסקנה בדוח נושאת את רמת הוודאות שלה ואת בסיסה.</p>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">§16</span><h2>מגבלות המתודולוגיה</h2></div>
+  <ol class="questions">
+    <li><strong>חתך לא בו-זמני</strong>: תחנות נדגמות במועדים שונים; ההשוואה מניחה מצב-יציב. הפרות של ההנחה מתועדות בפרק הדיון.</li>
+    <li><strong>הפאנל האנליטי מתחיל ב-<bdi>C4</bdi></strong>: <bdi>TFA</bdi> ו-<bdi>PFPrA</bdi> (אולטרה-קצרים) אינם נמדדים. "<bdi>PFBA</bdi> שלט" משמעו שלט <strong>בגבול המדידה</strong>.</li>
+    <li><strong>כיוון זרימת תהום מונח</strong> עד לקבלת מפלסים — התקרה נגזרת מכך.</li>
+    <li><strong><bdi>DSM</bdi> ולא <bdi>DTM</bdi></strong>: מודל הגבהים כולל צמחייה ומבנים; ערוצים אזוריים אמינים, מיקרו-ניקוז לא.</li>
+    <li><strong>פרופילי-מקור היוריסטיים</strong>: מבוססי ספרות, לא תקן; אינם מכסים כל מוצר או תהליך.</li>
+    <li><strong>הדוח מתעדף חקירה</strong> — אינו קובע אחריות משפטית ואינו מחליף שיקול-דעת מומחה.</li>
+    <li><strong>שלב <bdi>bootstrap</bdi></strong>: המערכת נבנתה על ידי מומחה יחיד בסיוע מודל; נקודת-הסיום המתוכננת היא מעבר לצוות ולתשתית ארגונית.</li>
+  </ol>
+</section>
+
+<section>
+  <div class="sec-h"><span class="num">נספח</span><h2>פרמטרים ברי-כיול (מרוכזים ב-<bdi>geo-forensics/config.py</bdi>)</h2></div>
+  <table class="data-table">
+    <thead><tr><th>פרמטר</th><th>ערך נוכחי</th><th>תפקיד</th></tr></thead>
+    <tbody>
+      <tr><td><bdi>MIN_SIGNAL_UG_L</bdi></td><td><bdi>0.01 µg/L</bdi></td><td>סף-אות ראייתי</td></tr>
+      <tr><td><bdi>CLUSTER_MIN_SIGNAL_UG_L</bdi></td><td><bdi>0.05 µg/L</bdi></td><td>סף-אמינות לסיווג הרכבי</td></tr>
+      <tr><td><bdi>CLUSTER_MIN_MEMBERS</bdi></td><td><bdi>3</bdi></td><td>גודל מזערי לאשכול צבעוני</td></tr>
+      <tr><td><bdi>GW_PLUME_K</bdi></td><td><bdi>0.2</bdi></td><td>רוחב עננת-תהום יחסי</td></tr>
+      <tr><td><bdi>PRODUCTION_CAPTURE_RADIUS_M</bdi></td><td><bdi>500 מ'</bdi></td><td>רדיוס-לכידה גס לקידוח הפקה</td></tr>
+      <tr><td><bdi>JUNCTION_*</bdi></td><td>ראו קובץ</td><td>ספי מבחן הצטרפות-העומס</td></tr>
+    </tbody>
+  </table>
+  <p>שינוי פרמטר מחייב רישום ב-<bdi>PROCESS.md</bdi> ובדיקת השפעה על התיקים הקיימים.</p>
+</section>
+
+</div>
+
+<footer>
+  <span><b>מסמך:</b> <bdi>PFAS_INVESTIGATION_METHODOLOGY.md</bdi> → <bdi>HTML</bdi> (רינדור חד-פעמי)</span>
+  <span><b>תאריך רינדור:</b> <bdi>2026-08-13</bdi></span>
+  <span><b>סטטוס:</b> גרסה <bdi>1.0</bdi> — מאושרת לשימוש בדוחות</span>
+</footer>
+
+</body>
+</html>
