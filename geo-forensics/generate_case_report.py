@@ -255,21 +255,88 @@ _FONT = dict(family="Assistant, Segoe UI, sans-serif", size=13)
 
 # ─── figures ────────────────────────────────────────────────────────────────
 
-def _map_payload(data, fam_of):
+# Map v2 graphic language (approved in full, 2026-08-12 — PROCESS #22):
+#   shape = entity kind (objective, straight from the file)
+#   color = chemical-similarity cluster (same clusters as the matrix)
+#   size  = discrete Sigma classes (a continuous scale cannot span 5 orders
+#           of magnitude without letting the hot stations own the picture)
+# Transport family deliberately left the marker: it stays in the filter bar,
+# the popups and the drawn pathways.
+MAP_KIND_ORDER = ["stream", "reservoir", "spring", "well_mon", "well_prod"]
+MAP_KINDS = {
+    "stream":    dict(name_he="נקודת מים עיליים", glyph="circle"),
+    "reservoir": dict(name_he="מאגר / בריכה", glyph="square"),
+    "spring":    dict(name_he="מעיין", glyph="drop"),
+    "well_mon":  dict(name_he="קידוח ניטור", glyph="diamond"),
+    "well_prod": dict(name_he="קידוח הפקה", glyph="hex"),
+}
+# Okabe-Ito-derived categorical palette — intentionally a different visual
+# register from the transport-family palette so the two never read as one
+CLUSTER_COLORS = ["#D55E00", "#0072B2", "#009E73", "#CC79A7",
+                  "#E69F00", "#56B4E9", "#7570B3", "#A6761D"]
+UNCLUSTERED_COLOR = "#b8b4ac"
+# Sigma classes approved 2026-08-12 (µg/L bounds → marker box px)
+SIZE_CLASSES = [(0.1, 11), (1.0, 14), (100.0, 17), (float("inf"), 21)]
+SIZE_LABELS = ["< 0.1", "0.1–1", "1–100", "≥ 100"]
+
+
+def _entity_kind(source_type, name):
+    from src.attribution import classify_well
+    st = str(source_type)
+    if st in ("מאגר",) or "בריכ" in st:
+        return "reservoir"
+    if st == "מעיין":
+        return "spring"
+    if st in SURFACE_TYPES:
+        return "stream"
+    return ("well_prod"
+            if classify_well(str(name), st) == "production" else "well_mon")
+
+
+def _size_class(sigma):
+    for i, (bound, _px) in enumerate(SIZE_CLASSES):
+        if sigma < bound:
+            return i
+    return len(SIZE_CLASSES) - 1
+
+
+def _map_payload(data, fam_of, clusters=None):
     """Figure 1 data for the embedded Leaflet map (approved 2026-08-12).
 
     Plotly was the wrong tool for a map: its zoom/pan is a chart interaction,
     not map navigation. Leaflet is vendored locally (vendor/leaflet) and the
     map runs on CRS.Simple with axes in ITM kilometres, so no projection or
-    tile server is involved — the shaded-relief PNG is the only backdrop and
-    it is embedded as a data URI. Returns a JSON-ready dict."""
+    tile server is involved — the backdrops are embedded data URIs.
+    `clusters` are the matrix's chemical clusters (list of station lists) —
+    the map speaks the same color language. Returns a JSON-ready dict."""
     region = data["region"]
     me = data["max_event"].set_index("station_name")
     bbox = region.get("bbox_itm") or [0, 0, 1, 1]
+    fp = data["fingerprint"]
+    cluster_of = {}
+    cluster_legend = []
+    for i, members in enumerate(clusters or []):
+        color = CLUSTER_COLORS[i % len(CLUSTER_COLORS)]
+        for s in members:
+            cluster_of[s] = i
+        in_fp = [s for s in members if s in fp.index]
+        top_he = ""
+        if in_fp:
+            mean = fp.loc[in_fp].mean()
+            top_he = str(mean.idxmax())
+        cluster_legend.append({"i": i, "color": color, "n": len(members),
+                               "top": top_he})
     P = {"bbox": [bbox[0] / 1000, bbox[1] / 1000,
                   bbox[2] / 1000, bbox[3] / 1000],
          "famColors": {k: v["color"] for k, v in FAMILIES.items()},
-         "famNames": {k: v["name_he"] for k, v in FAMILIES.items()}}
+         "famNames": {k: v["name_he"] for k, v in FAMILIES.items()},
+         "clusterColors": CLUSTER_COLORS,
+         "unclusteredColor": UNCLUSTERED_COLOR,
+         "clusterLegend": cluster_legend,
+         "kindNames": {k: v["name_he"] for k, v in MAP_KINDS.items()},
+         "kindGlyphs": {k: v["glyph"] for k, v in MAP_KINDS.items()},
+         "sizePx": [px for _b, px in SIZE_CLASSES],
+         "sizeLabels": SIZE_LABELS}
 
     # backdrops: satellite imagery (base) + shaded relief (toggleable)
     import base64
@@ -361,15 +428,20 @@ def _map_payload(data, fam_of):
                 extra += "<br>קידוח הפקה — ריכוז = חסם-תחתון"
             elif wc == "monitoring":
                 extra += "<br>קידוח ניטור"
+        kind = _entity_kind(row.get("source_type", ""), s["name"])
+        cl = cluster_of.get(s["name"], -1)
+        cl_he = (f'אשכול כימי {cl + 1}' if cl >= 0 else
+                 ("מתחת לסף-אות" if s["below_thr"] else "לא מאושכל"))
         P["stations"].append({
-            "n": s["name"], "f": fk,
+            "n": s["name"], "f": fk, "k": kind, "c": cl,
+            "b": bool(s["below_thr"]),
+            "sz": _size_class(float(s["sigma"])),
+            "sig": round(float(s["sigma"]), 3),
             "x": round(float(row["x_itm"]) / 1000, 4),
             "y": round(float(row["y_itm"]) / 1000, 4),
-            "r": (4 if s["below_thr"] else
-                  round(max(6, min(17, 6 + 3 * np.log10(
-                      s["sigma"] / 0.001 + 1))), 1)),
             "t": (f'<b>{_esc(s["name"])}</b><br>Σ={s["sigma"]:.3f} µg/L'
                   f'<br>{_esc(s["profile"])} ({s["score"]:.0f}%)'
+                  f'<br>{MAP_KINDS[kind]["name_he"]} · {cl_he}'
                   f'<br>{FAMILIES[fk]["name_he"]}{extra}')})
 
     # declared sources, junction flags, key labels
@@ -393,17 +465,26 @@ def _map_payload(data, fam_of):
                       f'ק"מ</b><br>נמדד ב: {_esc(seg[1])}'
                       f'<br>התחנה הקודמת: {_esc(seg[0])}'
                       f'<br>{_esc("; ".join(jf["signals"]))}')})
-    labels, taken = [], [(s["x"], s["y"]) for s in P["sources"]]
-    for s in sorted((v for v in P["stations"] if v["r"] > 4),
-                    key=lambda v: -v["r"]):
-        if any(math.hypot(s["x"] - tx, s["y"] - ty) < 1.5
-               for tx, ty in taken):
+    # zoom-dependent labels are placed client-side; ship priority order only
+    P["labelOrder"] = [s["n"] for s in
+                       sorted((v for v in P["stations"] if not v["b"]),
+                              key=lambda v: -v["sig"])]
+
+    # site complexes (for low-zoom semantic collapse)
+    P["complexes"] = []
+    for c in data["candidates"]:
+        members = [s for s in c.get("site_members", []) if s in me.index]
+        if len(members) < 4:
             continue
-        labels.append({"n": s["n"], "x": s["x"], "y": s["y"]})
-        taken.append((s["x"], s["y"]))
-        if len(labels) >= 6:
-            break
-    P["labels"] = labels
+        xs_ = [float(me.loc[s, "x_itm"]) / 1000 for s in members]
+        ys_ = [float(me.loc[s, "y_itm"]) / 1000 for s in members]
+        P["complexes"].append({
+            "short": c["name_he"].split("—")[0].strip(),
+            "members": members,
+            "cx": round(sum(xs_) / len(xs_), 4),
+            "cy": round(sum(ys_) / len(ys_), 4),
+            "bounds": [min(xs_) - 0.4, min(ys_) - 0.4,
+                       max(xs_) + 0.4, max(ys_) + 0.4]})
 
     # named views for the view bar
     views = {"כל האגן": [P["bbox"][0] - 0.4, P["bbox"][2] + 0.4,
@@ -430,26 +511,23 @@ def _map_payload(data, fam_of):
 _MAP_JS = r"""
 (function(){
   var D = window.__mapData;
-  // canvas renderer: hundreds of markers stay smooth, and hit-testing is
-  // done by Leaflet itself (the SVG renderer's hit region was unreliable
-  // inside this RTL document)
   var map = L.map("figmap", {preferCanvas: true, crs: L.CRS.Simple,
-    zoomSnap: 0.25,
-    zoomDelta: 0.5, wheelPxPerZoomLevel: 90, minZoom: -8, maxZoom: 8,
-    attributionControl: false, zoomControl: true});
+    zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 90,
+    minZoom: -8, maxZoom: 8, attributionControl: false, zoomControl: true});
   var P = function(x, y){ return L.latLng(y, x); };   // ITM-km -> lat/lng
   var B = function(v){ return L.latLngBounds(P(v[0], v[2]), P(v[1], v[3])); };
 
+  // ── backdrops ──────────────────────────────────────────────────────────
   function overlay(o, opts){
     var b = o.bounds;
     return L.imageOverlay(o.url, L.latLngBounds(P(b[0], b[1]),
                                                 P(b[2], b[3])), opts);
   }
   var satLayer = D.satellite
-    ? overlay(D.satellite, {opacity: 1, className: "sat-img"}).addTo(map)
+    ? overlay(D.satellite, {opacity: 0.45, className: "sat-img"}).addTo(map)
     : null;
   var hsLayer = D.hillshade
-    ? overlay(D.hillshade, {opacity: D.satellite ? 0.28 : 0.55,
+    ? overlay(D.hillshade, {opacity: D.satellite ? 0.25 : 0.55,
                             className: "hs-img"})
     : null;
   if (hsLayer && !D.satellite) hsLayer.addTo(map);
@@ -472,17 +550,64 @@ _MAP_JS = r"""
                         opacity:0.9}).bindTooltip(c.name, {sticky:true});
   })).addTo(map);
 
-  // stations, grouped per transport family so the family bar can toggle them
+  // ── stations: SVG glyph markers ────────────────────────────────────────
+  // shape = entity kind, fill = chemical cluster, box = Sigma class
+  function glyphSvg(kind, px, fill, stroke, sw){
+    var h = px / 2, s = 'stroke="' + stroke + '" stroke-width="' + sw + '"';
+    var body;
+    if (kind === "circle")
+      body = '<circle cx="' + h + '" cy="' + h + '" r="' + (h - sw) + '"';
+    else if (kind === "square")
+      body = '<rect x="' + sw + '" y="' + sw + '" width="' + (px - 2*sw) +
+             '" height="' + (px - 2*sw) + '" rx="1.5"';
+    else if (kind === "diamond")
+      body = '<path d="M' + h + ' ' + sw + ' L' + (px - sw) + ' ' + h +
+             ' L' + h + ' ' + (px - sw) + ' L' + sw + ' ' + h + ' Z"';
+    else if (kind === "hex"){
+      var q = 0.28 * px;
+      body = '<path d="M' + q + ' ' + sw + ' L' + (px - q) + ' ' + sw +
+             ' L' + (px - sw) + ' ' + h + ' L' + (px - q) + ' ' + (px - sw) +
+             ' L' + q + ' ' + (px - sw) + ' L' + sw + ' ' + h + ' Z"';
+    } else  // drop (spring)
+      body = '<path d="M' + h + ' ' + sw + ' C' + (px - sw) + ' ' + (0.55*px) +
+             ' ' + (px - 1.5*sw) + ' ' + (px - sw) + ' ' + h + ' ' + (px - sw) +
+             ' C' + (1.5*sw) + ' ' + (px - sw) + ' ' + sw + ' ' + (0.55*px) +
+             ' ' + h + ' ' + sw + ' Z"';
+    return '<svg width="' + px + '" height="' + px + '" viewBox="0 0 ' + px +
+           ' ' + px + '">' + body + ' fill="' + fill + '" ' + s + '/></svg>';
+  }
+  function stnColor(s){
+    if (s.b) return "#d8d4cc";
+    return s.c >= 0 ? D.clusterColors[s.c % D.clusterColors.length]
+                    : D.unclusteredColor;
+  }
   window.__mapLayers = {};
+  var belowGroup = L.layerGroup();            // NOT added by default
+  var stnMarker = {}, stnData = {};
+  var selection = new Set();
   D.stations.forEach(function(s){
+    stnData[s.n] = s;
+    var px = s.b ? 8 : D.sizePx[s.sz];
+    var icon = L.divIcon({className: "stn-ic", iconSize: [px + 6, px + 6],
+      html: '<div class="stnwrap' + (s.b ? ' below' : '') + '">' +
+            glyphSvg(D.kindGlyphs[s.k], px, stnColor(s), "#ffffff", 1.4) +
+            '</div>'});
+    var m = L.marker(P(s.x, s.y), {icon: icon, riseOnHover: true});
+    m.bindTooltip(s.t, {sticky: true}).bindPopup(s.t);
+    m.on("click", function(ev){
+      if (ev.originalEvent && (ev.originalEvent.ctrlKey ||
+                               ev.originalEvent.metaKey ||
+                               window.__selMode === "click")){
+        L.DomEvent.stop(ev); m.closePopup(); toggleSel(s.n);
+      }
+    });
+    stnMarker[s.n] = m;
+    if (s.b){ m.addTo(belowGroup); return; }
     var g = window.__mapLayers[s.f] ||
             (window.__mapLayers[s.f] = L.layerGroup().addTo(map));
-    var quiet = (s.f === "other" || s.f === "below");
-    L.circleMarker(P(s.x, s.y), {
-      radius: s.r, color: quiet ? "#ffffff00" : "#fff", weight: quiet ? 0 : 1.4,
-      fillColor: D.famColors[s.f], fillOpacity: quiet ? 0.45 : 0.9
-    }).bindTooltip(s.t, {sticky:true}).bindPopup(s.t).addTo(g);
+    m.addTo(g);
   });
+
   var srcLayer = L.layerGroup(D.sources.map(function(s){
     return L.marker(P(s.x, s.y), {icon: L.divIcon({className:"srcicon",
       html:'<div class="srcstar">★</div><div class="srclbl">' + s.n + '</div>',
@@ -493,12 +618,296 @@ _MAP_JS = r"""
       html:'<div class="junctri">▲</div>', iconSize:[16,16]})})
       .bindTooltip(j.t, {sticky:true}).bindPopup(j.t);
   })).addTo(map);
-  var lblLayer = L.layerGroup(D.labels.map(function(l){
-    return L.marker(P(l.x, l.y), {icon: L.divIcon({className:"stnlblwrap",
-      html:'<div class="stnlbl">' + l.n + '</div>', iconSize:[1,1]}),
-      interactive:false});
-  })).addTo(map);
 
+  // ── zoom-dependent labels ──────────────────────────────────────────────
+  var lblLayer = L.layerGroup().addTo(map);
+  var labelsOn = true;
+  function placeLabels(){
+    lblLayer.clearLayers();
+    if (!labelsOn) return;
+    var bounds = map.getBounds(), placed = [];
+    D.sources.forEach(function(s){
+      placed.push(map.latLngToContainerPoint(P(s.x, s.y))); });
+    var shown = 0;
+    for (var i = 0; i < D.labelOrder.length && shown < 40; i++){
+      var s = stnData[D.labelOrder[i]];
+      if (!s || collapsedNames.has(s.n)) continue;
+      var g = window.__mapLayers[s.f];
+      if (g && !map.hasLayer(g)) continue;
+      var ll = P(s.x, s.y);
+      if (!bounds.contains(ll)) continue;
+      var pt = map.latLngToContainerPoint(ll), ok = true;
+      for (var j = 0; j < placed.length; j++){
+        var dx = pt.x - placed[j].x, dy = pt.y - placed[j].y;
+        if (dx * dx + dy * dy < 8100){ ok = false; break; }   // 90 px
+      }
+      if (!ok) continue;
+      placed.push(pt); shown++;
+      L.marker(ll, {icon: L.divIcon({className: "stnlblwrap",
+        html: '<div class="stnlbl">' + s.n + '</div>', iconSize: [1, 1]}),
+        interactive: false}).addTo(lblLayer);
+    }
+  }
+
+  // ── site-complex collapse at low zoom ──────────────────────────────────
+  var collapsedNames = new Set();
+  var badgeLayer = L.layerGroup().addTo(map);
+  function updateComplexes(){
+    badgeLayer.clearLayers();
+    collapsedNames = new Set();
+    D.complexes.forEach(function(c){
+      var p1 = map.latLngToContainerPoint(P(c.bounds[0], c.bounds[1]));
+      var p2 = map.latLngToContainerPoint(P(c.bounds[2], c.bounds[3]));
+      var px = Math.max(Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y));
+      var collapsed = px < 200;
+      c.members.forEach(function(n){
+        var el = stnMarker[n] && stnMarker[n].getElement();
+        if (collapsed) collapsedNames.add(n);
+        if (el) el.style.display = collapsed ? "none" : "";
+      });
+      if (collapsed){
+        var badge = L.marker(P(c.cx, c.cy), {icon: L.divIcon({
+          className: "cplxicon", iconSize: [1, 1],
+          html: '<div class="cplx">' + c.members.length + '</div>'})});
+        badge.bindTooltip("מכלול " + c.short + " — " + c.members.length +
+                          " נקודות (לחיצה לפריסה)", {sticky: true});
+        badge.on("click", function(){
+          map.fitBounds(B([c.bounds[0], c.bounds[2],
+                           c.bounds[1], c.bounds[3]])); });
+        badge.addTo(badgeLayer);
+      }
+    });
+  }
+  map.on("zoomend moveend", function(){ updateComplexes(); placeLabels(); });
+
+  // ── selection: click / box / lasso, linked to matrix + fingerprints ────
+  window.__selMode = null;
+  function selCount(){ return selection.size; }
+  function markSel(){
+    Object.keys(stnMarker).forEach(function(n){
+      var el = stnMarker[n].getElement();
+      if (!el) return;
+      var w = el.querySelector(".stnwrap");
+      if (w) w.classList.toggle("sel", selection.has(n));
+    });
+  }
+  function pushSelection(){
+    markSel();
+    var names = Array.from(selection);
+    var sum = 0;
+    names.forEach(function(n){ sum += (stnData[n] ? stnData[n].sig : 0); });
+    var card = document.getElementById("selcard");
+    if (card){
+      if (names.length){
+        card.style.display = "";
+        card.querySelector(".seln").textContent = names.length;
+        card.querySelector(".sels").textContent = sum.toFixed(2);
+      } else card.style.display = "none";
+    }
+    if (window.__applySelection) window.__applySelection(names);
+  }
+  function toggleSel(n){
+    if (selection.has(n)) selection.delete(n); else selection.add(n);
+    pushSelection();
+  }
+  window.__mapClearSel = function(){ selection = new Set(); pushSelection(); };
+  window.__mapSelectNames = function(names, additive){
+    if (!additive) selection = new Set();
+    names.forEach(function(n){ if (stnData[n]) selection.add(n); });
+    pushSelection();
+  };
+
+  // box / lasso capture layer
+  var drawing = null;
+  function containerPoint(ev){
+    var r = map.getContainer().getBoundingClientRect();
+    return {x: ev.clientX - r.left, y: ev.clientY - r.top};
+  }
+  function inPoly(pt, poly){
+    var c = false;
+    for (var i = 0, j = poly.length - 1; i < poly.length; j = i++){
+      if (((poly[i].y > pt.y) !== (poly[j].y > pt.y)) &&
+          (pt.x < (poly[j].x - poly[i].x) * (pt.y - poly[i].y) /
+                  (poly[j].y - poly[i].y) + poly[i].x)) c = !c;
+    }
+    return c;
+  }
+  function finishDraw(additive){
+    if (!drawing) return;
+    var names = [];
+    Object.keys(stnData).forEach(function(n){
+      var s = stnData[n];
+      if (s.b && !map.hasLayer(belowGroup)) return;
+      if (!s.b){
+        var g = window.__mapLayers[s.f];
+        if (g && !map.hasLayer(g)) return;
+      }
+      var pt = map.latLngToContainerPoint(P(s.x, s.y));
+      var hit = drawing.kind === "box"
+        ? (pt.x >= Math.min(drawing.a.x, drawing.b.x) &&
+           pt.x <= Math.max(drawing.a.x, drawing.b.x) &&
+           pt.y >= Math.min(drawing.a.y, drawing.b.y) &&
+           pt.y <= Math.max(drawing.a.y, drawing.b.y))
+        : inPoly(pt, drawing.pts);
+      if (hit) names.push(n);
+    });
+    drawing.el.remove(); drawing = null;
+    window.__mapSelectNames(names, additive);
+    setSelMode(null);
+  }
+  var cont = map.getContainer();
+  cont.addEventListener("mousedown", function(ev){
+    if (!window.__selMode || window.__selMode === "click") return;
+    ev.preventDefault(); ev.stopPropagation();
+    var pt = containerPoint(ev);
+    var el = document.createElement(window.__selMode === "box" ? "div" : "canvas");
+    el.className = "drawlayer";
+    cont.appendChild(el);
+    if (window.__selMode === "lasso"){
+      el.width = cont.clientWidth; el.height = cont.clientHeight;
+    }
+    drawing = {kind: window.__selMode, a: pt, b: pt, pts: [pt], el: el};
+  }, true);
+  cont.addEventListener("mousemove", function(ev){
+    if (!drawing) return;
+    ev.preventDefault(); ev.stopPropagation();
+    var pt = containerPoint(ev);
+    drawing.b = pt;
+    if (drawing.kind === "box"){
+      var x = Math.min(drawing.a.x, pt.x), y = Math.min(drawing.a.y, pt.y);
+      drawing.el.style.left = x + "px"; drawing.el.style.top = y + "px";
+      drawing.el.style.width = Math.abs(pt.x - drawing.a.x) + "px";
+      drawing.el.style.height = Math.abs(pt.y - drawing.a.y) + "px";
+    } else {
+      drawing.pts.push(pt);
+      var ctx = drawing.el.getContext("2d");
+      ctx.clearRect(0, 0, drawing.el.width, drawing.el.height);
+      ctx.strokeStyle = "#2a9d8f"; ctx.lineWidth = 2;
+      ctx.fillStyle = "rgba(42,157,143,.12)";
+      ctx.beginPath();
+      drawing.pts.forEach(function(p, i){
+        i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); });
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  }, true);
+  cont.addEventListener("mouseup", function(ev){
+    if (!drawing) return;
+    ev.preventDefault(); ev.stopPropagation();
+    finishDraw(ev.ctrlKey || ev.metaKey);
+  }, true);
+
+  function setSelMode(mode){
+    window.__selMode = (window.__selMode === mode ? null : mode);
+    if (window.__selMode === "box" || window.__selMode === "lasso")
+      map.dragging.disable();
+    else map.dragging.enable();
+    document.querySelectorAll(".selmode-btn").forEach(function(b){
+      b.classList.toggle("on", b.dataset.mode === window.__selMode);
+    });
+  }
+  window.__setSelMode = setSelMode;
+
+  // ── pair highlight (matrix cell -> map) ────────────────────────────────
+  var hlLayer = L.layerGroup().addTo(map);
+  window.__mapHighlightPair = function(a, b){
+    hlLayer.clearLayers();
+    var sa = stnData[a], sb = stnData[b];
+    if (!sa || !sb) return;
+    [sa, sb].forEach(function(s){
+      L.marker(P(s.x, s.y), {icon: L.divIcon({className: "hlwrap",
+        iconSize: [1, 1], html: '<div class="hlring"></div>'}),
+        interactive: false}).addTo(hlLayer);
+    });
+    L.polyline([P(sa.x, sa.y), P(sb.x, sb.y)],
+      {color: "#1c1f24", weight: 2, dashArray: "6 6", opacity: 0.85})
+      .bindTooltip(a + " ↔ " + b, {sticky: true}).addTo(hlLayer);
+    var bb = L.latLngBounds(P(sa.x, sa.y), P(sb.x, sb.y)).pad(0.5);
+    map.fitBounds(bb);
+    document.getElementById("figmap")
+      .scrollIntoView({block: "center", behavior: "smooth"});
+  };
+  window.__mapClearHighlight = function(){ hlLayer.clearLayers(); };
+
+  // ── legend control (the map's declared graphic language) ───────────────
+  var Legend = L.Control.extend({
+    options: {position: "bottomright"},
+    onAdd: function(){
+      var d = L.DomUtil.create("div", "maplegend");
+      var h = '<div class="lg-title">מקרא'
+            + '<span class="lg-fold">−</span></div><div class="lg-body">';
+      h += '<div class="lg-sec">מהות (צורה)</div>';
+      Object.keys(D.kindNames).forEach(function(k){
+        h += '<div class="lg-row">' +
+             glyphSvg(D.kindGlyphs[k], 13, "#8d8d8d", "#fff", 1.2) +
+             '<span>' + D.kindNames[k] + '</span></div>';
+      });
+      h += '<div class="lg-sec">אשכול כימי (צבע — כמו במטריצה)</div>';
+      D.clusterLegend.forEach(function(c){
+        h += '<div class="lg-row"><span class="lg-dot" style="background:' +
+             c.color + '"></span><span>אשכול ' + (c.i + 1) + ' · ' + c.n +
+             ' תח\' · ' + c.top + '-שלטת</span></div>';
+      });
+      h += '<div class="lg-row"><span class="lg-dot" style="background:' +
+           D.unclusteredColor + '"></span><span>לא מאושכל / בודד</span></div>';
+      h += '<div class="lg-sec">Σ (גודל, µg/L)</div><div class="lg-sizes">';
+      D.sizePx.forEach(function(px, i){
+        h += '<span class="lg-size">' +
+             glyphSvg("circle", px, "#8d8d8d", "#fff", 1.2) +
+             '<i>' + D.sizeLabels[i] + '</i></span>';
+      });
+      h += '</div><div class="lg-sec">קווים וסימנים</div>';
+      h += '<div class="lg-row"><span class="lg-line" style="background:#3f86bd"></span><span>ערוץ ראשי / משני</span></div>';
+      h += '<div class="lg-row"><span class="lg-line" style="background:#d97a2c"></span><span>מסלול נגר ממקור</span></div>';
+      h += '<div class="lg-row"><span class="lg-line lg-dash"></span><span>נתיב מוצהר (שאיבה/מתועל)</span></div>';
+      h += '<div class="lg-row"><span class="lg-mark" style="color:#f4b942">★</span><span>מקור מוערך</span></div>';
+      h += '<div class="lg-row"><span class="lg-mark" style="color:#d97a2c">▲</span><span>צומת חשוד (הצטרפות-עומס)</span></div>';
+      h += '</div>';
+      d.innerHTML = h;
+      d.querySelector(".lg-title").addEventListener("click", function(){
+        d.classList.toggle("folded");
+        d.querySelector(".lg-fold").textContent =
+          d.classList.contains("folded") ? "+" : "−";
+      });
+      L.DomEvent.disableClickPropagation(d);
+      L.DomEvent.disableScrollPropagation(d);
+      return d;
+    }
+  });
+  map.addControl(new Legend());
+
+  // ── selection card ─────────────────────────────────────────────────────
+  var SelCard = L.Control.extend({
+    options: {position: "topleft"},
+    onAdd: function(){
+      var d = L.DomUtil.create("div", "selcard");
+      d.id = "selcard"; d.style.display = "none";
+      d.innerHTML = 'נבחרו <b class="seln">0</b> תחנות · Σ מצרפי ' +
+        '<b class="sels">0</b> µg/L <button class="selclear">נקה</button>';
+      d.querySelector(".selclear").addEventListener("click",
+        window.__mapClearSel);
+      L.DomEvent.disableClickPropagation(d);
+      return d;
+    }
+  });
+  map.addControl(new SelCard());
+
+  // ── backdrop opacity slider ────────────────────────────────────────────
+  if (satLayer){
+    var Op = L.Control.extend({
+      options: {position: "bottomleft"},
+      onAdd: function(){
+        var d = L.DomUtil.create("div", "opctl");
+        d.innerHTML = 'רקע <input type="range" min="0" max="100" value="45">';
+        d.querySelector("input").addEventListener("input", function(){
+          satLayer.setOpacity(this.value / 100); });
+        L.DomEvent.disableClickPropagation(d);
+        return d;
+      }
+    });
+    map.addControl(new Op());
+  }
+
+  // ── layer control / scale / api / boot ─────────────────────────────────
   var overlays = {};
   if (satLayer) overlays['רקע תצ"א (Sentinel-2)'] = satLayer;
   if (hsLayer) overlays["הצללת-תבליט (DEM)"] = hsLayer;
@@ -508,11 +917,14 @@ _MAP_JS = r"""
   overlays["נתיבים מוצהרים"] = connLayer;
   overlays["מקורות"] = srcLayer;
   overlays["צמתים חשודים"] = juncLayer;
-  overlays["שמות תחנות"] = lblLayer;
+  overlays["מתחת לסף-אות (" + D.stations.filter(function(s){ return s.b; })
+           .length + ")"] = belowGroup;
   L.control.layers(null, overlays,
     {collapsed: true, position: "topright"}).addTo(map);
+  map.on("overlayadd overlayremove", function(){
+    setTimeout(function(){ updateComplexes(); placeLabels(); }, 40);
+  });
 
-  // scale bar in kilometres (CRS.Simple: 1 unit = 1 km)
   var Scale = L.Control.extend({
     options: {position: "bottomleft"},
     onAdd: function(m){
@@ -538,13 +950,16 @@ _MAP_JS = r"""
     var g = window.__mapLayers[fk];
     if (!g) return;
     if (on) { map.addLayer(g); } else { map.removeLayer(g); }
+    setTimeout(function(){ updateComplexes(); placeLabels(); }, 40);
   };
   map.fitBounds(B(D.views["כל האגן"]));
-  setTimeout(function(){ map.invalidateSize(); }, 120);
-  // print always shows the whole basin with every layer on
+  setTimeout(function(){ map.invalidateSize();
+                         updateComplexes(); placeLabels(); }, 150);
   window.addEventListener("beforeprint", function(){
     Object.keys(window.__mapLayers).forEach(function(fk){
       map.addLayer(window.__mapLayers[fk]); });
+    document.querySelectorAll(".maplegend").forEach(function(e){
+      e.classList.remove("folded"); });
     map.invalidateSize();
     map.fitBounds(B(D.views["כל האגן"]));
   });
@@ -590,11 +1005,12 @@ def _similarity(data):
     return sim, lab, clusters, pairs
 
 
-def _fig_similarity(sim, lab, fam_of):
+def _fig_similarity(sim, lab, fam_of, cluster_of=None):
     """Figure 3 — numbered heatmap (station names go in a legend table, so the
-    axes stay legible even at 25+ stations). Cell values shown. A family
-    color strip runs along the right axis: the forensic question is whether
-    the CHEMICAL clusters coincide with the TRANSPORT families."""
+    axes stay legible even at 25+ stations). Cell values shown. The color
+    strips along both axes now carry the CHEMICAL CLUSTER colors — the same
+    language the map speaks (PROCESS #22); the transport family stays in the
+    strip tooltips."""
     n = len(lab)
     pos = list(range(1, n + 1))
     nums = [str(i + 1) for i in range(n)]
@@ -610,12 +1026,21 @@ def _fig_similarity(sim, lab, fam_of):
         textfont=dict(size=9, color="rgba(20,20,20,0.75)"),
         customdata=[[f"{lab[i]} ↔ {lab[j]}" for j in range(n)] for i in range(n)],
         hovertemplate="%{customdata}<br>%{z:.0f}%<extra></extra>"))
-    # family strips along BOTH axes (row strip at x=0.2, column strip at
+    # cluster strips along BOTH axes (row strip at x=0.2, column strip at
     # y=0.2 — the reversed y-axis puts it on top), so a crossing can be
     # followed from either direction
-    strip_colors = [FAMILIES[fam_of.get(s, "other")]["color"] for s in lab]
-    strip_text = [f"{s} — {FAMILIES[fam_of.get(s, 'other')]['name_he']}"
-                  for s in lab]
+    cluster_of = cluster_of or {}
+
+    def _stripc(s):
+        c = cluster_of.get(s, -1)
+        return (CLUSTER_COLORS[c % len(CLUSTER_COLORS)] if c >= 0
+                else UNCLUSTERED_COLOR)
+    strip_colors = [_stripc(s) for s in lab]
+    strip_text = [
+        f"{s} — "
+        + (f"אשכול כימי {cluster_of[s] + 1}" if s in cluster_of else "לא מאושכל")
+        + f" · {FAMILIES[fam_of.get(s, 'other')]['name_he']}"
+        for s in lab]
     fig.add_trace(go.Scatter(
         x=[0.2] * n, y=pos, mode="markers",
         marker=dict(symbol="square", size=11, color=strip_colors),
@@ -1167,6 +1592,15 @@ _FAM_JS = r"""
   chips.forEach(function(ch){ active[ch.dataset.fam] = true; });
 
   function famOf(n){ return D.byStation[n] || "other"; }
+  function clColor(n){
+    var c = (n in D.clusterOf) ? D.clusterOf[n] : -1;
+    return c >= 0 ? D.clusterColors[c % D.clusterColors.length]
+                  : D.unclusteredColor;
+  }
+  function clName(n){
+    return (n in D.clusterOf) ? ("אשכול כימי " + (D.clusterOf[n] + 1))
+                              : "לא מאושכל";
+  }
 
   function applyMap(){
     if (!window.__mapSetFam) return;
@@ -1205,9 +1639,11 @@ _FAM_JS = r"""
       textfont:{size:9, color:"rgba(20,20,20,0.75)"},
       customdata:cust,
       hovertemplate:"%{customdata}<br>%{z:.0f}%<extra></extra>"};
-    var cols = idx.map(function(i){ return D.famColors[famOf(D.simLabels[i])]; });
+    var cols = idx.map(function(i){ return clColor(D.simLabels[i]); });
     var txts = idx.map(function(i){
-      return D.simLabels[i] + " — " + D.famNames[famOf(D.simLabels[i])]; });
+      return D.simLabels[i] + " — " + clName(D.simLabels[i]) + " · " +
+             D.famNames[famOf(D.simLabels[i])]; });
+    window.__simCurrent = idx.map(function(i){ return D.simLabels[i]; });
     var stripY = {type:"scatter", mode:"markers",
       x:pos.map(function(){ return 0.2; }), y:pos,
       marker:{symbol:"square", size:11, color:cols},
@@ -1230,8 +1666,13 @@ _FAM_JS = r"""
   function applyFp(){
     var el = document.getElementById("figfp");
     if (!el) return;
+    var sel = window.__selNames;
     var keep = [];
-    D.fpStations.forEach(function(n, i){ if (active[famOf(n)]) keep.push(i); });
+    D.fpStations.forEach(function(n, i){
+      if (!active[famOf(n)]) return;
+      if (sel && sel.length && sel.indexOf(n) < 0) return;
+      keep.push(i); });
+    if (keep.length < 1) keep = D.fpStations.map(function(_, i){ return i; });
     var xs = keep.map(function(i){ return D.fpStations[i].slice(0, 22); });
     var traces = D.fpCompounds.map(function(c){
       return {type:"bar", name:c, x:xs,
@@ -1303,10 +1744,36 @@ _FAM_JS = r"""
       applySim();
     });
   });
+  // ── linked selection: map -> matrix + fingerprints ──────────────────────
+  window.__simCurrent = D.simLabels.slice();
+  window.__selNames = null;
+  window.__applySelection = function(names){
+    window.__selNames = names && names.length ? names : null;
+    document.querySelectorAll(".simsel").forEach(function(b){
+      b.checked = window.__selNames
+        ? window.__selNames.indexOf(b.dataset.station) >= 0 : true;
+    });
+    applySim(); applyFp();
+  };
+
+  // ── matrix cell click -> highlight the pair on the map ─────────────────
+  var simEl = document.getElementById("figsim");
+  if (simEl && simEl.on){
+    simEl.on("plotly_click", function(ev){
+      if (!ev.points || !ev.points.length || !window.__mapHighlightPair) return;
+      var p = ev.points[0];
+      if (p.data.type !== "heatmap") return;
+      var names = window.__simCurrent || D.simLabels;
+      var a = names[Math.round(p.x) - 1], b = names[Math.round(p.y) - 1];
+      if (a && b && a !== b) window.__mapHighlightPair(a, b);
+    });
+  }
+
   window.addEventListener("beforeprint", function(){
     chips.forEach(function(ch){
       active[ch.dataset.fam] = true; ch.classList.add("on"); });
     document.querySelectorAll(".simsel").forEach(function(b){ b.checked = true; });
+    window.__selNames = null;
     apply();
   });
 })();
@@ -1415,6 +1882,61 @@ border-radius:7px;padding:3px 12px;font-size:.8rem;cursor:pointer;font-family:in
   background:rgba(255,255,255,.65);position:relative}
 #figmap .kmscale span{position:absolute;bottom:2px;width:100%;
   text-align:center;font-size:11px;font-weight:600;color:#1c1f24}
+/* map v2: glyph markers, selection, legend, complexes */
+#figmap .stn-ic{background:none;border:none}
+#figmap .stnwrap{display:flex;align-items:center;justify-content:center;
+  width:100%;height:100%;border-radius:50%;
+  filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.5))}
+#figmap .stnwrap.below{opacity:.55;filter:none}
+#figmap .stnwrap.sel{outline:3px solid #00e5ff;outline-offset:1px;
+  border-radius:50%;background:rgba(0,229,255,.18)}
+#figmap .cplxicon{background:none;border:none}
+#figmap .cplx{position:absolute;transform:translate(-50%,-50%);
+  min-width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);
+  border:2.5px solid #5a4200;color:#1c1f24;font-weight:800;font-size:14px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  box-shadow:0 1px 4px rgba(0,0,0,.4);padding:0 6px}
+#figmap .drawlayer{position:absolute;z-index:900;pointer-events:none;
+  border:2px dashed #2a9d8f;background:rgba(42,157,143,.12);left:0;top:0}
+#figmap canvas.drawlayer{border:none;background:none;width:100%;height:100%}
+#figmap .hlwrap{background:none;border:none}
+#figmap .hlring{position:absolute;transform:translate(-50%,-50%);
+  width:34px;height:34px;border-radius:50%;border:3.5px solid #00e5ff;
+  box-shadow:0 0 8px #00e5ff;animation:hlpulse 1.2s ease-in-out infinite}
+@keyframes hlpulse{50%{transform:translate(-50%,-50%) scale(1.25);opacity:.55}}
+#figmap .maplegend{background:rgba(255,255,255,.93);border:1px solid var(--line);
+  border-radius:9px;padding:8px 12px;direction:rtl;max-width:230px;
+  font-size:.78rem;line-height:1.5;max-height:420px;overflow-y:auto}
+#figmap .maplegend .lg-title{font-weight:800;font-size:.85rem;cursor:pointer;
+  display:flex;justify-content:space-between;gap:10px}
+#figmap .maplegend.folded .lg-body{display:none}
+#figmap .maplegend .lg-sec{font-weight:700;color:var(--ink2);margin:7px 0 2px;
+  border-bottom:1px solid var(--line)}
+#figmap .maplegend .lg-row{display:flex;align-items:center;gap:6px;margin:2px 0}
+#figmap .maplegend .lg-row svg{flex:none}
+#figmap .maplegend .lg-dot{width:11px;height:11px;border-radius:3px;flex:none;
+  border:1px solid rgba(0,0,0,.25)}
+#figmap .maplegend .lg-line{width:22px;height:3px;flex:none;border-radius:2px}
+#figmap .maplegend .lg-dash{background:repeating-linear-gradient(90deg,
+  #8a5a44 0 5px,transparent 5px 9px)}
+#figmap .maplegend .lg-mark{font-size:14px;flex:none;line-height:1}
+#figmap .maplegend .lg-sizes{display:flex;align-items:flex-end;gap:9px;
+  margin:3px 0}
+#figmap .maplegend .lg-size{display:flex;flex-direction:column;
+  align-items:center;gap:1px}
+#figmap .maplegend .lg-size i{font-style:normal;font-size:.68rem;
+  color:var(--ink3)}
+#figmap .selcard{background:#103c46;color:#fff;border-radius:9px;
+  padding:7px 13px;font-size:.85rem;direction:rtl;box-shadow:0 1px 5px
+  rgba(0,0,0,.35)}
+#figmap .selcard .selclear{margin-right:8px;border:none;border-radius:6px;
+  padding:2px 10px;cursor:pointer;font-family:inherit;background:#00e5ff;
+  color:#103c46;font-weight:700}
+#figmap .opctl{background:rgba(255,255,255,.85);border:1px solid var(--line);
+  border-radius:8px;padding:3px 9px;font-size:.75rem;direction:rtl;
+  display:flex;align-items:center;gap:6px}
+#figmap .opctl input{width:90px}
+.mv-sep{width:1px;height:22px;background:var(--line);margin:0 4px}
 .simsel-hint{font-size:.75rem;color:var(--ink3)}
 .simsel{cursor:pointer}
 .csm{padding:6px 2px}
@@ -1441,6 +1963,10 @@ font-size:.9rem;margin-bottom:5px}
   .simsel{display:none}.simsel-bar{display:none}
   #figmap .leaflet-control-zoom{display:none}
   #figmap .leaflet-control-layers{display:none}
+  #figmap .selcard{display:none!important}
+  #figmap .opctl{display:none}
+  #figmap .maplegend{max-height:none;overflow:visible}
+  #figmap .maplegend .lg-body{display:block!important}
 }
 """
 
@@ -1456,10 +1982,11 @@ def main(region_name):
                          cwd=os.path.dirname(__file__) or ".").stdout.strip()
 
     fam_of = _classify_families(data)
-    map_payload = _map_payload(data, fam_of)
-    map_views = map_payload["views"]
     sim_df, sim_lab, sim_clusters, sim_pairs = _similarity(data)
-    fig_sim = _fig_similarity(sim_df, sim_lab, fam_of)
+    cluster_of = {s: i for i, mem in enumerate(sim_clusters) for s in mem}
+    map_payload = _map_payload(data, fam_of, sim_clusters)
+    map_views = map_payload["views"]
+    fig_sim = _fig_similarity(sim_df, sim_lab, fam_of, cluster_of)
     n_sim = len(sim_lab)
     fig_att = _fig_attenuation(data)
     fig_fp, fp_names = _fig_fingerprints(data, fam_of)
@@ -1553,6 +2080,18 @@ def main(region_name):
         f'{view_btns}'
         f'<button type="button" class="mapview-btn" id="mapzin">+</button>'
         f'<button type="button" class="mapview-btn" id="mapzout">−</button>'
+        f'<span class="mv-sep"></span>'
+        f'<span class="fambar-t">בחירה:</span>'
+        f'<button type="button" class="mapview-btn selmode-btn" '
+        f'data-mode="click" title="לחיצה על תחנות (או Ctrl+לחיצה בכל מצב)">'
+        f'לחיצה</button>'
+        f'<button type="button" class="mapview-btn selmode-btn" '
+        f'data-mode="box">מסגור</button>'
+        f'<button type="button" class="mapview-btn selmode-btn" '
+        f'data-mode="lasso">לאסו</button>'
+        f'<button type="button" class="mapview-btn" id="selclear2">נקה</button>'
+        f'<span class="simsel-hint">הבחירה חלה גם על מטריצת-הדמיון ועל '
+        f'איור-ההרכבים; לחיצה על תא במטריצה מבליטה את הזוג על המפה</span>'
         f'</div>')
     # aspect-matched height so the map fills the column
     _bx = map_payload["bbox"]
@@ -1581,6 +2120,15 @@ def main(region_name):
   var zi = document.getElementById("mapzin");
   var zo = document.getElementById("mapzout");
   if (zi) zi.addEventListener("click", function(){ window.__mapZoom(0.5); });
+  document.querySelectorAll(".selmode-btn").forEach(function(b){
+    b.addEventListener("click", function(){
+      window.__setSelMode(b.dataset.mode); });
+  });
+  var sc2 = document.getElementById("selclear2");
+  if (sc2) sc2.addEventListener("click", function(){
+    window.__mapClearSel();
+    if (window.__mapClearHighlight) window.__mapClearHighlight();
+  });
   if (zo) zo.addEventListener("click", function(){ window.__mapZoom(-0.5); });
 })();
 </script>""")
@@ -1664,6 +2212,9 @@ def main(region_name):
         "famColors": {k: v["color"] for k, v in FAMILIES.items()},
         "famNames": {k: v["name_he"] for k, v in FAMILIES.items()},
         "famShort": {k: v["short_he"] for k, v in FAMILIES.items()},
+        "clusterOf": cluster_of,
+        "clusterColors": CLUSTER_COLORS,
+        "unclusteredColor": UNCLUSTERED_COLOR,
         "simLabels": sim_lab,
         "simZ": [[round(float(v), 1) for v in row] for row in sim_df.values],
         "fpStations": fp_names,
