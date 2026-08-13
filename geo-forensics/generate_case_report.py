@@ -32,7 +32,9 @@ import numpy as np
 import plotly
 import plotly.graph_objects as go
 
-from config import COMPOUND_COLORS, DEFAULT_COLOR, GW_PLUME_K, MIN_SIGNAL_UG_L
+from config import (CLUSTER_MIN_MEMBERS, CLUSTER_MIN_SIGNAL_UG_L,
+                    COMPOUND_COLORS, DEFAULT_COLOR, GW_PLUME_K,
+                    MIN_SIGNAL_UG_L)
 from generate_review_report import _prepare
 from src.analytics import cosine_similarity_matrix
 from src.attribution import SURFACE_TYPES
@@ -336,7 +338,8 @@ def _map_payload(data, fam_of, clusters=None):
          "kindNames": {k: v["name_he"] for k, v in MAP_KINDS.items()},
          "kindGlyphs": {k: v["glyph"] for k, v in MAP_KINDS.items()},
          "sizePx": [px for _b, px in SIZE_CLASSES],
-         "sizeLabels": SIZE_LABELS}
+         "sizeLabels": SIZE_LABELS,
+         "clusterMin": f"{CLUSTER_MIN_SIGNAL_UG_L:g}"}
 
     # backdrops: satellite imagery (base) + shaded relief (toggleable)
     import base64
@@ -430,8 +433,14 @@ def _map_payload(data, fam_of, clusters=None):
                 extra += "<br>קידוח ניטור"
         kind = _entity_kind(row.get("source_type", ""), s["name"])
         cl = cluster_of.get(s["name"], -1)
-        cl_he = (f'אשכול כימי {cl + 1}' if cl >= 0 else
-                 ("מתחת לסף-אות" if s["below_thr"] else "לא מאושכל"))
+        if cl >= 0:
+            cl_he = f'אשכול כימי {cl + 1}'
+        elif s["below_thr"]:
+            cl_he = "מתחת לסף-אות"
+        elif float(s["sigma"]) < CLUSTER_MIN_SIGNAL_UG_L:
+            cl_he = "אות חלש מדי לסיווג הרכבי"
+        else:
+            cl_he = "לא מאושכל (בודד)"
         P["stations"].append({
             "n": s["name"], "f": fk, "k": kind, "c": cl,
             "b": bool(s["below_thr"]),
@@ -848,7 +857,8 @@ _MAP_JS = r"""
              ' תח\' · ' + c.top + '-שלטת</span></div>';
       });
       h += '<div class="lg-row"><span class="lg-dot" style="background:' +
-           D.unclusteredColor + '"></span><span>לא מאושכל / בודד</span></div>';
+           D.unclusteredColor + '"></span><span>לא מאושכל / אות חלש לסיווג' +
+           ' (Σ<' + D.clusterMin + ')</span></div>';
       h += '<div class="lg-sec">Σ (גודל, µg/L)</div><div class="lg-sizes">';
       D.sizePx.forEach(function(px, i){
         h += '<span class="lg-size">' +
@@ -987,13 +997,19 @@ def _similarity(data):
         Z = linkage(squareform((d + d.T) / 2, checks=False), method="average")
         lab = [sim.index[i] for i in leaves_list(Z)]
         sim = sim.loc[lab, lab]
-        # clusters at 70% similarity (distance 0.30)
+        # clusters at 70% similarity (distance 0.30). Cluster COLORS are
+        # only awarded to reliable fingerprints (user-approved 2026-08-12):
+        # dilute stations join the ordering/matrix but stay unclassified,
+        # and a colored cluster needs CLUSTER_MIN_MEMBERS reliable members.
         cl = fcluster(Z, t=0.30, criterion="distance")
         by = {}
         for name, c in zip(keep, cl):
-            by.setdefault(c, []).append(name)
-        clusters = sorted((m for m in by.values() if len(m) >= 2),
-                          key=len, reverse=True)
+            if float(me.loc[name, "total_concentration"]) \
+                    >= CLUSTER_MIN_SIGNAL_UG_L:
+                by.setdefault(c, []).append(name)
+        clusters = sorted(
+            (m for m in by.values() if len(m) >= CLUSTER_MIN_MEMBERS),
+            key=len, reverse=True)
     except Exception:
         lab = list(sim.index)
     # top off-diagonal pairs
@@ -1599,7 +1615,7 @@ _FAM_JS = r"""
   }
   function clName(n){
     return (n in D.clusterOf) ? ("אשכול כימי " + (D.clusterOf[n] + 1))
-                              : "לא מאושכל";
+                              : "לא מאושכל / אות-חלש";
   }
 
   function applyMap(){

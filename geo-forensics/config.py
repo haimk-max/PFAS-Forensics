@@ -48,6 +48,18 @@ MIN_SIGNAL_UG_L = 0.01
 # dispersivities; will be calibrated against measured heads (S3).
 GW_PLUME_K = 0.2
 
+# --- Chemical-cluster reliability (approved 2026-08-12, PROCESS #22) ---
+# A station may carry a CLUSTER COLOR (map + matrix strips) only if its
+# fingerprint is reliable enough to classify: at low totals, single
+# near-LOD compounds swing the relative composition by tens of percent, and
+# hard clustering then paints noise with confident colors. Stations below
+# this Sigma stay "signal too weak to classify" (gray). Declared,
+# calibratable (kishon claim KI-A4).
+CLUSTER_MIN_SIGNAL_UG_L = 0.05
+# A colored cluster needs at least this many reliable members — smaller
+# groups are indistinguishable from chance pairings at these noise levels.
+CLUSTER_MIN_MEMBERS = 3
+
 # --- Well classification (approved 2026-08-12) ---
 # Water Authority naming convention: monitoring wells are point sensors;
 # production wells integrate an ill-defined pumping capture zone. Names win;
