@@ -381,7 +381,7 @@ class TestWaterTransfers:
 class TestAttributionTierCap:
     def test_assumed_flow_caps_tier(self, tmp_path):
         """With all three axes present but ASSUMED flow, the tier must stay
-        'מועמד משני' — never 'מועמד ליבה' (governance: assumption ≠ measurement)."""
+        'מועמד משני' — never 'מועמד מרכזי' (governance: assumption ≠ measurement)."""
         import json
 
         from src import attribution
@@ -425,7 +425,7 @@ class TestAttributionTierCap:
             }])
             res = attribution.evaluate_candidates(df, fp, max_event, region)
             assert len(res) == 1
-            assert "ליבה" not in res[0]["tier"]
+            assert "מרכזי" not in res[0]["tier"]
             assert res[0]["n_downgradient"] == 1
             assert res[0]["would_refute"]  # counter-evidence axis is mandatory
         finally:

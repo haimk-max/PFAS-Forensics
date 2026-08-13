@@ -264,6 +264,11 @@ _FONT = dict(family="Assistant, Segoe UI, sans-serif", size=13)
 #           of magnitude without letting the hot stations own the picture)
 # Transport family deliberately left the marker: it stays in the filter bar,
 # the popups and the drawn pathways.
+# Version of PFAS_INVESTIGATION_METHODOLOGY.md this generator implements.
+# Stamped in every report header, in the appendix and into claims.json, so a
+# decision is always traceable to the methodology it was taken under.
+METHODOLOGY_VERSION = "1.0"
+
 MAP_KIND_ORDER = ["stream", "reservoir", "spring", "well_mon", "well_prod"]
 MAP_KINDS = {
     "stream":    dict(name_he="נקודת מים עיליים", glyph="circle"),
@@ -449,7 +454,7 @@ def _map_payload(data, fam_of, clusters=None):
             "x": round(float(row["x_itm"]) / 1000, 4),
             "y": round(float(row["y_itm"]) / 1000, 4),
             "t": (f'<b>{_esc(s["name"])}</b><br>Σ={s["sigma"]:.3f} µg/L'
-                  f'<br>{_esc(s["profile"])} ({s["score"]:.0f}%)'
+                  f'<br>{_esc(s["profile"])} · דמיון {s["score"] / 100:.2f}'
                   f'<br>{MAP_KINDS[kind]["name_he"]} · {cl_he}'
                   f'<br>{FAMILIES[fk]["name_he"]}{extra}')})
 
@@ -700,7 +705,7 @@ _MAP_JS = r"""
       if (w) w.classList.toggle("sel", selection.has(n));
     });
   }
-  function pushSelection(){
+  function pushSelection(silent){
     markSel();
     var names = Array.from(selection);
     var sum = 0;
@@ -713,17 +718,19 @@ _MAP_JS = r"""
         card.querySelector(".sels").textContent = sum.toFixed(2);
       } else card.style.display = "none";
     }
-    if (window.__applySelection) window.__applySelection(names);
+    // `silent` = the call came FROM the checkbox substrate; pushing back
+    // would loop (map -> boxes -> map)
+    if (!silent && window.__applySelection) window.__applySelection(names);
   }
   function toggleSel(n){
     if (selection.has(n)) selection.delete(n); else selection.add(n);
     pushSelection();
   }
   window.__mapClearSel = function(){ selection = new Set(); pushSelection(); };
-  window.__mapSelectNames = function(names, additive){
+  window.__mapSelectNames = function(names, additive, silent){
     if (!additive) selection = new Set();
     names.forEach(function(n){ if (stnData[n]) selection.add(n); });
-    pushSelection();
+    pushSelection(silent);
   };
 
   // box / lasso capture layer
@@ -1357,8 +1364,8 @@ def _findings_family_sections(data, fam_of, nar_families):
                     if st["name"] == top:
                         prof_he, score = st["profile"], st["score"]
                 hint = hints.get(_key_by_name.get(prof_he, ""), "")
-                card.append((f"חתימת {cand_name.split('—')[0].strip()}",
-                             f"{_esc(prof_he)} ({score:.0f}%)"))
+                card.append((f"הרכב אופייני — {cand_name.split('—')[0].strip()}",
+                             f"{_esc(prof_he)} · דמיון {score / 100:.2f}"))
                 if hint:
                     card.append(("התאמת-מוצר (אינדיקטיבית)", _esc(hint)))
             if leftover:
@@ -1447,7 +1454,7 @@ def _findings_family_sections(data, fam_of, nar_families):
                     "מוצהרת; הרכבן עקבי עם ירושה כזו, והן מוחרגות "
                     "מרגרסיית הדעיכה (שהות-בריכה מנתקת ריכוז ממרחק). ")
             _names_row("התחנות (התאמת-פרופיל)",
-                       lambda m: f'{_esc(m["name"])} ({m["score"]:.0f}%)')
+                       lambda m: f'{_esc(m["name"])} (דמיון {m["score"] / 100:.2f})')
 
         elif key == "piped":
             anchor = c.get("anchor_station")
@@ -1539,44 +1546,47 @@ def _discussion_prose(data, narrative=None):
     explanations, and closes with the authored synthesis (region.json)."""
     P = []
     for c in data["candidates"]:
-        chem = c["chem_share_weighted"] * 100
         axes = []
         if c["n_downgradient"]:
             axes.append("ההידרולוגי")
-        if chem >= 30:
+        if c["chem_share"] >= 0.3:
             axes.append("הכימי")
         if c["emission_evidence"]:
             axes.append("ראיית-הפליטה")
 
-        para = (f"הערכת האתר \"{c['name_he']}\" נשענת על עקרון ההתלכדות: אף "
-                f"ציר ראיה בודד אינו מזהה מקור, ורק צירופם של כמה צירים "
-                f"בלתי-תלויים מבסס הערכה. ")
+        # finding -> meaning -> limitation, one idea per sentence
+        para = (f"הערכת האתר \"{c['name_he']}\" נשענת על צירי ראיה משלימים, "
+                f"המבוססים על סוגי מידע שונים. ")
+        para += ("אף ציר בודד אינו מזהה מקור. "
+                 "רק צירוף של כמה צירים מבסס הערכה. ")
         if len(axes) >= 3:
-            para += (f"במקרה זה מתקיימים שלושת הצירים — {_list_he(axes)}. "
-                     f"החפיפה הכימית בין החתימות שנמדדו במורד לבין הפרופיל "
-                     f"הצפוי מן האתר עומדת על {chem:.0f} אחוזים בשקלול "
-                     f"לפי עוצמת האות, כלומר התחנות המרוכזות — אלו שהראיה "
-                     f"שלהן אמינה יותר — הן גם התואמות ביותר. ")
+            para += f"כאן מתקיימים שלושת הצירים: {_list_he(axes)}. "
         else:
-            para += (f"במקרה זה מתקיימים {len(axes)} צירים בלבד "
-                     f"({_list_he(axes)}), ולפיכך ההערכה מסויגת מטבעה. ")
+            para += (f"כאן מתקיימים {len(axes)} צירים בלבד "
+                     f"({_list_he(axes)}). ההערכה מסויגת בהתאם. ")
+        n_hits, n_down = len(c["chem_hits"]), c["n_downgradient"]
+        if n_down:
+            para += (f"ב-{n_hits} מתוך {n_down} תחנות המורד הנספרות, ההרכב "
+                     f"שנמדד קרוב יותר לפרופיל הצפוי מן האתר מאשר לכל "
+                     f"פרופיל אחר. ")
         if c.get("anchor_station"):
-            para += (f"משקל מיוחד נודע לתחנת-העוגן \"{c['anchor_station']}\", "
-                     f"הממוקמת בשטח האתר עצמו: היא קושרת את הזיהום לא רק "
-                     f"לאזור אלא לנקודה, ומעגנת את עוצמתו במדידה ישירה. ")
-        para += f"סיכומם של אלה מוביל לדירוג <b>{c['tier']}</b>."
+            para += (f"בשטח האתר עצמו נמדדה תחנת-העוגן "
+                     f"\"{c['anchor_station']}\". "
+                     f"היא קושרת את הזיהום לנקודה ולא רק לאזור. ")
+        para += f"סיכום הראיות מוביל לדירוג <b>{c['tier']}</b>."
         P.append(para)
+        P.append({"card": _support_card(c)})
 
         if c["evidence_against"]:
-            para = ("בחינה מקצועית מחייבת אינה מסתפקת בראיות התומכות, ועל כן "
-                    "נבחנו במפורש ההסברים החלופיים והממצאים שאינם מתיישבים "
-                    "עם ההערכה. ")
-            para += " ".join(c["evidence_against"])
-            para += (" משקלן של הסתייגויות אלו אינו מבטל את ההערכה, אך הוא "
-                     "מגדיר את גבולותיה: הן מצביעות על כך שתמונת הזיהום "
-                     "באזור עשויה שלא להיות מוסברת במלואה על-ידי מקור יחיד, "
-                     "ומחייבות בחינת מקורות או נתיבים נוספים.")
-            P.append(para)
+            # one item per line: a wall of concatenated counter-evidence is
+            # unreadable (report-language round §5, §6.1)
+            P.append("נבחנו במפורש גם הממצאים שאינם מתיישבים עם ההערכה "
+                     "וההסברים החלופיים:")
+            P.append({"list": [_esc(x) for x in c["evidence_against"]]})
+            P.append("הסתייגויות אלו אינן מבטלות את ההערכה, אך הן מגדירות "
+                     "את גבולותיה. תמונת הזיהום באזור עשויה שלא להיות "
+                     "מוסברת במלואה על ידי מקור יחיד, ויש לבחון מקורות או "
+                     "נתיבים נוספים.")
         elif c.get("would_refute"):
             P.append("לא נמצאו בנתונים הנוכחיים ממצאים הסותרים את ההערכה. "
                      "עם זאת, ומתוך הקפדה על בחינה עצמית, נקבעו מראש "
@@ -1586,13 +1596,27 @@ def _discussion_prose(data, narrative=None):
     if narrative and narrative.get("synthesis_he"):
         P.append(narrative["synthesis_he"])
 
-    P.append("לבסוף, יש לקרוא את מסקנות הדוח בכפוף למגבלת השפה המחייבת "
-             "בתחום זה: התאמת פרופיל כימי, גבוהה ככל שתהיה, משמעה \"עקבי עם\" "
-             "ולא \"נגרם על-ידי\"; כיוון זרימה כשלעצמו אינו מזהה מקור; "
-             "ומועמד מדורג — ליבה, משני או רקע מקומי — לעולם אינו מוכרז "
-             "\"המקור\". הדוח נועד לתעדף חקירה ולכוון משאבי דיגום, לא להכריע "
-             "אחריות.")
+    P.append("את מסקנות הדוח יש לקרוא בשפת-הייחוס המחייבת בתחום. "
+             "דמיון גבוה בהרכב הכימי משמעו \"עקבי עם\", לא \"נגרם על-ידי\". "
+             "כיוון זרימה כשלעצמו אינו מזהה מקור. "
+             "מועמד מדורג — מרכזי, משני או אפשרי — לעולם אינו מוכרז "
+             "\"המקור\". "
+             "הדוח נועד לתעדף חקירה ולכוון משאבי דיגום, לא להכריע אחריות.")
     return P
+
+
+def _support_card(c):
+    """The chemical axis, shown as its four separate components — never as
+    one composite "XX% match" (methodology v1.0 §7; user round 2026-08-12)."""
+    sim = c.get("chem_similarity_median")
+    rows = [
+        ("דמיון בהרכב (0–1)",
+         f"{sim}" if sim is not None else "לא חושב — אין תחנות נספרות"),
+        ("התאמה לפרופיל בליה", _esc(c.get("weathering_fit", "—"))),
+        ("איכות האות", _esc(c.get("signal_quality", "—"))),
+        ("רמת התמיכה הכימית", f'<b>{_esc(c.get("chem_support", "—"))}</b>'),
+    ]
+    return _card(rows)
 
 
 # ─── report assembly ────────────────────────────────────────────────────────
@@ -1682,13 +1706,44 @@ _FAM_JS = r"""
   function applyFp(){
     var el = document.getElementById("figfp");
     if (!el) return;
-    var sel = window.__selNames;
-    var keep = [];
-    D.fpStations.forEach(function(n, i){
-      if (!active[famOf(n)]) return;
-      if (sel && sel.length && sel.indexOf(n) < 0) return;
-      keep.push(i); });
-    if (keep.length < 1) keep = D.fpStations.map(function(_, i){ return i; });
+    // The checkbox row IS the canonical selection substrate (#24): map
+    // click/box/lasso, matrix group buttons and single boxes all write to
+    // it, and the matrix, this figure and the map rings all read from it.
+    var chosen = null;
+    var boxes = document.querySelectorAll(".simsel");
+    if (boxes.length){
+      var checked = [];
+      boxes.forEach(function(b){ if (b.checked) checked.push(b.dataset.station); });
+      if (checked.length && checked.length < boxes.length) chosen = checked;
+    }
+    var names = (chosen || D.fpDefault).filter(function(n){
+      return active[famOf(n)] && D.fpStations.indexOf(n) >= 0; });
+    var truncated = 0;
+    if (names.length > D.fpMax){
+      names = names.slice().sort(function(a, b){
+        return (D.sigma[b] || 0) - (D.sigma[a] || 0); }).slice(0, D.fpMax);
+      truncated = (chosen || D.fpDefault).length - names.length;
+    }
+    if (!names.length) names = D.fpDefault.slice();
+    // keep the family grouping (source outward) of the chosen subset
+    var order = {};
+    ["focus","stream","pumped","piped","cascade","gw","other","below"]
+      .forEach(function(f, i){ order[f] = i; });
+    names.sort(function(a, b){
+      var d = (order[famOf(a)] || 9) - (order[famOf(b)] || 9);
+      return d !== 0 ? d : (D.sigma[b] || 0) - (D.sigma[a] || 0); });
+    var keep = names.map(function(n){ return D.fpStations.indexOf(n); });
+    var cap = document.getElementById("fpcap");
+    if (cap){
+      cap.textContent = chosen
+        ? ("איור 5: הרכב יחסי — " + names.length + " תחנות שנבחרו" +
+           (truncated > 0 ? " (מתוך " + (names.length + truncated) +
+            "; מוצגות החזקות ביותר)" : "") +
+           ", מקובצות לפי משפחת-הסעה.")
+        : ("איור 5: הרכב יחסי של " + names.length + " תחנות המפתח, " +
+           "מקובצות לפי משפחת-הסעה (מהמקור החוצה). בחירת תחנות במפה או " +
+           "במטריצה מציגה כאן את הנבחרות.");
+    }
     var xs = keep.map(function(i){ return D.fpStations[i].slice(0, 22); });
     var traces = D.fpCompounds.map(function(c){
       return {type:"bar", name:c, x:xs,
@@ -1733,19 +1788,21 @@ _FAM_JS = r"""
       active[ch.dataset.fam] = true; ch.classList.add("on"); });
     apply();
   });
-  // per-station selection (matrix legend checkboxes)
+  // per-station selection (matrix legend checkboxes). Every mutation of
+  // the checkbox substrate refreshes the matrix, figure 5 and the map rings.
+  function selectionChanged(){ applySim(); applyFp(); syncMapFromBoxes(); }
   document.querySelectorAll(".simsel").forEach(function(box){
-    box.addEventListener("change", applySim);
+    box.addEventListener("change", selectionChanged);
   });
   var selAll = document.getElementById("simselall");
   if (selAll) selAll.addEventListener("click", function(){
     document.querySelectorAll(".simsel").forEach(function(b){ b.checked = true; });
-    applySim();
+    selectionChanged();
   });
   var selNone = document.getElementById("simselnone");
   if (selNone) selNone.addEventListener("click", function(){
     document.querySelectorAll(".simsel").forEach(function(b){ b.checked = false; });
-    applySim();
+    selectionChanged();
   });
   // group buttons: one click checks/unchecks a whole transport family
   document.querySelectorAll(".simsel-fam").forEach(function(btn){
@@ -1757,7 +1814,7 @@ _FAM_JS = r"""
       var any = boxes.some(function(b){ return b.checked; });
       boxes.forEach(function(b){ b.checked = !any; });
       btn.classList.toggle("off", any);
-      applySim();
+      selectionChanged();
     });
   });
   // ── linked selection: map -> matrix + fingerprints ──────────────────────
@@ -1771,6 +1828,15 @@ _FAM_JS = r"""
     });
     applySim(); applyFp();
   };
+  // checkbox state -> map highlight rings (keeps the two directions in sync)
+  function syncMapFromBoxes(){
+    if (!window.__mapSelectNames) return;
+    var boxes = document.querySelectorAll(".simsel"), checked = [];
+    boxes.forEach(function(b){ if (b.checked) checked.push(b.dataset.station); });
+    window.__mapSelectNames(
+      (checked.length && checked.length < boxes.length) ? checked : [], false,
+      true);
+  }
 
   // ── matrix cell click -> highlight the pair on the map ─────────────────
   var simEl = document.getElementById("figsim");
@@ -1817,6 +1883,11 @@ font-weight:600;font-size:.9rem;margin:14px 0}
 .conf{display:inline-block;border-radius:100px;padding:1px 10px;font-size:.78rem;font-weight:700}
 .conf.hi{background:#e3f2e8;color:var(--ok)}.conf.mid{background:#fdf1e4;color:var(--warn)}
 .conf.lo{background:#fbe9e7;color:var(--bad)}
+.evlist{margin:.6em 0;padding-right:1.2em}
+.evlist li{margin:.45em 0;text-align:justify}
+.methodref{background:#f4f7f6;border-right:3px solid var(--accent);
+border-radius:6px;padding:7px 12px;font-size:.85rem;color:var(--ink2);
+margin:10px 0 0}
 .basis{font-size:.8rem;color:var(--ink3)}
 table{width:100%;border-collapse:collapse;font-size:.85rem;margin:.8em 0}
 th,td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -2018,8 +2089,13 @@ def main(region_name):
     S = []
     S.append(f"<h1>דוח חקירה סביבתית-הידרולוגית<br>{_esc(region.get('name_he', region_name))}</h1>")
     S.append(f'<div class="meta">השירות ההידרולוגי, רשות המים · מהדורת עבודה '
-             f'{region.get("_round","")} · 27 ביולי 2026 · גרסת מתודולוגיה '
+             f'{region.get("_round","")} · גרסת קוד '
              f'<span dir="ltr">{git}</span></div>')
+    S.append(_bdi(
+        f'<p class="methodref">הניתוח בוצע לפי '
+        f'<b>"מתודולוגיית חקירת מקורות PFAS", גרסה {METHODOLOGY_VERSION}</b>. '
+        f'להגדרות, נוסחאות, ספים וכללי דירוג ראו מסמך המתודולוגיה '
+        f'(<span dir="ltr">PFAS_INVESTIGATION_METHODOLOGY.md</span>).</p>'))
     S.append('<div class="draft">טיוטת תבנית לעיון — מבנה הדוח טרם קובע. '
              'סולם-הוודאות (גבוהה/בינונית/נמוכה + בסיס) מאושר.</div>')
     # Narrative-staleness guard: authored narrative restates interpretation
@@ -2049,11 +2125,12 @@ def main(region_name):
         S.append("<h3>1.2 עילת החקירה</h3>")
         S.append(_bdi(f"<p>{_esc(nar['trigger_he'])}</p>"))
     S.append(
-        "<p>מטרת החקירה היא מיפוי שיטתי של תמונת הזיהום בתחום התיק, בחינת "
-        "מועמדי-מקור מול שלושה צירי ראיה בלתי-תלויים — התאמה כימית, סבירות "
-        "הידרולוגית וראיות פליטה — וגיבוש המלצות לפעולות המשך. הדוח נוקט "
-        "בשפת ייחוס זהירה: מועמד מדורג \"ליבה\", \"משני\" או \"רקע מקומי\", "
-        "ולעולם אינו מוכרז \"המקור\".</p>")
+        "<p>מטרת החקירה היא מיפוי שיטתי של תמונת הזיהום בתחום התיק. "
+        "מועמדי-מקור נבחנים מול שלושה צירי ראיה משלימים, המבוססים על סוגי "
+        "מידע שונים: דמיון בהרכב הכימי, סבירות הידרולוגית וראיות פליטה. "
+        "בסיום מגובשות המלצות לפעולות המשך. "
+        "הדוח נוקט בשפת ייחוס זהירה: מועמד מדורג \"מרכזי\", \"משני\" או "
+        "\"אפשרי\", ולעולם אינו מוכרז \"המקור\".</p>")
 
     # 2 — data & methods
     S.append("<h2>2. נתונים ושיטות</h2>")
@@ -2216,12 +2293,19 @@ def main(region_name):
                  f'ונתח קדם-חומרים (ימני) לאורך מסלול הזרימה; באפור — '
                  f'תחנות מוזנות-שאיבה המוחרגות מהרגרסיה.</div></div>')
     S.append(f'<div class="figure">{_plot(fig_fp, "figfp")}'
-             f'<div class="figcap">איור 5: הרכב יחסי של {len(fp_names)} '
-             f'תחנות המפתח, מקובצות לפי משפחת-הסעה (מהמקור החוצה).</div></div>')
+             f'<div class="figcap" id="fpcap">איור 5: הרכב יחסי של '
+             f'{len(fp_names)} תחנות המפתח, מקובצות לפי משפחת-הסעה (מהמקור '
+             f'החוצה). בחירת תחנות במפה או במטריצה מציגה כאן את הנבחרות.'
+             f'</div></div>')
     # family filter script — self-contained, drives map/matrix/fingerprints.
     # Plain-JSON copies of the matrix/fingerprint data are embedded because
     # fig.to_json() binary-encodes arrays (bdata) that page JS cannot slice.
-    fp_plain = data["fingerprint"].loc[fp_names]
+    # Figure 5 ships fingerprints for ALL signal stations (#24) so a map or
+    # matrix selection can redraw it client-side; the default view stays the
+    # key stations.
+    fp_all_names = [s for s in sim_lab if s in data["fingerprint"].index]
+    fp_plain = data["fingerprint"].loc[
+        list(dict.fromkeys(fp_names + fp_all_names))]
     fp_plain = fp_plain[[c for c in fp_plain.columns if fp_plain[c].sum() > 0]]
     fam_js_data = {
         "byStation": fam_of,
@@ -2233,21 +2317,35 @@ def main(region_name):
         "unclusteredColor": UNCLUSTERED_COLOR,
         "simLabels": sim_lab,
         "simZ": [[round(float(v), 1) for v in row] for row in sim_df.values],
-        "fpStations": fp_names,
+        "fpStations": list(fp_plain.index),          # all shippable stations
+        "fpDefault": fp_names,                       # key-station default view
+        "fpMax": 24,                                 # readability cap
         "fpCompounds": list(fp_plain.columns),
         "fpColors": {c: COMPOUND_COLORS.get(c, DEFAULT_COLOR)
                      for c in fp_plain.columns},
         "fpValues": {c: [round(float(v), 2) for v in fp_plain[c]]
                      for c in fp_plain.columns},
+        "sigma": {s: round(float(data["max_event"].set_index("station_name")
+                                 .loc[s, "total_concentration"]), 3)
+                  for s in fp_plain.index},
     }
     S.append("<script>window.__famData=" +
              json.dumps(fam_js_data, ensure_ascii=False) + ";" + _FAM_JS +
              "</script>")
 
-    # 4 — discussion
+    # 4 — discussion (each candidate's prose is followed by its chemical
+    # support card: the four components, never one composite percentage)
     S.append("<h2>4. דיון</h2>")
     for p in _discussion_prose(data, nar):
-        S.append(_bdi(f"<p>{p}</p>"))
+        if isinstance(p, dict):          # data card or list, not prose
+            if p.get("card"):
+                S.append(_bdi(p["card"]))
+            elif p.get("list"):
+                S.append(_bdi("<ul class='evlist'>"
+                              + "".join(f"<li>{x}</li>" for x in p["list"])
+                              + "</ul>"))
+        else:
+            S.append(_bdi(f"<p>{p}</p>"))
 
     # 5 — conclusions
     S.append("<h2>5. מסקנות</h2>")
@@ -2257,31 +2355,48 @@ def main(region_name):
     n_c = 0
     for c in data["candidates"]:
         n_c += 1
-        lvl = "גבוהה" if "ליבה" in c["tier"] else "בינונית"
+        lvl = "גבוהה" if "מרכזי" in c["tier"] else "בינונית"
         transfers = len(c.get("transfer_fed", {}))
         body = (f"<b>{n_c}. דירוג האתר.</b> האתר \"{_esc(c['name_he'])}\" "
                 f"מדורג <b>{_esc(c['tier'])}</b> ביחס לזיהום ה-PFAS שבתחום "
-                f"התיק. הדירוג נשען על התלכדות עצמאית של ראיות: "
+                f"התיק. הדירוג נשען על צירי ראיה משלימים: "
                 f"{c['n_downgradient']} תחנות פגועות במורד האתר"
-                + (f" ועוד {transfers} המוזנות בנתיבים מוצהרים" if transfers else "")
-                + f", התאמה כימית משוקללת של {c['chem_share_weighted']*100:.0f} "
-                f"אחוזים בין החתימות שבמורד לפרופיל הצפוי מן האתר, וראיית "
-                f"פליטה עצמאית. ")
-        if "ליבה" in c["tier"]:
-            body += ("יש להדגיש כי אף אחת מן הראיות הנספרות אינה נשענת על "
-                     "הנחת כיוון זרימת התהום — כולן נגזרות ממודל הגבהים, "
-                     "מנתיבים מוצהרים או ממדידה ישירה באתר — ולפיכך אין "
-                     "תחולה לתקרת-ההנחה החלה כאשר הראיות תלויות בהנחה.")
+                + (f" ועוד {transfers} המוזנות בנתיבים מוצהרים"
+                   if transfers else "")
+                + f"; ב-{len(c['chem_hits'])} מהן ההרכב קרוב יותר לפרופיל "
+                f"הצפוי מן האתר מאשר לכל פרופיל אחר; וראיית פליטה. "
+                f"רמת התמיכה הכימית: {_esc(c.get('chem_support', '—'))}. ")
+        if "מרכזי" in c["tier"]:
+            body += ("אף אחת מהראיות הנספרות אינה נשענת על הנחת כיוון זרימת "
+                     "התהום. כולן נגזרות ממודל הגבהים, מנתיבים מוצהרים או "
+                     "ממדידה ישירה באתר. לכן תקרת-ההנחה אינה חלה כאן.")
         else:
             body += ("הדירוג נותר מסויג כל עוד משטר הזרימה נלמד מהנחה או "
                      "מקריאת מפה ולא ממדידות מפלס.")
         S.append(f'<div class="concl"><p>{_bdi(body)} '
-                 f'{_conf(lvl, "התלכדות צירי הראיה; ראו פרק 4")}</p></div>')
+                 f'{_conf(lvl, "צירי ראיה משלימים; ראו פרק 4")}</p></div>')
 
         att = c["attenuation"]
         if att.get("r_precursor") is not None and att["r_precursor"] <= -0.4:
             n_c += 1
-            S.append(f'<div class="concl"><p>{_bdi(f"<b>{n_c}. עדות ההזדקנות.</b> החתימה הכימית מזדקנת בעקביות עם ההתרחקות מן האתר: נתח קדם-החומרים הלא-יציבים יורד באופן מונוטוני לאורך המסלול. זוהי עדות תומכת עצמאית, שאינה נשענת על גיאומטריה או על הנחות זרימה אלא על תהליך כימי מוכר, ולפיכך משקלה ניכר.")} '
+            # wording follows the data: only a strong correlation earns
+            # "consistent decline"; otherwise it is a general trend with
+            # deviations, and the deviations are named as a possible extra
+            # load rather than smoothed away (user round 2026-08-12)
+            _rp = att["r_precursor"]
+            if _rp <= -0.8:
+                _aging = ("נתח קדם-החומרים הלא-יציבים יורד באופן עקבי לאורך "
+                          "המסלול, ככל שמתרחקים מן האתר.")
+            else:
+                _aging = ("לאורך המסלול ניכרת מגמת ירידה בנתח קדם-החומרים, "
+                          "התואמת באופן כללי את כיוון הבליה הצפוי. המגמה "
+                          "אינה רציפה, ובחלק מהמקטעים נצפות סטיות. סטייה "
+                          "כזו עשויה להצביע על תוספת זיהום או על מקור נוסף "
+                          "באותו מקטע.")
+            _body = (f"<b>{n_c}. עדות הבליה.</b> {_aging} זוהי עדות תומכת "
+                     f"הנשענת על תהליך כימי מוכר, ולא על גיאומטריה או על "
+                     f"הנחות זרימה.")
+            S.append(f'<div class="concl"><p>{_bdi(_body)} '
                      f'{_conf("בינונית", "חתך יחיד, לא בו-זמני")}</p></div>')
         # Cascade pathway is a picture-changing finding — it must surface in
         # the conclusions, not only in the findings chapter (user-caught
@@ -2364,7 +2479,9 @@ def main(region_name):
 
     S.append("<h2>נספח ב' — מניפסט מתודולוגי</h2>" if excluded
              else "<h2>נספח — מניפסט מתודולוגי</h2>")
-    S.append(f"<p>גרסת מתודולוגיה (commit): <span dir='ltr'>{git}</span> · "
+    S.append(f"<p>מתודולוגיה: גרסה {METHODOLOGY_VERSION} "
+             f"(<span dir='ltr'>PFAS_INVESTIGATION_METHODOLOGY.md</span>) · "
+             f"גרסת קוד: <span dir='ltr'>{git}</span> · "
              f"סף-אות: {MIN_SIGNAL_UG_L} µg/L · רוחב-עננה k={GW_PLUME_K} · "
              f"צמידות-לערוץ: 300 מ' · פרופילי-מקור: domains/pfas (היוריסטיקה "
              f"ספרותית — ITRC; Barzen-Hanson 2017; Houtz 2013) · DEM: "

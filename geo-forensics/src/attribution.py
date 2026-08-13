@@ -1,16 +1,28 @@
 """attribution.py — Evidence fusion v0: candidate sources vs. measurements.
 
-Three independent evidence axes per candidate (operationalizing the project's
-Flow Direction Caution rule):
+Three COMPLEMENTARY evidence axes per candidate (they rest on different kinds
+of information and reinforce each other; they are not statistically
+independent — wording fixed 2026-08-12):
     chem     — do impacted stations match the candidate's expected profiles?
     hydro    — are impacted stations downgradient of the candidate?
     emission — independent evidence of emitting activity at the site.
 
-Tier language is fixed by project policy: "מועמד ליבה" / "מועמד משני" /
-"רקע מקומי" — never "המקור". While the flow model is an ASSUMPTION, the
-hydro axis is capped: it can support consistency but cannot confirm, and no
-candidate may exceed "מועמד משני" on assumed flow alone unless the chemical
-axis is independently strong.
+Tier language is fixed by project policy (vocabulary migrated 2026-08-12,
+methodology v1.0): "מועמד מרכזי" / "מועמד משני" / "מקור אפשרי" /
+"לא נתמך בשלב זה" — never "המקור". While the flow model is an ASSUMPTION,
+the hydro axis is capped: it can support consistency but cannot confirm, and
+no candidate may exceed "מועמד משני" on assumed flow alone.
+
+The chemical axis is reported as FOUR separate, transparent components
+(methodology v1.0 §5-§7) — never as one composite "XX% match":
+    chem_similarity_median — composition similarity to the expected profile
+                             (0-1; median over counted downgradient stations)
+    weathering_fit         — does the composition change along the path match
+                             the expected weathering direction? (path level
+                             only — there is no per-station basis for it)
+    signal_quality         — how reliable are the fingerprints behind it
+    chem_support           — rule-based overall rating, anchored to the same
+                             threshold that feeds the tier (chem_share>=0.3)
 
 Every result carries evidence_for / evidence_against / would_refute — the
 counter-evidence axis is mandatory (governance §18), not optional.
@@ -23,6 +35,7 @@ import os
 import pandas as pd
 
 from config import (
+    CLUSTER_MIN_SIGNAL_UG_L,
     GW_PLUME_K,
     JUNCTION_MARKER_JUMP_PP,
     JUNCTION_PREC_DEPLETED_PP,
@@ -124,8 +137,9 @@ def junction_scan(series, fingerprint, head_name):
             signals.append(f"עליית Σ מקומית פי {b['sigma'] / a['sigma']:.1f} "
                            f"({a['sigma']:.3f}←{b['sigma']:.3f})")
         if sims[i] >= run_min_sim + JUNCTION_SIM_REBOUND_PP:
-            signals.append(f"עליית דמיון-למוקד במורד ({run_min_sim:.0f}%←"
-                           f"{sims[i]:.0f}%) — הפרת מונוטוניות-הבליה")
+            signals.append(f"ההרכב נעשה דומה יותר למוקד ככל שמתרחקים "
+                           f"({run_min_sim:.0f}%←{sims[i]:.0f}%) — מנוגד "
+                           f"לכיוון הבליה הצפוי")
         for m in _JUNCTION_MARKERS:
             if m in fingerprint.columns:
                 ma = float(fingerprint.loc[a["station"], m])
@@ -382,7 +396,33 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             return base
         w_total = sum(_w(s) for s in down)
         w_hits = sum(_w(s) for s in chem_hits)
+        # kept for backend/audit use only — never shown as an "XX% match"
+        # (methodology v1.0 §7; user round 2026-08-12)
         chem_share_weighted = (w_hits / w_total) if w_total > 0 else 0.0
+
+        # composition similarity (0-1): median of the matched profiles'
+        # similarity scores over the counted downgradient stations. This is a
+        # similarity measure, NOT a probability and NOT a station count.
+        _sims = []
+        if not matches.empty:
+            for s in chem_hits:
+                rows = matches[(matches["station"] == s)
+                               & (matches["profile_key"].isin(expected))]
+                if not rows.empty:
+                    _sims.append(float(rows["score"].max()) / 100.0)
+        chem_similarity_median = (round(sorted(_sims)[len(_sims) // 2], 2)
+                                  if _sims else None)
+
+        # signal quality: how reliable are the fingerprints this rests on.
+        # Uses the two thresholds already declared in config — no new ones.
+        if down:
+            _reliable = sum(1 for s in down
+                            if stn_total[s] >= CLUSTER_MIN_SIGNAL_UG_L)
+            _rel_share = _reliable / len(down)
+            signal_quality = ("גבוהה" if _rel_share >= 0.75 else
+                              "בינונית" if _rel_share >= 0.4 else "נמוכה")
+        else:
+            signal_quality = "נמוכה"
 
         # --- attenuation evidence ---
         # Preferred basis: DEM path distances over surface stations on the
@@ -509,9 +549,11 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                 f"לא נספרים כראיה ישירה ולא כראיית-נגד — מוכרע בדיגום מזווג")
         if chem_hits:
             evidence_for.append(
-                f"התאמה כימית לפרופילים הצפויים ב-{len(chem_hits)}/{len(down)} "
-                f"מתחנות המורד; משוקלל-עוצמה: {chem_share_weighted*100:.0f}% "
-                f"(עקבי עם — אינו מוכיח)")
+                f"ב-{len(chem_hits)} מתוך {len(down)} תחנות המורד הנספרות, "
+                f"הפרופיל הצפוי הוא הקרוב ביותר להרכב שנמדד"
+                + (f" (דמיון חציוני בהרכב: {chem_similarity_median})"
+                   if chem_similarity_median is not None else "")
+                + " — עקבי עם המקור, אינו מוכיח אותו")
         if attenuation["r_conc"] is not None:
             r = attenuation["r_conc"]
             if r <= -_ATTEN_R_THRESHOLD:
@@ -532,16 +574,21 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                 f"הזדקנות פרופיל נצפית: נתח קדם-חומרים יורד במורד "
                 f"(r={attenuation['r_precursor']}) — עקבי עם התרחקות מהמקור")
         if junction_findings:
-            _sem = region.get("dataset_semantics", {})
-            _caveat = ("; סייג: חתך לא בו-זמני — ראו סמנטיקת-החתך המוצהרת"
-                       if _sem.get("simultaneous") is False else "")
+            # one line per suspected segment, in plain words; the
+            # non-simultaneity caveat is stated ONCE for the whole group
+            # rather than repeated on every line (report-language round §6.6)
             for jf in junction_findings:
                 evidence_against.append(
-                    f"אינדיקציית הצטרפות-עומס במקטע "
-                    f"\"{jf['segment'][0]}\"←\"{jf['segment'][1]}\" "
-                    f"({jf['km'][0]:.1f}–{jf['km'][1]:.1f} ק\"מ): "
-                    + "; ".join(jf["signals"])
-                    + " — עקבי עם מקור/יובל נוסף במקטע" + _caveat)
+                    f"במקטע שבין \"{jf['segment'][0]}\" ל\"{jf['segment'][1]}\" "
+                    f"({jf['km'][0]:.1f}–{jf['km'][1]:.1f} ק\"מ) ניכרת תוספת "
+                    f"זיהום שאינה מוסברת היטב על ידי המקור שבמעלה: "
+                    + "; ".join(jf["signals"]) + ".")
+            _sem = region.get("dataset_semantics", {})
+            if _sem.get("simultaneous") is False:
+                evidence_against.append(
+                    "הערה לכל המקטעים החשודים: התחנות לא נדגמו בו-זמנית, "
+                    "ולכן חלק מההפרש בין מקטעים עשוי לנבוע מהפרשי מועד ולא "
+                    "מתוספת זיהום.")
         if emission:
             evidence_for.append("ראיית פליטה: " + "; ".join(emission) +
                                 f" [רמה: {ev_tier}]")
@@ -605,9 +652,38 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
         _gw_assumed = flow_gw.tier == ASSUMED and n_gw_down > 0
         _hydro_all_derived = (not _gw_assumed) and (
             not dem_active or n_surf_down > 0 or n_gw_down > 0)
-        axes = sum([bool(down), chem_share >= 0.3, bool(emission)])
+        # --- chemical-support rating (methodology v1.0 §7) ---
+        # Rule-based and anchored to the SAME threshold that feeds the tier
+        # (chem_share >= 0.3), so the report can never show "low chemical
+        # support" while the engine counts the chemical axis as present.
+        _chem_axis = chem_share >= 0.3
+        if not down:
+            chem_support = "אין די ראיות"
+        elif not _chem_axis:
+            chem_support = "נמוכה"
+        elif (chem_similarity_median is not None
+                and chem_similarity_median >= 0.8
+                and signal_quality == "גבוהה"
+                and chem_share >= 0.6):
+            chem_support = "גבוהה"
+        else:
+            chem_support = "בינונית"
+
+        # weathering fit — path level only; there is no per-station basis
+        _rp = attenuation.get("r_precursor")
+        if _rp is None or attenuation.get("n", 0) < 3:
+            weathering_fit = "לא ניתן להעריך"
+        elif _rp <= -0.6:
+            weathering_fit = "גבוהה"
+        elif _rp <= -_ATTEN_R_THRESHOLD:
+            weathering_fit = "בינונית"
+        else:
+            weathering_fit = "נמוכה"
+
+        # --- tier (vocabulary v1.0; thresholds unchanged) ---
+        axes = sum([bool(down), _chem_axis, bool(emission)])
         if axes >= 3 and _hydro_all_derived:
-            tier = "מועמד ליבה"
+            tier = "מועמד מרכזי"
         elif axes >= 2:
             tier = "מועמד משני"
             if axes == 3 and _gw_assumed:
@@ -615,9 +691,9 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                         "העילי נגזר-DEM)" if dem_active and n_surf_down
                         else "מועמד משני (תקרה: כיוון זרימה מונח, לא מדוד)")
         elif axes == 1:
-            tier = "רקע מקומי / ראיה בודדת"
+            tier = "מקור אפשרי"
         else:
-            tier = "אין תמיכה בנתונים הנוכחיים"
+            tier = "לא נתמך בשלב זה"
 
         results.append({
             "id": src.get("id"), "name_he": src.get("name_he"),
@@ -636,6 +712,10 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             "weak_downgradient": weak_down,
             "chem_share": round(chem_share, 2),
             "chem_share_weighted": round(chem_share_weighted, 2),
+            "chem_similarity_median": chem_similarity_median,
+            "weathering_fit": weathering_fit,
+            "signal_quality": signal_quality,
+            "chem_support": chem_support,
             "chem_hits": chem_hits,
             "attenuation": attenuation,
             "junction_findings": junction_findings,

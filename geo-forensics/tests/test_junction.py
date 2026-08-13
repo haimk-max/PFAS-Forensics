@@ -55,7 +55,9 @@ def test_similarity_rebound_flags_segment():
     })
     ser = _series((1, "s1", 10.0), (5, "s2", 1.0), (10, "s3", 0.5))
     out = junction_scan(ser, fp, HEAD)
-    assert any(any("מונוטוניות-הבליה" in sig for sig in f["signals"])
+    # wording simplified 2026-08-12: the signal states the mechanism in
+    # plain Hebrew instead of the dense "monotonicity violation" term
+    assert any(any("דומה יותר למוקד" in sig for sig in f["signals"])
                for f in out)
 
 
