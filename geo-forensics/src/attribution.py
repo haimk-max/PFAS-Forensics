@@ -211,6 +211,16 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
     flow_gw = flow_from_region(region, "groundwater")
     flow_surface = flow_from_region(region, "surface")
     dem_active = isinstance(flow_surface, DemFlowModel)
+    # Expert may void the groundwater GEOMETRIC axis for a case (local perched
+    # water in a clay unit: a regional flow direction has no meaning, and the
+    # production wells draw from a deeper unit). Declared per region as
+    # flow.groundwater.mode == "local_perched". Consequence: wells are neither
+    # counted downgradient nor called upgradient — they carry no geometric
+    # verdict at all. The chemical axis and the cascade (bank-infiltration)
+    # channel are unaffected.
+    _gw_cfg = (region.get("flow", {}) or {}).get("groundwater", {}) or {}
+    gw_axis_off = _gw_cfg.get("mode") == "local_perched"
+    gw_axis_off_he = _gw_cfg.get("mode_note_he", "")
     matches = match_profiles(fingerprint, top_n=3)
 
     impacted = max_event[max_event["total_concentration"] > 0]
@@ -286,6 +296,10 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                 if flow_surface.upgradient_of(xy, (sx, sy)) and \
                         _outfall_to(s) != "sewer":
                     down_all.append(s)
+            elif gw_axis_off:
+                gw_tiers[s] = {"w": 0.0, "tier": "off",
+                               "well_class": classify_well(
+                                   s, stn_srctype.get(s, ""))}
             else:
                 w, t = flow_gw.plausibility(xy, (sx, sy), k=GW_PLUME_K) \
                     if isinstance(flow_gw, UniformFlowAssumption) else (
@@ -621,6 +635,14 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
                          for s in h.get("to_stations", [])}
         conditional = [s for s in strong_up if s in _hyp_stations]
         strong_up = [s for s in strong_up if s not in _hyp_stations]
+        # Voided groundwater axis: "not downgradient" is itself a geometric
+        # verdict, so a well with a similar profile is neither support nor
+        # counter-evidence here — it is an ungraded observation.
+        gw_ungraded = []
+        if gw_axis_off:
+            gw_ungraded = [s for s in strong_up
+                           if stn_domain.get(s) == "groundwater"]
+            strong_up = [s for s in strong_up if s not in gw_ungraded]
         # Production wells: capture geometry is soft (pumping radius
         # undefined), so "similar profile elsewhere" is NOT counted as
         # counter-evidence for them (approved 2026-08-12). Listed
@@ -638,6 +660,13 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             evidence_against.append(
                 f"ראיית-נגד מותנית: {', '.join(conditional)} — פרופיל דומה שלא במורד, "
                 f"אך קיים חשד מוצהר להזנת-שאיבה (בבדיקה); אם יאושר — יעברו למורד")
+        if gw_ungraded:
+            evidence_for.append(
+                f"תצפית ללא הכרעה גיאומטרית: קידוחים עם פרופיל דומה — "
+                f"{', '.join(gw_ungraded[:3])}"
+                + ("..." if len(gw_ungraded) > 3 else "")
+                + " — ציר-התהום הגיאומטרי מבוטל בתיק זה, ולכן אין באלה תמיכה "
+                  "ואין בהם ראיית-נגד")
         if production_soft:
             evidence_for.append(
                 f"תצפית-סריקה (לא ראיה ולא ראיית-נגד): קידוחי-הפקה עם פרופיל "
@@ -721,7 +750,15 @@ def evaluate_candidates(df: pd.DataFrame, fingerprint: pd.DataFrame,
             "junction_findings": junction_findings,
             "anchor_station": anchor,
             "emission_evidence": emission,
-            "flow_caveat": f"עילי: {flow_surface.describe_he()} | תהום: {flow_gw.describe_he()}",
+            "expert_determination_he": src.get("expert_determination_he"),
+            "expert_claim_id": src.get("expert_claim_id"),
+            "flow_caveat": (
+                f"עילי: {flow_surface.describe_he()} | "
+                + (f"תהום: ציר גיאומטרי מבוטל — {gw_axis_off_he}"
+                   if gw_axis_off else f"תהום: {flow_gw.describe_he()}")),
+            "gw_axis_off": gw_axis_off,
+            "gw_axis_off_he": gw_axis_off_he,
+            "gw_ungraded": gw_ungraded,
             "evidence_for": evidence_for,
             "evidence_against": evidence_against,
             "would_refute": [

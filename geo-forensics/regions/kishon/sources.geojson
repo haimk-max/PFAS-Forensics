@@ -1,71 +1,75 @@
 {
-  "type": "FeatureCollection",
-  "features": [
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          35.0,
-          32.6
-        ]
-      },
-      "properties": {
-        "id": "ramat_david_fftf",
-        "name_he": "בסיס רמת דוד — אזור אימוני כיבוי-אש (מוסק משלב א')",
-        "itm": [
-          217616.0,
-          730361.0
-        ],
-        "kind": "airbase_firefighting",
-        "location_quality": "inferred_from_data — מיקום תחנת-הניקוז 'רמת דוד - כיבוי אש'; אין קואורדינטה רשמית ואין אישור-משתמש",
-        "expected_profiles": [
-          "afff_ecf_fresh",
-          "afff_ecf_weathered"
-        ],
-        "emission_evidence": [
-          "שם התחנה בקובץ הרשות מציין אזור כיבוי-אש בבסיס רמת דוד",
-          "בסיס חיל-אוויר פעיל — מידע פומבי על קיום מערך כיבוי; פרטי הקצף והאירועים טרם בוררו"
-        ],
-        "evidence_tier": "public_info",
-        "site_name_tokens": [
-          "רמת דוד"
-        ],
-        "site_rule_provenance": "כלל-שם זמני (משתמש 2026-08-12): תחנה ששמה מכיל את שם-האתר שייכת למכלול-האתר; שמירת-שפיות 5 ק\"מ"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          35.07,
-          32.64
-        ]
-      },
-      "properties": {
-        "id": "alroy_fuel_terminal",
-        "name_he": "מסוף הדלק אלרואי (תש\"ן) — מוסק מקידוחי-הניטור",
-        "itm": [
-          210100,
-          734580
-        ],
-        "kind": "fuel_terminal",
-        "location_quality": "inferred_from_data — מרכז אשכול קידוחי 'נד תש\"ן אלרואי'; אין קואורדינטה רשמית ואין אישור-משתמש",
-        "expected_profiles": [
-          "afff_ecf_weathered",
-          "afff_ecf_fresh"
-        ],
-        "emission_evidence": [
-          "שמות הקידוחים בקובץ הרשות — 'נד תש\"ן אלרואי' — מזהים קידוחי-ניטור של מתקן תש\"ן",
-          "מסוף דלק אלרואי — מידע פומבי; חוות-מכלים ממוגנות-קצף; פרטי המערך והאירועים טרם בוררו"
-        ],
-        "evidence_tier": "public_info",
-        "site_name_tokens": [
-          "אלרואי"
-        ],
-        "site_rule_provenance": "כלל-שם זמני (משתמש 2026-08-12): תחנה ששמה מכיל את שם-האתר שייכת למכלול-האתר; שמירת-שפיות 5 ק\"מ"
-      }
-    }
-  ]
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     35.0,
+     32.6
+    ]
+   },
+   "properties": {
+    "id": "ramat_david_fftf",
+    "name_he": "בסיס רמת דוד — אזור אימוני כיבוי-אש (מוסק משלב א')",
+    "itm": [
+     217616.0,
+     730361.0
+    ],
+    "kind": "airbase_firefighting",
+    "location_quality": "inferred_from_data — מיקום תחנת-הניקוז 'רמת דוד - כיבוי אש'; אין קואורדינטה רשמית ואין אישור-משתמש",
+    "expected_profiles": [
+     "afff_ecf_fresh",
+     "afff_ecf_weathered"
+    ],
+    "emission_evidence": [
+     "שם התחנה בקובץ הרשות מציין אזור כיבוי-אש בבסיס רמת דוד",
+     "בסיס חיל-אוויר פעיל — מידע פומבי על קיום מערך כיבוי; פרטי הקצף והאירועים טרם בוררו"
+    ],
+    "evidence_tier": "public_info",
+    "site_name_tokens": [
+     "רמת דוד"
+    ],
+    "site_rule_provenance": "כלל-שם זמני (משתמש 2026-08-12): תחנה ששמה מכיל את שם-האתר שייכת למכלול-האתר; שמירת-שפיות 5 ק\"מ",
+    "expert_claim_id": "KI-C1",
+    "expert_determination_he": "תורם ודאי"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     35.07,
+     32.64
+    ]
+   },
+   "properties": {
+    "id": "alroy_fuel_terminal",
+    "name_he": "מסוף הדלק אלרואי (תש\"ן) — מוסק מקידוחי-הניטור",
+    "itm": [
+     210100,
+     734580
+    ],
+    "kind": "fuel_terminal",
+    "location_quality": "inferred_from_data — מרכז אשכול קידוחי 'נד תש\"ן אלרואי'; אין קואורדינטה רשמית ואין אישור-משתמש",
+    "expected_profiles": [
+     "afff_ecf_weathered",
+     "afff_ecf_fresh"
+    ],
+    "emission_evidence": [
+     "שמות הקידוחים בקובץ הרשות — 'נד תש\"ן אלרואי' — מזהים קידוחי-ניטור של מתקן תש\"ן",
+     "מסוף דלק אלרואי — מידע פומבי; חוות-מכלים ממוגנות-קצף; פרטי המערך והאירועים טרם בוררו"
+    ],
+    "evidence_tier": "public_info",
+    "site_name_tokens": [
+     "אלרואי"
+    ],
+    "site_rule_provenance": "כלל-שם זמני (משתמש 2026-08-12): תחנה ששמה מכיל את שם-האתר שייכת למכלול-האתר; שמירת-שפיות 5 ק\"מ",
+    "expert_claim_id": "KI-C2",
+    "expert_determination_he": "תורם ודאי"
+   }
+  }
+ ]
 }

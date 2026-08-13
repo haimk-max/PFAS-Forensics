@@ -126,6 +126,8 @@ def _family_status(key, c):
     if key == "cascade":
         return ("lo", "השערת-מנגנון — יוכרע בדיגום מזווג")
     if key == "gw":
+        if c.get("gw_axis_off"):
+            return ("lo", "ציר גיאומטרי מבוטל — מי תהום מקומיים (הכרעת מומחה)")
         return ("lo", "הנחת-כיוון — ממתין למפלסים")
     if key == "other":
         return ("lo", "בבדיקה (השערות-העברה)")
@@ -209,7 +211,10 @@ def _csm_html(data, fam_of, nar_families):
         f = FAMILIES[key]
         lvl, label = _family_status(key, c)
         nf = (nar_families or {}).get(key, {})
-        weather = nf.get("weathering_he", "")
+        # A voided axis carries no evidentiary channel at all — a weathering
+        # note here would misleadingly imply the family is still evaluated.
+        weather = "" if (key == "gw" and c.get("gw_axis_off")) \
+            else nf.get("weathering_he", "")
         names = ", ".join(m["name"] for m in members[:3])
         if len(members) > 3:
             names += f" ועוד {len(members) - 3}"
@@ -428,7 +433,10 @@ def _map_payload(data, fam_of, clusters=None):
         extra = ""
         if fk == "gw" and s["name"] in gw_tiers:
             gt = gw_tiers[s["name"]]
-            extra = f"<br>מדרגת-עננה: {gt['tier']}"
+            if gt.get("tier") == "off":
+                extra = "<br>ציר-תהום גיאומטרי מבוטל (KI-A2) — תצפית בלבד"
+            else:
+                extra = f"<br>מדרגת-עננה: {gt['tier']}"
             if gt.get("tier_best"):
                 extra += f" (מטושטש-שאיבה: עד {gt['tier_best']})"
             wc = gt.get("well_class")
@@ -1494,38 +1502,61 @@ def _findings_family_sections(data, fam_of, nar_families):
             _names_row("הקידוחים (מרחק מהערוץ)", _casc_fmt)
 
         elif key == "gw":
-            comp = {}
-            n_prod = 0
-            for m in members:
-                gt = gw_tiers.get(m["name"], {})
-                t = gt.get("tier", "?")
-                comp[t] = comp.get(t, 0) + 1
-                if gt.get("well_class") == "production":
-                    n_prod += 1
-            obs += ("שיוך הקידוחים לעננה נשען כולו על כיוון-זרימה מונח, "
-                    "ולכן תומך אך אינו מאשש. ")
-            if n_prod:
-                obs += (f"{n_prod} מהם קידוחי-הפקה — דגימתם משקללת "
-                        "אזור-לכידה בלתי-מוגדר, מדרגתם מדווחת כטווח "
-                        "וריכוזם חסם-תחתון. ")
-            obs += ("כלל 'מדרגה 4 עם זיהום = ממצא' חל על קידוחי-ניטור; "
-                    "בקידוח-הפקה הצעד הנגזר הוא חיבוק בקידוחי-ניטור.")
-            comp_he = ", ".join(f"מדרגה {t}: {n}" for t, n in
-                                sorted(comp.items()) if t != "up")
-            if comp.get("up"):
-                comp_he += f", במעלה: {comp['up']}"
-            card.append((f"פילוח מדרגות (k={GW_PLUME_K})", _esc(comp_he)))
-            if n_prod:
-                card.append(("קידוחי-הפקה", f"{n_prod} (טווח-מדרגה עד 500 מ')"))
+            if c.get("gw_axis_off"):
+                n_prod = sum(1 for m in members
+                             if gw_tiers.get(m["name"], {}).get("well_class")
+                             == "production")
+                obs += ("ציר-התהום הגיאומטרי מבוטל בתיק זה בהכרעת מומחה "
+                        "(KI-A2): מדובר במי תהום מקומיים בתוך שכבת חרסית, "
+                        "שכיוון-זרימה אזורי חסר משמעות עבורם, וקידוחי "
+                        "ההפקה שואבים ממדרגה עמוקה יותר. הקידוחים המפורטים "
+                        "כאן מוצגים כתצפית-שדה בלבד — לא כתמיכה בשום מועמד "
+                        "ולא כראיית-נגד לו. ")
+                if n_prod:
+                    obs += (f"{n_prod} מהם קידוחי-הפקה, שדגימתם משקללת "
+                            "אזור-לכידה בלתי-מוגדר ממילא. ")
+                obs += ("אם וכאשר יימדדו מפלסים באזור — הציר ייפתח מחדש "
+                        "ויוערך מחדש לפי הנתונים.")
+                card.append(("סטטוס ציר", "מבוטל — הכרעת מומחה (KI-A2)"))
+                if n_prod:
+                    card.append(("קידוחי-הפקה", f"{n_prod}"))
 
-            def _gw_fmt(m):
-                gt = gw_tiers.get(m["name"], {})
-                t = gt.get("tier", "?")
-                t_lbl = "במעלה" if t == "up" else f"מדרגה {t}"
-                if gt.get("tier_best") and gt["tier_best"] != t:
-                    t_lbl += f" (עד {gt['tier_best']} בטווח-הלכידה)"
-                return f'{_esc(m["name"])} ({t_lbl})'
-            _names_row("הקידוחים (מדרגת-עננה)", _gw_fmt)
+                def _gw_fmt(m):
+                    return _esc(m["name"])
+            else:
+                comp = {}
+                n_prod = 0
+                for m in members:
+                    gt = gw_tiers.get(m["name"], {})
+                    t = gt.get("tier", "?")
+                    comp[t] = comp.get(t, 0) + 1
+                    if gt.get("well_class") == "production":
+                        n_prod += 1
+                obs += ("שיוך הקידוחים לעננה נשען כולו על כיוון-זרימה מונח, "
+                        "ולכן תומך אך אינו מאשש. ")
+                if n_prod:
+                    obs += (f"{n_prod} מהם קידוחי-הפקה — דגימתם משקללת "
+                            "אזור-לכידה בלתי-מוגדר, מדרגתם מדווחת כטווח "
+                            "וריכוזם חסם-תחתון. ")
+                obs += ("כלל 'מדרגה 4 עם זיהום = ממצא' חל על קידוחי-ניטור; "
+                        "בקידוח-הפקה הצעד הנגזר הוא חיבוק בקידוחי-ניטור.")
+                comp_he = ", ".join(f"מדרגה {t}: {n}" for t, n in
+                                    sorted(comp.items()) if t != "up")
+                if comp.get("up"):
+                    comp_he += f", במעלה: {comp['up']}"
+                card.append((f"פילוח מדרגות (k={GW_PLUME_K})", _esc(comp_he)))
+                if n_prod:
+                    card.append(("קידוחי-הפקה", f"{n_prod} (טווח-מדרגה עד 500 מ')"))
+
+                def _gw_fmt(m):
+                    gt = gw_tiers.get(m["name"], {})
+                    t = gt.get("tier", "?")
+                    t_lbl = "במעלה" if t == "up" else f"מדרגה {t}"
+                    if gt.get("tier_best") and gt["tier_best"] != t:
+                        t_lbl += f" (עד {gt['tier_best']} בטווח-הלכידה)"
+                    return f'{_esc(m["name"])} ({t_lbl})'
+            _names_row("הקידוחים (תצפית בלבד)" if c.get("gw_axis_off")
+                       else "הקידוחים (מדרגת-עננה)", _gw_fmt)
 
         elif key == "other":
             obs += ("תחנות שאינן משויכות לאף נתיב של המועמדים: פרופיל דומה "
@@ -2373,6 +2404,11 @@ def main(region_name):
         else:
             body += ("הדירוג נותר מסויג כל עוד משטר הזרימה נלמד מהנחה או "
                      "מקריאת מפה ולא ממדידות מפלס.")
+        if c.get("expert_determination_he"):
+            body += (f' <b>הכרעת מומחה-התוכן ({_esc(c.get("expert_claim_id", ""))}):'
+                      f' "{_esc(c["expert_determination_he"])}"</b> — '
+                      f"קביעה עצמאית, המבוססת על ידע דומייני מעבר לצירים "
+                      f"שהמנוע סופר; מוצגת לצד דירוג-המנוע ולא כתחליף לו.")
         S.append(f'<div class="concl"><p>{_bdi(body)} '
                  f'{_conf(lvl, "צירי ראיה משלימים; ראו פרק 4")}</p></div>')
 
