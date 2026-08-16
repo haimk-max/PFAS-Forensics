@@ -182,6 +182,8 @@ cd geo-forensics && pytest
 
 ## כללי מימוש מפה (דוח-התיק, איור 1)
 
+> הכללים הגנריים (לא-PFAS) הועלו לבית הקנוני החוצה-פרויקטים: `sessions-archive/toolkit/process/playbooks/leaflet-maps-rtl.md@4d4bdd7`. שינוי מהותי כאן מחייב עדכון שם באותו סבב — אין סנכרון אוטומטי.
+
 - **Leaflet מוטמע, לא Plotly** (2026-08-12): המפה רצה על Leaflet 1.9.4 שנשמר בריפו (`geo-forensics/vendor/leaflet`, ‏BSD-2 + PROVENANCE) ומוזרק inline — דף-Artifact חסום מ-CDN. ‏CRS.Simple ביחידות ITM-ק"מ (lat=Y, lng=X): אין הטלה ואין שרת-אריחים. Plotly נשאר לשאר האיורים.
 - **`preferCanvas: true` חובה**: רנדרר-ה-SVG של Leaflet לא נותן hit-testing אמין בתוך המסמך ה-RTL הזה (המצביע נופל ל-container) — עם canvas ה-tooltip/popup עובדים, וגם הביצועים בעשרות-מאות סמנים.
 - **תוויות אינן חוסמות לחיצות**: כל עטיפת-DivIcon של טקסט (`.stnlblwrap/.stnlbl/.srclbl`) חייבת `pointer-events:none` — היא גדולה מתיבת-האייקון ובולעת לחיצות מהסמנים שמתחתיה.
