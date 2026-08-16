@@ -7,7 +7,8 @@
 ## סשן 2026-08-16 — איחוד ענפים בשלושת הריפואים + הזנת ה-toolkit
 
 - **מחיקת ענף מרוחק אינה בידי הסשן — רק המשתמש ב-UI של GitHub.** ‏`git push origin --delete` מחזיר **403 לכל ענף שאינו ענף-העבודה המיועד**, ובשרת ה-GitHub MCP אין כלי מחיקת-ענף (רק `create_branch`). זו **אינה** תקלת-proxy (‏`curl $HTTPS_PROXY/__agentproxy/status` חזר נקי) — אין לבזבז סבב על אבחון-רשת. בסשן זה המשתמש מחק ידנית 6 ענפים ישנים מ-PFAS-Forensics.
-- **מצב הענפים אחרי האיחוד**: בשלושת הריפואים `main` == ענף-העבודה `claude/pfas-geo-forensics-plan-dyea7z`. שני שאריות ידועות: ‏(א) ב-sessions-archive ענף-העבודה קדימה ב-commit אחד (‏`4d4bdd7`, עדכוני toolkit) שטרם מוזג ל-main; ‏(ב) ב-Water-Knowledge-system נותר `claude/lims-analytical-run-capabilities-lx3x52` — **ממוזג במלואו ל-main**, בטוח למחיקה.
+- **מצב הענפים בסוף הסשן**: בשלושת הריפואים `main` == ענף-העבודה `claude/pfas-geo-forensics-plan-dyea7z`, ללא הפרשים. שארית אחת: ב-Water-Knowledge-system נותר `claude/lims-analytical-run-capabilities-lx3x52` — **ממוזג במלואו ל-main**, בטוח למחיקה (בצד המשתמש, ראו הנקודה הקודמת).
+- **שגרה שנקבעה**: בסוף כל סשן — מיזוג ענף-העבודה ל-main ואז מחיקתו בממשק, כדי שלא יצטבר יותר מענף חי אחד.
 - **כללי-המפה הגנריים כבר לא חיים רק כאן**: הועלו ל-`sessions-archive/.../playbooks/leaflet-maps-rtl.md`, ו-CLAUDE.md נושא כעת הערת provenance. שינוי בכללי-המפה מחייב עדכון הפלייבוק באותו סבב.
 
 ## סשן 2026-08-13 — יישום סבב-הכרעות המומחה (קישון): ביטול ציר-תהום + הצגת קביעות-מומחה
