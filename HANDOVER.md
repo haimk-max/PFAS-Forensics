@@ -4,6 +4,14 @@
 
 ---
 
+## סשן 2026-08-16 (ב') — מקורות נתונים ממשלתיים: מה קיים ואיפה
+
+- **נתוני איכות מי שתייה של משרד הבריאות אינם ב-data.gov.il — הם ב-`mywater.health.gov.il`** (מערכת "המים שלי"). ‏API‏ JSON ללא הזדהות; ‏endpoints‏: `GET api/WaterNetwork/GetCities`, ‏`POST api/WaterNetwork/GetSamplePoints {cityId}`, ‏`POST api/WaterNetwork/GetSpResults {cityId,samplePointId,sampleTypeId}`, ‏`GET api/NationalFacility/GetNationalFacilities`, ‏`POST api/NationalFacility/GetNfResults {nfId,sampleTypeId}`, ‏`GET api/MyWaterGeneral/GetTransferDate`. ‏`sampleTypeId`: 1=מיקרוביולוגיה, 2=כימיה — **השמטתו מחזירה 400**. כל שורה נושאת `norm` (התקן), `postCareResult` ו-`outIsInNorm` (דגל חריגה). זוהה בהנדסה-לאחור של ה-JS bundle; **API פנימי של אפליקציית ווב, לא ממשק open-data מתועד — עלול להשתנות בלי הודעה.**
+- **שתי מגבלות שקובעות אם זה רלוונטי לתיק**: (א) **אין PFAS** — 106 פרמטרים ב-13 פרופילים (טבלאות א–ו של תקנות מי שתייה), אף אחד אינו PFAS/PFOA/PFOS; (ב) הכיסוי הוא **רשת האספקה + 6 מתקנים ארציים** (5 התפלה + סינון חבל הירדן), **לא קידוחי הפקה**. לקידוחים — `borehole_wq_params` / `borehole_quality_history` של רשות המים ב-data.gov.il (‏`datastore_active`, ‏9 משאבים לפי עשורים).
+- **data.gov.il — תוצאה שלילית מאומתת**: מתוך 1,199 מאגרים בקטלוג החי, ‏`מי שתייה`=0, ‏`PFAS`=0, ו-5 מאגרי "איכות מים" — **כולם רשות המים**. למשרד הבריאות 54 מאגרים, אף אחד אינו נתוני מים (רק `water-fabs-lists` = רשימת מעבדות). אין לחזור על החיפוש הזה.
+- **‏footgun: חיפוש CKAN לא אמין לעברית רב-מילית** — `"מי שתייה"` החזיר 0 בעוד `"ניטור מי שתייה"` החזיר 1 (בלתי אפשרי לוגית). **לכל טענה שלילית**: למשוך את הקטלוג המלא (`package_search q=*:* rows=200` בדפדוף) ולסרוק מקומית. גם הצהרת ה-MCP‏ `data-gov-il-mcp` על "over 3,000 datasets" שגויה — בפועל 1,199.
+- **‏allowlist הרשת של הסביבה חל מיידית, לא רק על סשן חדש.** התיעוד אומר זאת על *משתני סביבה*; לרשת זה לא נכון — הפרוקסי בודק בכל בקשה. אין צורך לפתוח סשן אחרי הוספת דומיין. פתוח כרגע: `data.gov.il`, ‏`*.health.gov.il`. **עדיין חסום**: `www.gov.il` — ולכן דוחות ה-PDF של PFAS לא נגישים.
+
 ## סשן 2026-08-16 — איחוד ענפים בשלושת הריפואים + הזנת ה-toolkit
 
 - **מחיקת ענף מרוחק אינה בידי הסשן — רק המשתמש ב-UI של GitHub.** ‏`git push origin --delete` מחזיר **403 לכל ענף שאינו ענף-העבודה המיועד**, ובשרת ה-GitHub MCP אין כלי מחיקת-ענף (רק `create_branch`). זו **אינה** תקלת-proxy (‏`curl $HTTPS_PROXY/__agentproxy/status` חזר נקי) — אין לבזבז סבב על אבחון-רשת. בסשן זה המשתמש מחק ידנית 6 ענפים ישנים מ-PFAS-Forensics.
